@@ -778,8 +778,13 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
     
-    // GitHub configuration
-    const GITHUB_TOKEN = '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';
+    // GitHub configuration - read token from environment
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[GitHub Upload] No GITHUB_TOKEN found in environment');
+      return c.json({ error: 'GitHub token not configured' }, 500);
+    }
+    
     const GITHUB_OWNER = 'Nesbit25';
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_BRANCH = 'main';
@@ -865,8 +870,13 @@ app.post("/make-server-fc862019/gallery/create-folder", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    // GitHub configuration
-    const GITHUB_TOKEN = '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';
+    // GitHub configuration - read token from environment
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[Create Folder] No GITHUB_TOKEN found in environment');
+      return c.json({ error: 'GitHub token not configured' }, 500);
+    }
+    
     const GITHUB_OWNER = 'Nesbit25';
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_BRANCH = 'main';
@@ -994,8 +1004,13 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
 
     console.log('[Sync GitHub] Starting sync from GitHub...');
 
-    // GitHub configuration
-    const GITHUB_TOKEN = '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';
+    // GitHub configuration - read token from environment
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[Sync GitHub] No GITHUB_TOKEN found in environment');
+      return c.json({ error: 'GitHub token not configured' }, 500);
+    }
+    
     const GITHUB_OWNER = 'Nesbit25';
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
@@ -1144,7 +1159,12 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
 // Get GitHub gallery files (with authentication) - UNPROTECTED so gallery can load without login
 app.get("/make-server-fc862019/gallery/github-files", async (c) => {
   try {
-    const GITHUB_TOKEN = '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';
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[GitHub Files] No GITHUB_TOKEN found in environment');
+      return c.json({ error: 'GitHub token not configured', files: [] }, 500);
+    }
+    
     const GITHUB_OWNER = 'Nesbit25';
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
@@ -1192,7 +1212,12 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
 // Check GitHub folder status (for debugging) - UNPROTECTED for easier debugging
 app.get("/make-server-fc862019/gallery/check-github", async (c) => {
   try {
-    const GITHUB_TOKEN = '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';
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[Check GitHub] No GITHUB_TOKEN found in environment');
+      return c.json({ error: 'GitHub token not configured' }, 500);
+    }
+    
     const GITHUB_OWNER = 'Nesbit25';
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
