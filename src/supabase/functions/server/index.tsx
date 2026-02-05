@@ -1002,6 +1002,8 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
 
     // Fetch files from GitHub
     const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    console.log('[Sync GitHub] Fetching from:', githubApiUrl);
+    
     const response = await fetch(githubApiUrl, {
       headers: {
         'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -1009,8 +1011,24 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       }
     });
 
+    console.log('[Sync GitHub] GitHub response status:', response.status);
+
+    if (response.status === 404) {
+      console.log('[Sync GitHub] ⚠️  Gallery folder does not exist in GitHub yet');
+      return c.json({
+        success: false,
+        error: 'Gallery folder not found in GitHub. Please upload images using the bulk uploader first.',
+        casesFound: 0,
+        casesCreated: 0,
+        casesSkipped: 0,
+        createdCases: []
+      }, 404);
+    }
+
     if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[Sync GitHub] GitHub API error:', response.status, errorText);
+      throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
     }
 
     const files = await response.json();
@@ -1120,6 +1138,118 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
   } catch (error) {
     console.error('[Sync GitHub] Error:', error);
     return c.json({ error: `Failed to sync from GitHub: ${error.message}` }, 500);
+  }
+});
+
+// Get GitHub gallery files (with authentication) - UNPROTECTED so gallery can load without login
+app.get("/make-server-fc862019/gallery/github-files", async (c) => {
+  try {
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_FOLDER = 'gallery';
+
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    
+    console.log('[GitHub Files] Fetching:', githubApiUrl);
+    
+    const response = await fetch(githubApiUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    console.log('[GitHub Files] Response status:', response.status);
+    
+    if (response.status === 404) {
+      console.log('[GitHub Files] Folder not found');
+      return c.json({ files: [], exists: false }, 404);
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[GitHub Files] Error:', response.status, errorText);
+      return c.json({ error: `GitHub API error: ${response.status}`, files: [] }, response.status);
+    }
+
+    const files = await response.json();
+    console.log('[GitHub Files] Found', files.length, 'files');
+    
+    // Return the raw file list - let client filter/process
+    return c.json({ 
+      files, 
+      exists: true,
+      count: files.length 
+    });
+
+  } catch (error) {
+    console.error('[GitHub Files] Error:', error);
+    return c.json({ error: error.message, files: [] }, 500);
+  }
+});
+
+// Check GitHub folder status (for debugging) - UNPROTECTED for easier debugging
+app.get("/make-server-fc862019/gallery/check-github", async (c) => {
+  try {
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_FOLDER = 'gallery';
+
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    
+    console.log('[Check GitHub] Checking:', githubApiUrl);
+    
+    const response = await fetch(githubApiUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    const status = response.status;
+    
+    if (response.status === 404) {
+      return c.json({
+        exists: false,
+        status: 404,
+        message: 'Gallery folder does not exist in GitHub',
+        url: githubApiUrl,
+        suggestion: 'Upload images using the Bulk Gallery Uploader first'
+      });
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return c.json({
+        exists: false,
+        status,
+        error: errorText,
+        url: githubApiUrl
+      });
+    }
+
+    const files = await response.json();
+    const imageFiles = files.filter(f => 
+      f.type === 'file' && (f.name.endsWith('.png') || f.name.endsWith('.jpg') || f.name.endsWith('.jpeg'))
+    );
+
+    return c.json({
+      exists: true,
+      status: 200,
+      totalFiles: files.length,
+      imageFiles: imageFiles.length,
+      fileNames: imageFiles.slice(0, 10).map(f => f.name),
+      message: imageFiles.length > 0 
+        ? `Found ${imageFiles.length} images in GitHub` 
+        : 'Folder exists but contains no images',
+      url: githubApiUrl
+    });
+
+  } catch (error) {
+    console.error('[Check GitHub] Error:', error);
+    return c.json({ error: error.message }, 500);
   }
 });
 

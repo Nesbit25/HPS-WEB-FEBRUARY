@@ -180,47 +180,32 @@ export function Gallery({ onNavigate }: GalleryProps) {
   
   const fetchAndUpdateGallery = async () => {
     try {
-      // 1. Fetch file list from GitHub API
+      // 1. Fetch file list from GitHub via SERVER (authenticated)
       console.log('[Gallery] ========== START GALLERY LOAD ==========');
-      console.log('[Gallery] Fetching file list from GitHub...');
-      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
-      console.log('[Gallery] API URL:', githubApiUrl);
+      console.log('[Gallery] Fetching file list from GitHub via server...');
       
-      const response = await fetch(githubApiUrl);
-      console.log('[Gallery] Response status:', response.status, response.statusText);
+      const response = await fetch(`${serverUrl}/gallery/github-files`);
+      console.log('[Gallery] Server response status:', response.status);
+      
+      const data = await response.json();
       
       // Handle 404 - folder doesn't exist yet (no images uploaded)
-      if (response.status === 404) {
+      if (response.status === 404 || !data.exists) {
         console.log('[Gallery] ❌ Gallery folder not found in GitHub');
         console.log('[Gallery] Falling back to database-only load...');
         await loadCasesFromDatabaseOnly();
         return;
       }
       
-      // Handle rate limiting
-      if (response.status === 403) {
-        console.error('[Gallery] ❌ GitHub API rate limit exceeded');
-        
-        // Try to get cached data as fallback
-        const cachedData = localStorage.getItem('gallery_items_cache');
-        if (cachedData) {
-          console.log('[Gallery] Using cached data due to rate limit');
-          setGalleryItems(JSON.parse(cachedData));
-          setLoading(false);
-          return;
-        }
-        
-        console.log('[Gallery] No cache, falling back to database-only load...');
+      if (!response.ok || !data.files) {
+        console.error('[Gallery] ❌ Server error:', data.error);
+        console.log('[Gallery] Falling back to database-only load...');
         await loadCasesFromDatabaseOnly();
         return;
       }
       
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-      }
-      
-      const files = await response.json();
-      console.log('[Gallery] Found', files.length, 'files in GitHub repo');
+      const files = data.files;
+      console.log('[Gallery] ✅ Found', files.length, 'files in GitHub repo');
       
       // 2. Filter to only image files
       const imageFiles = files.filter(file => 
@@ -614,13 +599,26 @@ export function Gallery({ onNavigate }: GalleryProps) {
 
   const handleDebugGitHub = async () => {
     try {
-      console.log('[Debug GitHub] Fetching files from GitHub...');
+      console.log('[Debug GitHub] Checking GitHub folder status via server...');
+      
+      const checkResponse = await fetch(`${serverUrl}/gallery/check-github`);
+      const checkData = await checkResponse.json();
+      
+      console.log('[Debug GitHub] Server check result:', checkData);
+      
+      if (!checkData.exists) {
+        alert(`❌ GitHub Folder Not Found!\n\nStatus: ${checkData.status}\nMessage: ${checkData.message || checkData.error}\n\n${checkData.suggestion || 'Please upload images using Bulk Upload first'}`);
+        return;
+      }
+      
+      // Fallback to direct GitHub API call for detailed file listing
+      console.log('[Debug GitHub] Fetching detailed file list from GitHub...');
       const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
       
       const response = await fetch(githubApiUrl);
       
       if (!response.ok) {
-        alert(`❌ GitHub API Error: ${response.status} ${response.statusText}\n\nRate limit or folder not found?`);
+        alert(`❌ GitHub API Error: ${response.status} ${response.statusText}\n\nFolder exists according to server, but direct fetch failed`);
         return;
       }
       

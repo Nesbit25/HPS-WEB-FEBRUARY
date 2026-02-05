@@ -2099,6 +2099,10 @@
     border-color: var(--color-blue-200);
   }
 
+  .border-blue-400 {
+    border-color: var(--color-blue-400);
+  }
+
   .border-border {
     border-color: var(--border);
   }
@@ -3576,6 +3580,10 @@
     color: var(--color-amber-900);
   }
 
+  .text-blue-400 {
+    color: var(--color-blue-400);
+  }
+
   .text-blue-500 {
     color: var(--color-blue-500);
   }
@@ -4526,6 +4534,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:bg-blue-400:hover {
+      background-color: var(--color-blue-400);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:bg-blue-600:hover {
       background-color: var(--color-blue-600);
     }
@@ -4594,6 +4608,12 @@
   @media (hover: hover) {
     .hover\:bg-gray-100:hover {
       background-color: var(--color-gray-100);
+    }
+  }
+
+  @media (hover: hover) {
+    .hover\:bg-green-700:hover {
+      background-color: var(--color-green-700);
     }
   }
 
