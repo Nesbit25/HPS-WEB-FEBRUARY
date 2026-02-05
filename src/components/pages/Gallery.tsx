@@ -396,27 +396,37 @@ export function Gallery({ onNavigate }: GalleryProps) {
 
   const handleDebugGallery = async () => {
     try {
-      const response = await fetch(`${serverUrl}/gallery/debug`, {
+      const response = await fetch(`${serverUrl}/gallery/cases`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${publicAnonKey}`
         }
       });
       const data = await response.json();
       
-      const message = data.keys.length === 0 
-        ? '❌ No gallery images found in database!\n\nThe gallery_ keys are empty.'
-        : `📊 Gallery Database Contents:\n\n${data.keys.map(k => {
-            const valueStr = typeof k.value === 'object' 
-              ? JSON.stringify(k.value, null, 2) 
-              : k.value;
-            return `Key: ${k.key}\nValue: ${valueStr}\n`;
-          }).join('\n---\n')}\n\nTotal: ${data.keys.length} images`;
+      const cases = data.cases || [];
+      
+      const message = cases.length === 0 
+        ? '❌ No gallery cases found in database!\n\nThe gallery_case_ keys are empty.'
+        : `📊 Gallery Cases in Database:\n\n${cases.map(c => {
+            return `ID: ${c.id}\nSlug: ${c.slug}\nCategory: ${c.category}\nTitle: ${c.title}\nOrientations: ${c.orientations?.length || 0}`;
+          }).join('\n\n---\n\n')}\n\nTotal: ${cases.length} cases`;
       
       alert(message);
       console.log('Full debug data:', data);
     } catch (error) {
       alert(`Error loading debug info: ${error.message}`);
     }
+  };
+
+  const handleDebugDisplayed = () => {
+    const message = galleryItems.length === 0 
+      ? '❌ No gallery items currently displayed!\n\ngalleryItems array is empty.'
+      : `📊 Currently Displayed Cases:\n\n${galleryItems.map(item => {
+          return `ID: ${item.id}\nSlug: ${item.slug}\nCategory: ${item.category}\nTitle: ${item.title}\nBefore: ${item.beforeImage ? '✅' : '❌'}\nAfter: ${item.afterImage ? '✅' : '❌'}\nOrientations: ${item.orientations?.length || 0}`;
+        }).join('\n\n---\n\n')}\n\nTotal displayed: ${galleryItems.length} cases`;
+    
+    alert(message);
+    console.log('Current galleryItems:', galleryItems);
   };
 
   const handleFixCaseId = async () => {
@@ -620,10 +630,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
         });
       }
       
+      message += '\n📋 The gallery will now reload...';
+      
       alert(message);
       
-      // Reload the gallery
-      loadGalleryImages();
+      // Clear client-side cache
+      console.log('[Sync GitHub] Clearing client-side cache...');
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      
+      // Force reload the gallery by calling fetchAndUpdateGallery directly (bypasses cache check)
+      console.log('[Sync GitHub] Reloading gallery...');
+      setLoading(true);
+      await fetchAndUpdateGallery();
     } catch (error) {
       console.error('[Sync GitHub] Error:', error);
       alert(`Error syncing from GitHub: ${error.message}`);
@@ -901,7 +920,15 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 onClick={handleDebugGallery}
                 className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
               >
-                🔍 Debug Gallery Database
+                🔍 Debug Database
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDebugDisplayed}
+                className="rounded-full border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white"
+              >
+                👁️ Debug Displayed
               </Button>
               <Button
                 variant="outline"
