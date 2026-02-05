@@ -150,8 +150,8 @@ export function Gallery({ onNavigate }: GalleryProps) {
         category: dbCase.category || 'Face',
         procedure: dbCase.procedure || '',
         journeyNote: dbCase.journeyNote || '',
-        beforeImage: null, // Will be populated from GitHub if available
-        afterImage: null,
+        beforeImage: dbCase.beforeImage || null,
+        afterImage: dbCase.afterImage || null,
         orientations: dbCase.orientations || [],
         featuredOnHome: dbCase.featuredOnHome || false,
         showOnNose: dbCase.showOnNose || false,
