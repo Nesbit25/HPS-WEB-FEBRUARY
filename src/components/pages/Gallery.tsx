@@ -491,6 +491,50 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
+  const handleCreateNewCase = async () => {
+    try {
+      // First, check if gallery folder exists
+      console.log('[Create Case] Checking if gallery folder exists...');
+      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+      
+      const response = await fetch(githubApiUrl);
+      
+      // If folder doesn't exist (404), create it
+      if (response.status === 404) {
+        console.log('[Create Case] Gallery folder does not exist, creating it...');
+        
+        if (!confirm('The gallery folder does not exist in GitHub yet.\n\nWould you like to create it now?\n\n(This will create an empty .gitkeep file to initialize the folder)')) {
+          return;
+        }
+        
+        // Create .gitkeep file to initialize the folder
+        const createResponse = await fetch(`${serverUrl}/gallery/create-folder`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || 'Failed to create gallery folder');
+        }
+        
+        alert('✅ Gallery folder created successfully!\n\nYou can now create cases and upload images.');
+        
+        // Reload gallery to clear the error state
+        loadGalleryImages();
+      }
+      
+      // Open the case editor
+      setNewCaseEditorOpen(true);
+    } catch (error) {
+      console.error('[Create Case] Error:', error);
+      alert(`Error: ${error.message}\n\nPlease try again or contact support.`);
+    }
+  };
+
   const handleDebugGitHub = async () => {
     try {
       console.log('[Debug GitHub] Fetching files from GitHub...');
@@ -790,7 +834,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => setNewCaseEditorOpen(true)}
+                onClick={handleCreateNewCase}
                 className="rounded-full bg-[#c9b896] text-[#1a1f2e] hover:bg-[#b8976a] shadow-lg"
               >
                 <Plus className="w-4 h-4 mr-2" />
