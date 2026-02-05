@@ -842,6 +842,77 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
   }
 });
 
+// Create gallery folder in GitHub (protected)
+app.post("/make-server-fc862019/gallery/create-folder", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    
+    if (!user || error) {
+      console.log('[Create Folder] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // GitHub configuration
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_BRANCH = 'main';
+    
+    console.log('[Create Folder] Creating gallery folder in GitHub...');
+    
+    // Create .gitkeep file to initialize the gallery folder
+    const githubPath = 'gallery/.gitkeep';
+    const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
+    
+    // Check if file already exists
+    const checkResponse = await fetch(uploadUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    
+    if (checkResponse.ok) {
+      console.log('[Create Folder] Gallery folder already exists');
+      return c.json({ success: true, message: 'Gallery folder already exists' });
+    }
+    
+    // Create the .gitkeep file
+    const uploadPayload = {
+      message: 'Initialize gallery folder',
+      content: '', // Empty file
+      branch: GITHUB_BRANCH
+    };
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(uploadPayload)
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json();
+      console.error('[Create Folder] Error:', errorData);
+      throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
+    }
+    
+    console.log('[Create Folder] Successfully created gallery folder');
+    
+    return c.json({ 
+      success: true, 
+      message: 'Gallery folder created successfully'
+    });
+  } catch (error) {
+    console.error('[Create Folder] Error:', error);
+    return c.json({ error: `Failed to create gallery folder: ${error.message}` }, 500);
+  }
+});
+
 // Create new gallery case (protected)
 app.post("/make-server-fc862019/gallery/create", async (c) => {
   try {
