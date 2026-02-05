@@ -7,6 +7,58 @@ import { generateFormPDF } from './pdf-generator.tsx';
 
 const app = new Hono();
 
+// ===== IN-MEMORY CACHE TO REDUCE DATABASE CALLS =====
+interface CacheEntry {
+  value: any;
+  timestamp: number;
+}
+
+const contentCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+
+// Cached KV get wrapper
+async function getCachedContent(key: string): Promise<any> {
+  // Check cache first
+  const cached = contentCache.get(key);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    console.log(`[CACHE HIT] Returning cached content for key: ${key}`);
+    return cached.value;
+  }
+  
+  console.log(`[CACHE MISS] Fetching from database for key: ${key}`);
+  const value = await kv.get(key);
+  
+  // Store in cache
+  contentCache.set(key, {
+    value,
+    timestamp: Date.now()
+  });
+  
+  return value;
+}
+
+// Clear cache entry
+function clearCacheEntry(key: string) {
+  contentCache.delete(key);
+  console.log(`[CACHE] Cleared cache for key: ${key}`);
+}
+
+// Periodic cache cleanup (every 10 minutes)
+setInterval(() => {
+  const now = Date.now();
+  let cleared = 0;
+  for (const [key, entry] of contentCache.entries()) {
+    if (now - entry.timestamp >= CACHE_TTL_MS) {
+      contentCache.delete(key);
+      cleared++;
+    }
+  }
+  if (cleared > 0) {
+    console.log(`[CACHE] Cleaned up ${cleared} expired entries`);
+  }
+}, 10 * 60 * 1000);
+// ===== END CACHE =====
+
 // Retry utility for handling connection resets
 async function retryOperation<T>(
   operation: () => Promise<T>,
@@ -1507,9 +1559,9 @@ app.get('/make-server-fc862019/content/:key', async (c) => {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`[PUBLIC GET] Attempt ${attempt}/${maxRetries} - Calling kv.get("${key}")...`);
-      const content = await kv.get(key);
-      console.log(`[PUBLIC GET] kv.get returned:`, content);
+      console.log(`[PUBLIC GET] Attempt ${attempt}/${maxRetries} - Calling getCachedContent("${key}")...`);
+      const content = await getCachedContent(key);
+      console.log(`[PUBLIC GET] getCachedContent returned:`, content);
       
       if (!content) {
         console.log(`[PUBLIC GET] Content not found for key: ${key}`);
@@ -1667,6 +1719,9 @@ app.put('/make-server-fc862019/content/:key', async (c) => {
       updatedBy: user.id,
       updatedAt: new Date().toISOString()
     });
+    
+    // Clear cache entry to force fresh fetch on next GET
+    clearCacheEntry(key);
     
     console.log(`[PUT] Content updated successfully for key: ${key}`);
     return c.json({ success: true, saved: true });
