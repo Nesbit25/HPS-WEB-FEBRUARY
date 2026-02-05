@@ -43,6 +43,18 @@ function clearCacheEntry(key: string) {
   console.log(`[CACHE] Cleared cache for key: ${key}`);
 }
 
+// Clear all gallery cache entries
+function clearGalleryCache() {
+  let cleared = 0;
+  for (const [key] of contentCache.entries()) {
+    if (key.startsWith('gallery_')) {
+      contentCache.delete(key);
+      cleared++;
+    }
+  }
+  console.log(`[CACHE] Cleared ${cleared} gallery cache entries`);
+}
+
 // Periodic cache cleanup (every 10 minutes)
 setInterval(() => {
   const now = Date.now();
@@ -1094,6 +1106,9 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     }
 
     console.log(`[Sync GitHub] Sync complete. Created: ${casesCreated}, Skipped: ${casesSkipped}`);
+
+    // Clear server-side cache so new cases appear immediately
+    clearGalleryCache();
 
     return c.json({
       success: true,
