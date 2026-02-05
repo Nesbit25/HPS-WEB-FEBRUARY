@@ -307,6 +307,9 @@ export function BulkGalleryUploader({
 
           console.log(`[BulkUpload] Processing position ${position} for case ${caseSlug}`);
 
+          let beforeImageUrl = null;
+          let afterImageUrl = null;
+
           if (positionPhotos.before) {
             const beforeBase64 = await fileToBase64(positionPhotos.before.file);
             const fileExtension = positionPhotos.before.file.name.split('.').pop() || 'png';
@@ -334,7 +337,8 @@ export function BulkGalleryUploader({
             }
 
             const { publicUrl, filename } = await beforeUploadResponse.json();
-            console.log(`[BulkUpload] ✓ Before image uploaded: ${filename}`);
+            beforeImageUrl = publicUrl;
+            console.log(`[BulkUpload] ✓ Before image uploaded: ${filename} at ${publicUrl}`);
           }
 
           if (positionPhotos.after) {
@@ -364,11 +368,12 @@ export function BulkGalleryUploader({
             }
 
             const { publicUrl, filename } = await afterUploadResponse.json();
-            console.log(`[BulkUpload] ✓ After image uploaded: ${filename}`);
+            afterImageUrl = publicUrl;
+            console.log(`[BulkUpload] ✓ After image uploaded: ${filename} at ${publicUrl}`);
           }
           
-          // ✅ CRITICAL: Register this orientation in the database so Gallery can find it!
-          console.log(`[BulkUpload] Registering orientation '${position}' for case ${caseId}...`);
+          // ✅ CRITICAL: Register this orientation in the database WITH IMAGE URLS!
+          console.log(`[BulkUpload] Registering orientation '${position}' for case ${caseId} with URLs...`);
           const orientationResponse = await fetch(`${serverUrl}/gallery/case/${caseId}/orientation`, {
             method: 'POST',
             headers: {
@@ -376,7 +381,9 @@ export function BulkGalleryUploader({
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              orientationName: position.toString()
+              orientationName: position.toString(),
+              beforeImage: beforeImageUrl,
+              afterImage: afterImageUrl
             })
           });
           
@@ -385,7 +392,7 @@ export function BulkGalleryUploader({
             console.warn(`[BulkUpload] Failed to register orientation: ${errorData.error}`);
             // Don't throw - images are uploaded, this is just metadata
           } else {
-            console.log(`[BulkUpload] ✓ Orientation '${position}' registered for case ${caseId}`);
+            console.log(`[BulkUpload] ✓ Orientation '${position}' registered with images for case ${caseId}`);
           }
         }
 
