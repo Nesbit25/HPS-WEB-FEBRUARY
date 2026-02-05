@@ -491,6 +491,54 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
+  const handleDebugGitHub = async () => {
+    try {
+      console.log('[Debug GitHub] Fetching files from GitHub...');
+      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+      
+      const response = await fetch(githubApiUrl);
+      
+      if (!response.ok) {
+        alert(`❌ GitHub API Error: ${response.status} ${response.statusText}\n\nRate limit or folder not found?`);
+        return;
+      }
+      
+      const files = await response.json();
+      
+      const imageFiles = files.filter(file => 
+        file.type === 'file' && 
+        (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+      );
+      
+      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+      
+      let debugInfo = `📊 GitHub Gallery Folder Contents:\n\n`;
+      debugInfo += `Total files: ${files.length}\n`;
+      debugInfo += `Image files: ${imageFiles.length}\n\n`;
+      debugInfo += `Files:\n`;
+      
+      imageFiles.forEach(file => {
+        const match = file.name.match(filenameRegex);
+        if (match) {
+          const [, caseSlug, page, index] = match;
+          const position = Math.ceil(parseInt(index) / 2);
+          const type = (parseInt(index) % 2 !== 0) ? 'before' : 'after';
+          debugInfo += `✅ ${file.name}\n  → case: ${caseSlug}, position: ${position}, type: ${type}\n\n`;
+        } else {
+          debugInfo += `❌ ${file.name}\n  → INVALID FORMAT (doesn't match pattern)\n\n`;
+        }
+      });
+      
+      debugInfo += `\nExpected filename pattern:\n{case_slug}_p{page}_img{index}.{ext}\n\nExample: pt_1003_nose_p1_img1.png`;
+      
+      console.log(debugInfo);
+      alert(debugInfo);
+    } catch (error) {
+      console.error('[Debug GitHub] Error:', error);
+      alert(`Error debugging GitHub: ${error.message}`);
+    }
+  };
+
   const handleDeleteCase = async (id: number) => {
     try {
       const response = await fetch(`${serverUrl}/gallery/case/${id}`, {
@@ -771,6 +819,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
               >
                 📸 Test Image Load
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDebugGitHub}
+                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              >
+                🐙 Debug GitHub Files
               </Button>
               <Button
                 variant="outline"
