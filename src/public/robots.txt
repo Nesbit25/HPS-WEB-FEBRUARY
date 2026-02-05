@@ -1,0 +1,16 @@
+# robots.txt for Hanemann Plastic Surgery
+
+# Allow all search engines
+User-agent: *
+Allow: /
+
+# Disallow admin pages from indexing
+Disallow: /admin/
+Disallow: /admin/login
+Disallow: /admin/dashboard
+
+# Sitemap location
+Sitemap: https://hanemannplasticsurgery.com/sitemap.xml
+
+# Crawl delay (optional - helps prevent server overload)
+Crawl-delay: 1
