@@ -583,6 +583,53 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
+  const handleSyncFromGitHub = async () => {
+    try {
+      if (!confirm('🔄 Sync Cases from GitHub?\n\nThis will scan the GitHub gallery folder and create missing case records in the database.\n\nExisting cases will NOT be modified or duplicated.\n\nContinue?')) {
+        return;
+      }
+
+      console.log('[Sync GitHub] Starting sync...');
+      
+      const response = await fetch(`${serverUrl}/gallery/sync-from-github`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync from GitHub');
+      }
+      
+      const result = await response.json();
+      
+      console.log('[Sync GitHub] Result:', result);
+      
+      let message = '✅ Sync Complete!\n\n';
+      message += `Cases found in GitHub: ${result.casesFound}\n`;
+      message += `New cases created: ${result.casesCreated}\n`;
+      message += `Existing cases skipped: ${result.casesSkipped}\n\n`;
+      
+      if (result.createdCases && result.createdCases.length > 0) {
+        message += 'New cases:\n';
+        result.createdCases.forEach(c => {
+          message += `  • ${c}\n`;
+        });
+      }
+      
+      alert(message);
+      
+      // Reload the gallery
+      loadGalleryImages();
+    } catch (error) {
+      console.error('[Sync GitHub] Error:', error);
+      alert(`Error syncing from GitHub: ${error.message}`);
+    }
+  };
+
   const handleDeleteCase = async (id: number) => {
     try {
       const response = await fetch(`${serverUrl}/gallery/case/${id}`, {
@@ -839,6 +886,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Case
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSyncFromGitHub}
+                className="rounded-full bg-green-600 text-white hover:bg-green-700 shadow-lg"
+              >
+                🔄 Sync from GitHub
               </Button>
               <Button
                 variant="outline"
