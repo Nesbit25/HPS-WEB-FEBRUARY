@@ -142,6 +142,22 @@ export function Gallery({ onNavigate }: GalleryProps) {
         return;
       }
       
+      // Handle rate limiting
+      if (response.status === 403) {
+        console.error('[Gallery] GitHub API rate limit exceeded');
+        
+        // Try to get cached data as fallback
+        const cachedData = localStorage.getItem('gallery_items_cache');
+        if (cachedData) {
+          console.log('[Gallery] Using cached data due to rate limit');
+          setGalleryItems(JSON.parse(cachedData));
+          setLoading(false);
+          return;
+        }
+        
+        throw new Error('GitHub API rate limit exceeded. Please try again later.');
+      }
+      
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
