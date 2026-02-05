@@ -801,48 +801,77 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
     
     console.log(`[GitHub Upload] Uploading ${filename} to GitHub...`);
     
-    // Check if file exists (to determine if we need to update or create)
-    const checkUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
-    const checkResponse = await fetch(checkUrl, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
+    // Retry logic for SHA conflicts (409 errors)
+    let uploadSuccess = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    let result = null;
+    
+    while (!uploadSuccess && retryCount < maxRetries) {
+      try {
+        // Check if file exists (to determine if we need to update or create)
+        const checkUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
+        const checkResponse = await fetch(checkUrl, {
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        
+        let sha = null;
+        if (checkResponse.ok) {
+          const existingFile = await checkResponse.json();
+          sha = existingFile.sha;
+          console.log(`[GitHub Upload] File exists, will update (SHA: ${sha})`);
+        }
+        
+        // Upload to GitHub
+        const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
+        const uploadPayload = {
+          message: `Upload ${imageType} image for ${caseSlug} position ${position}`,
+          content: fileData, // Already base64
+          branch: GITHUB_BRANCH,
+          ...(sha && { sha }) // Include SHA if updating existing file
+        };
+        
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(uploadPayload)
+        });
+        
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          
+          // If we get a 409 conflict (SHA mismatch), retry with fresh SHA
+          if (uploadResponse.status === 409 && retryCount < maxRetries - 1) {
+            retryCount++;
+            console.log(`[GitHub Upload] SHA conflict detected, retrying (attempt ${retryCount}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, 200 * retryCount)); // Exponential backoff
+            continue; // Retry the loop
+          }
+          
+          console.error('[GitHub Upload] Error:', errorData);
+          throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
+        }
+        
+        result = await uploadResponse.json();
+        uploadSuccess = true;
+        
+      } catch (loopError) {
+        if (retryCount >= maxRetries - 1) {
+          throw loopError; // Re-throw if we've exhausted retries
+        }
+        retryCount++;
+        console.log(`[GitHub Upload] Error on attempt ${retryCount}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 200 * retryCount));
       }
-    });
-    
-    let sha = null;
-    if (checkResponse.ok) {
-      const existingFile = await checkResponse.json();
-      sha = existingFile.sha;
-      console.log(`[GitHub Upload] File exists, will update (SHA: ${sha})`);
     }
     
-    // Upload to GitHub
-    const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
-    const uploadPayload = {
-      message: `Upload ${imageType} image for ${caseSlug} position ${position}`,
-      content: fileData, // Already base64
-      branch: GITHUB_BRANCH,
-      ...(sha && { sha }) // Include SHA if updating existing file
-    };
-    
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(uploadPayload)
-    });
-    
-    if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.json();
-      console.error('[GitHub Upload] Error:', errorData);
-      throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
-    }
-    
-    const result = await uploadResponse.json();
     const publicUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${githubPath}`;
     
     console.log(`[GitHub Upload] Successfully uploaded to GitHub: ${publicUrl}`);
@@ -1098,6 +1127,7 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     let casesSkipped = 0;
 
     // Create missing cases
+    const failedCases = [];
     for (const caseSlug of caseSlugs) {
       if (existingSlugs.has(caseSlug)) {
         console.log(`[Sync GitHub] Case already exists, skipping: ${caseSlug}`);
@@ -1105,40 +1135,59 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
         continue;
       }
 
-      // Extract category from slug (assumes format: pt_XXXX_category or similar)
-      const parts = caseSlug.split('_');
-      const category = parts.length > 2 ? parts.slice(2).join('_') : parts[parts.length - 1];
-      const title = `Patient ${parts[1] || 'Case'}`;
+      try {
+        // Extract category from slug (assumes format: pt_XXXX_category or similar)
+        const parts = caseSlug.split('_');
+        const category = parts.length > 2 ? parts.slice(2).join('_') : parts[parts.length - 1];
+        const title = `Patient ${parts[1] || 'Case'}`;
 
-      // Calculate number of orientations (2 images per orientation)
-      const imageCount = caseOrientations.get(caseSlug) || 0;
-      const orientationCount = Math.floor(imageCount / 2);
-      const orientations = [];
-      for (let i = 1; i <= orientationCount; i++) {
-        orientations.push(`Position ${i}`);
+        // Calculate number of orientations (2 images per orientation)
+        const imageCount = caseOrientations.get(caseSlug) || 0;
+        const orientationCount = Math.floor(imageCount / 2);
+        const orientations = [];
+        for (let i = 1; i <= orientationCount; i++) {
+          orientations.push(`Position ${i}`);
+        }
+
+        const caseData = {
+          id: nextId,
+          slug: caseSlug,
+          category: category.charAt(0).toUpperCase() + category.slice(1),
+          title,
+          procedure: category.charAt(0).toUpperCase() + category.slice(1),
+          journeyNote: '',
+          orientations,
+          createdBy: user.id,
+          createdAt: new Date().toISOString(),
+          syncedFromGitHub: true
+        };
+
+        // Create case with error handling
+        console.log(`[Sync GitHub] Writing case ${caseSlug} with ID ${nextId}...`);
+        await kv.set(`gallery_case_${nextId}`, caseData);
+        
+        // Verify it was written
+        const verification = await kv.get(`gallery_case_${nextId}`);
+        if (!verification) {
+          console.error(`[Sync GitHub] ⚠️  WARNING: Case ${caseSlug} was not persisted!`);
+          failedCases.push({ slug: caseSlug, reason: 'Not persisted after write' });
+        } else {
+          console.log(`[Sync GitHub] ✓ Created case: ${caseSlug} with ID ${nextId}, orientations: ${orientations.join(', ')}`);
+          createdCases.push(caseSlug);
+          casesCreated++;
+        }
+        
+        nextId++;
+      } catch (caseError) {
+        console.error(`[Sync GitHub] ❌ Failed to create case ${caseSlug}:`, caseError);
+        failedCases.push({ slug: caseSlug, reason: caseError.message });
       }
-
-      // Create case
-      await kv.set(`gallery_case_${nextId}`, {
-        id: nextId,
-        slug: caseSlug,
-        category: category.charAt(0).toUpperCase() + category.slice(1),
-        title,
-        procedure: category.charAt(0).toUpperCase() + category.slice(1),
-        journeyNote: '',
-        orientations,
-        createdBy: user.id,
-        createdAt: new Date().toISOString(),
-        syncedFromGitHub: true
-      });
-
-      console.log(`[Sync GitHub] Created case: ${caseSlug} with ID ${nextId}, orientations: ${orientations.join(', ')}`);
-      createdCases.push(caseSlug);
-      casesCreated++;
-      nextId++;
     }
 
-    console.log(`[Sync GitHub] Sync complete. Created: ${casesCreated}, Skipped: ${casesSkipped}`);
+    console.log(`[Sync GitHub] Sync complete. Created: ${casesCreated}, Skipped: ${casesSkipped}, Failed: ${failedCases.length}`);
+    if (failedCases.length > 0) {
+      console.error('[Sync GitHub] Failed cases:', failedCases);
+    }
 
     // Clear server-side cache so new cases appear immediately
     clearGalleryCache();
@@ -1148,7 +1197,9 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       casesFound: caseSlugs.size,
       casesCreated,
       casesSkipped,
-      createdCases
+      casesFailed: failedCases.length,
+      createdCases,
+      failedCases
     });
   } catch (error) {
     console.error('[Sync GitHub] Error:', error);
@@ -1291,7 +1342,7 @@ app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
 
     const id = c.req.param('id');
     const body = await c.req.json();
-    const { orientationName } = body;
+    const { orientationName, beforeImage, afterImage } = body;
     
     if (!orientationName) {
       return c.json({ error: 'Missing orientation name' }, 400);
@@ -1306,21 +1357,43 @@ app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
 
     console.log(`[Gallery Add Orientation] Found case:`, caseData);
     
-    // Add orientation if not already present
+    // Initialize orientations array if it doesn't exist
     const orientations = caseData.orientations || [];
-    if (!orientations.includes(orientationName)) {
-      orientations.push(orientationName);
-      
-      // Update case with new orientation
-      await kv.set(`gallery_case_${id}`, {
-        ...caseData,
-        orientations
-      });
-      
-      console.log(`[Gallery Add Orientation] Added '${orientationName}' to case ${id}, orientations now:`, orientations);
+    
+    // Find existing orientation or create new one
+    let orientation = orientations.find(o => o.name === orientationName);
+    
+    if (!orientation) {
+      // Create new orientation
+      orientation = {
+        name: orientationName,
+        beforeImage: beforeImage || null,
+        afterImage: afterImage || null
+      };
+      orientations.push(orientation);
+      console.log(`[Gallery Add Orientation] Created new orientation '${orientationName}' for case ${id}`);
     } else {
-      console.log(`[Gallery Add Orientation] Orientation '${orientationName}' already exists for case ${id}`);
+      // Update existing orientation with new images
+      if (beforeImage) orientation.beforeImage = beforeImage;
+      if (afterImage) orientation.afterImage = afterImage;
+      console.log(`[Gallery Add Orientation] Updated orientation '${orientationName}' for case ${id}`);
     }
+    
+    // Update case with orientations and set primary before/after from first orientation
+    const updatedCase = {
+      ...caseData,
+      orientations
+    };
+    
+    // Set primary before/after images from first orientation
+    if (orientations.length > 0 && orientations[0]) {
+      updatedCase.beforeImage = orientations[0].beforeImage || null;
+      updatedCase.afterImage = orientations[0].afterImage || null;
+    }
+    
+    await kv.set(`gallery_case_${id}`, updatedCase);
+    
+    console.log(`[Gallery Add Orientation] Case ${id} updated with orientations:`, orientations);
 
     return c.json({ success: true, orientations });
   } catch (error) {
