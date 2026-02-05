@@ -287,7 +287,7 @@ export function BulkGalleryUploader({
           throw new Error(`Failed to create case ${caseIndex + 1}`);
         }
 
-        const { id: caseId } = await createResponse.json();
+        const { id: caseId, slug: caseSlug } = await createResponse.json();
 
         const photosByPosition: { [position: number]: { before?: UploadedPhoto, after?: UploadedPhoto } } = {};
         casePhotos.forEach(photo => {
@@ -305,100 +305,66 @@ export function BulkGalleryUploader({
           const position = parseInt(positionStr);
           const positionName = position.toString();
 
-          console.log(`[BulkUpload] Processing position ${position} (type: ${typeof position})`);
-
-          // Always add orientation to the case (including position 1!)
-          await fetch(`${serverUrl}/gallery/case/${caseId}/orientation`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ orientationName: positionName })
-          });
+          console.log(`[BulkUpload] Processing position ${position} for case ${caseSlug}`);
 
           if (positionPhotos.before) {
             const beforeBase64 = await fileToBase64(positionPhotos.before.file);
-            const beforeFileName = `before_${caseId}_${positionName}_${Date.now()}.jpg`;
+            const fileExtension = positionPhotos.before.file.name.split('.').pop() || 'png';
             
-            const beforeUploadResponse = await fetch(`${serverUrl}/gallery/upload`, {
+            console.log(`[BulkUpload] Uploading before image to GitHub: ${caseSlug}, position ${position}`);
+            
+            const beforeUploadResponse = await fetch(`${serverUrl}/gallery/upload-to-github`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                fileName: beforeFileName,
+                caseSlug,
+                position,
+                imageType: 'before',
                 fileData: beforeBase64,
-                galleryItemId: caseId,
-                imageType: 'before'
+                fileExtension
               })
             });
 
             if (!beforeUploadResponse.ok) {
-              throw new Error(`Failed to upload before image for position ${position}`);
+              const errorData = await beforeUploadResponse.json();
+              throw new Error(`Failed to upload before image to GitHub: ${errorData.error}`);
             }
 
-            const { publicUrl: beforeUrl } = await beforeUploadResponse.json();
-
-            // For position 1, use gallery_X_before (no position number)
-            // For other positions, use gallery_X_2_before, gallery_X_3_before, etc.
-            const kvKey = (position === 1)
-              ? `gallery_${caseId}_before`
-              : `gallery_${caseId}_${positionName}_before`;
-            
-            console.log(`[BulkUpload] Saving before image to KV key: ${kvKey}`);
-            
-            await fetch(`${serverUrl}/content/${kvKey}`, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ value: beforeUrl })
-            });
+            const { publicUrl, filename } = await beforeUploadResponse.json();
+            console.log(`[BulkUpload] ✓ Before image uploaded: ${filename}`);
           }
 
           if (positionPhotos.after) {
             const afterBase64 = await fileToBase64(positionPhotos.after.file);
-            const afterFileName = `after_${caseId}_${positionName}_${Date.now()}.jpg`;
+            const fileExtension = positionPhotos.after.file.name.split('.').pop() || 'png';
             
-            const afterUploadResponse = await fetch(`${serverUrl}/gallery/upload`, {
+            console.log(`[BulkUpload] Uploading after image to GitHub: ${caseSlug}, position ${position}`);
+            
+            const afterUploadResponse = await fetch(`${serverUrl}/gallery/upload-to-github`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                fileName: afterFileName,
+                caseSlug,
+                position,
+                imageType: 'after',
                 fileData: afterBase64,
-                galleryItemId: caseId,
-                imageType: 'after'
+                fileExtension
               })
             });
 
             if (!afterUploadResponse.ok) {
-              throw new Error(`Failed to upload after image for position ${position}`);
+              const errorData = await afterUploadResponse.json();
+              throw new Error(`Failed to upload after image to GitHub: ${errorData.error}`);
             }
 
-            const { publicUrl: afterUrl } = await afterUploadResponse.json();
-
-            // For position 1, use gallery_X_after (no position number)
-            // For other positions, use gallery_X_2_after, gallery_X_3_after, etc.
-            const kvKey = (position === 1)
-              ? `gallery_${caseId}_after`
-              : `gallery_${caseId}_${positionName}_after`;
-            
-            console.log(`[BulkUpload] Saving after image to KV key: ${kvKey}`);
-            
-            await fetch(`${serverUrl}/content/${kvKey}`, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ value: afterUrl })
-            });
+            const { publicUrl, filename } = await afterUploadResponse.json();
+            console.log(`[BulkUpload] ✓ After image uploaded: ${filename}`);
           }
         }
 
