@@ -129,6 +129,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
       const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
       
       const response = await fetch(githubApiUrl);
+      
+      // Handle 404 - folder doesn't exist yet (no images uploaded)
+      if (response.status === 404) {
+        console.log('[Gallery] Gallery folder not found in GitHub - no images uploaded yet');
+        setGalleryItems([]);
+        setLoading(false);
+        
+        // Update cache with empty array
+        localStorage.setItem('gallery_items_cache', JSON.stringify([]));
+        localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+        return;
+      }
+      
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
