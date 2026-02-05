@@ -366,6 +366,27 @@ export function BulkGalleryUploader({
             const { publicUrl, filename } = await afterUploadResponse.json();
             console.log(`[BulkUpload] ✓ After image uploaded: ${filename}`);
           }
+          
+          // ✅ CRITICAL: Register this orientation in the database so Gallery can find it!
+          console.log(`[BulkUpload] Registering orientation '${position}' for case ${caseId}...`);
+          const orientationResponse = await fetch(`${serverUrl}/gallery/case/${caseId}/orientation`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              orientationName: position.toString()
+            })
+          });
+          
+          if (!orientationResponse.ok) {
+            const errorData = await orientationResponse.json();
+            console.warn(`[BulkUpload] Failed to register orientation: ${errorData.error}`);
+            // Don't throw - images are uploaded, this is just metadata
+          } else {
+            console.log(`[BulkUpload] ✓ Orientation '${position}' registered for case ${caseId}`);
+          }
         }
 
         setCompletedCount(prev => prev + 1);
