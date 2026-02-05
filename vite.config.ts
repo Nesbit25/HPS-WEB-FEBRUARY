@@ -1,4 +1,6 @@
+import { defineConfig } from 'vite';
 
+<<<<<<< HEAD
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
@@ -61,3 +63,11 @@
       open: true,
     },
   });
+=======
+export default defineConfig({
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
+});
+>>>>>>> 0cc3a0893845cddbf78579d0e6fce8f5151ae068
