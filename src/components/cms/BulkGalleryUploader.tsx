@@ -314,62 +314,68 @@ export function BulkGalleryUploader({
             const beforeBase64 = await fileToBase64(positionPhotos.before.file);
             const fileExtension = positionPhotos.before.file.name.split('.').pop() || 'png';
             
-            console.log(`[BulkUpload] Uploading before image to GitHub: ${caseSlug}, position ${position}`);
+            // Calculate image index from position and type
+            const imageIndex = (position * 2) - 1; // Position 1 before = img1, Position 2 before = img3, etc.
+            const filename = `${caseSlug}_p${position}_img${imageIndex}.${fileExtension}`;
             
-            const beforeUploadResponse = await fetch(`${serverUrl}/gallery/upload-to-github`, {
+            console.log(`[BulkUpload] Uploading before image to Supabase Storage: ${filename}`);
+            
+            const beforeUploadResponse = await fetch(`${serverUrl}/gallery/upload`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                caseSlug,
-                position,
-                imageType: 'before',
+                fileName: filename,
                 fileData: beforeBase64,
-                fileExtension
+                galleryItemId: caseId,
+                imageType: 'before'
               })
             });
 
             if (!beforeUploadResponse.ok) {
               const errorData = await beforeUploadResponse.json();
-              throw new Error(`Failed to upload before image to GitHub: ${errorData.error}`);
+              throw new Error(`Failed to upload before image to Supabase: ${errorData.error}`);
             }
 
-            const { publicUrl, filename } = await beforeUploadResponse.json();
+            const { publicUrl } = await beforeUploadResponse.json();
             beforeImageUrl = publicUrl;
-            console.log(`[BulkUpload] ✓ Before image uploaded: ${filename} at ${publicUrl}`);
+            console.log(`[BulkUpload] ✓ Before image uploaded to Supabase: ${filename} at ${publicUrl}`);
           }
 
           if (positionPhotos.after) {
             const afterBase64 = await fileToBase64(positionPhotos.after.file);
             const fileExtension = positionPhotos.after.file.name.split('.').pop() || 'png';
             
-            console.log(`[BulkUpload] Uploading after image to GitHub: ${caseSlug}, position ${position}`);
+            // Calculate image index from position and type
+            const imageIndex = position * 2; // Position 1 after = img2, Position 2 after = img4, etc.
+            const filename = `${caseSlug}_p${position}_img${imageIndex}.${fileExtension}`;
             
-            const afterUploadResponse = await fetch(`${serverUrl}/gallery/upload-to-github`, {
+            console.log(`[BulkUpload] Uploading after image to Supabase Storage: ${filename}`);
+            
+            const afterUploadResponse = await fetch(`${serverUrl}/gallery/upload`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                caseSlug,
-                position,
-                imageType: 'after',
+                fileName: filename,
                 fileData: afterBase64,
-                fileExtension
+                galleryItemId: caseId,
+                imageType: 'after'
               })
             });
 
             if (!afterUploadResponse.ok) {
               const errorData = await afterUploadResponse.json();
-              throw new Error(`Failed to upload after image to GitHub: ${errorData.error}`);
+              throw new Error(`Failed to upload after image to Supabase: ${errorData.error}`);
             }
 
-            const { publicUrl, filename } = await afterUploadResponse.json();
+            const { publicUrl } = await afterUploadResponse.json();
             afterImageUrl = publicUrl;
-            console.log(`[BulkUpload] ✓ After image uploaded: ${filename} at ${publicUrl}`);
+            console.log(`[BulkUpload] ✓ After image uploaded to Supabase: ${filename} at ${publicUrl}`);
           }
           
           // ✅ CRITICAL: Register this orientation in the database WITH IMAGE URLS!
