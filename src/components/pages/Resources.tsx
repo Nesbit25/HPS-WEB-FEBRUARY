@@ -7,7 +7,7 @@ import { Breadcrumbs } from '../seo/Breadcrumbs';
 import { EditableText } from '../cms/EditableText';
 import { EditableImage } from '../cms/EditableImage';
 import { getAllBlogPosts } from '../data/blogPosts';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 
 interface ResourcesProps {

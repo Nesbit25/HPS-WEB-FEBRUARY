@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Calendar, Clock, ArrowLeft, ArrowRight, User } from 'lucide-react';

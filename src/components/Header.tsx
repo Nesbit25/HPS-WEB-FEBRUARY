@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { Facebook, Instagram, Twitter, Phone, Menu, X, MapPin, User, Video } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { usePatientAuth } from '../contexts/PatientAuthContext';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 // Logo URLs - replace with actual hosted logo URLs
 const logoFull = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';

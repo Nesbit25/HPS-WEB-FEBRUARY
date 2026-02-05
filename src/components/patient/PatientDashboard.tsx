@@ -1,11 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { usePatientAuth } from '../../contexts/PatientAuthContext';
 import { projectId } from '../../utils/supabase/info';
 import { FileText, User, LogOut, Calendar, Mail, Phone, Cake, Download, Printer, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 export function PatientDashboard() {
   const { user, signOut } = usePatientAuth();

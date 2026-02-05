@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientAuthProvider, usePatientAuth } from './contexts/PatientAuthContext';
 import { EditModeProvider } from './contexts/EditModeContext';

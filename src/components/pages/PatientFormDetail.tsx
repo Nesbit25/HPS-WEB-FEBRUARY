@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { SEOHead } from '../seo/SEOHead';
 import { AlertCircle, ArrowLeft, Save, Download } from 'lucide-react';
 import { Button } from '../ui/button';
