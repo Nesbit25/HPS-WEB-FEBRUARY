@@ -969,6 +969,145 @@ app.post("/make-server-fc862019/gallery/create", async (c) => {
   }
 });
 
+// Sync cases from GitHub (protected) - scans GitHub folder and creates missing case records
+app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    
+    if (!user || error) {
+      console.log('[Sync GitHub] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    console.log('[Sync GitHub] Starting sync from GitHub...');
+
+    // GitHub configuration
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_FOLDER = 'gallery';
+
+    // Fetch files from GitHub
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    const response = await fetch(githubApiUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    const files = await response.json();
+    
+    // Filter image files
+    const imageFiles = files.filter(file => 
+      file.type === 'file' && 
+      (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+    );
+
+    console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
+
+    // Extract unique case slugs from filenames
+    // Expected format: {case_slug}_p{page}_img{index}.{ext}
+    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const caseSlugs = new Set();
+    const caseOrientations = new Map(); // Track how many images per case
+
+    imageFiles.forEach(file => {
+      const match = file.name.match(filenameRegex);
+      if (match) {
+        const caseSlug = match[1];
+        caseSlugs.add(caseSlug);
+        
+        // Count images per case
+        const count = caseOrientations.get(caseSlug) || 0;
+        caseOrientations.set(caseSlug, count + 1);
+      }
+    });
+
+    console.log(`[Sync GitHub] Found ${caseSlugs.size} unique cases:`, Array.from(caseSlugs));
+
+    // Get existing cases from database
+    const existingCases = await kv.getByPrefix('gallery_case_');
+    const existingSlugs = new Set(existingCases.map(item => item.value.slug));
+
+    console.log(`[Sync GitHub] Existing cases in database:`, Array.from(existingSlugs));
+
+    // Get next available ID
+    const maxId = existingCases.reduce((max, item) => {
+      const match = item.key.match(/gallery_case_(\d+)$/);
+      if (match) {
+        const id = parseInt(match[1]);
+        return id > max ? id : max;
+      }
+      return max;
+    }, 999);
+
+    let nextId = maxId + 1;
+    const createdCases = [];
+    let casesCreated = 0;
+    let casesSkipped = 0;
+
+    // Create missing cases
+    for (const caseSlug of caseSlugs) {
+      if (existingSlugs.has(caseSlug)) {
+        console.log(`[Sync GitHub] Case already exists, skipping: ${caseSlug}`);
+        casesSkipped++;
+        continue;
+      }
+
+      // Extract category from slug (assumes format: pt_XXXX_category or similar)
+      const parts = caseSlug.split('_');
+      const category = parts.length > 2 ? parts.slice(2).join('_') : parts[parts.length - 1];
+      const title = `Patient ${parts[1] || 'Case'}`;
+
+      // Calculate number of orientations (2 images per orientation)
+      const imageCount = caseOrientations.get(caseSlug) || 0;
+      const orientationCount = Math.floor(imageCount / 2);
+      const orientations = [];
+      for (let i = 1; i <= orientationCount; i++) {
+        orientations.push(`Position ${i}`);
+      }
+
+      // Create case
+      await kv.set(`gallery_case_${nextId}`, {
+        id: nextId,
+        slug: caseSlug,
+        category: category.charAt(0).toUpperCase() + category.slice(1),
+        title,
+        procedure: category.charAt(0).toUpperCase() + category.slice(1),
+        journeyNote: '',
+        orientations,
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
+        syncedFromGitHub: true
+      });
+
+      console.log(`[Sync GitHub] Created case: ${caseSlug} with ID ${nextId}, orientations: ${orientations.join(', ')}`);
+      createdCases.push(caseSlug);
+      casesCreated++;
+      nextId++;
+    }
+
+    console.log(`[Sync GitHub] Sync complete. Created: ${casesCreated}, Skipped: ${casesSkipped}`);
+
+    return c.json({
+      success: true,
+      casesFound: caseSlugs.size,
+      casesCreated,
+      casesSkipped,
+      createdCases
+    });
+  } catch (error) {
+    console.error('[Sync GitHub] Error:', error);
+    return c.json({ error: `Failed to sync from GitHub: ${error.message}` }, 500);
+  }
+});
+
 // Add orientation to gallery case (protected)
 app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
   try {
