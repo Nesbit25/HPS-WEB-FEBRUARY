@@ -122,29 +122,84 @@ export function Gallery({ onNavigate }: GalleryProps) {
     return Math.abs(hash);
   };
 
+  // Helper: Load cases from database only (fallback when GitHub fails)
+  const loadCasesFromDatabaseOnly = async () => {
+    try {
+      console.log('[Gallery] Loading cases from database only...');
+      
+      const response = await fetch(`${serverUrl}/gallery/cases`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Database fetch failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const dbCases = data.cases || [];
+      
+      console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
+      
+      // Convert database cases to gallery items format
+      const galleryItems = dbCases.map(dbCase => ({
+        id: dbCase.id,
+        slug: dbCase.slug,
+        title: dbCase.title || dbCase.slug,
+        category: dbCase.category || 'Face',
+        procedure: dbCase.procedure || '',
+        journeyNote: dbCase.journeyNote || '',
+        beforeImage: null, // Will be populated from GitHub if available
+        afterImage: null,
+        orientations: dbCase.orientations || [],
+        featuredOnHome: dbCase.featuredOnHome || false,
+        showOnNose: dbCase.showOnNose || false,
+        showOnFace: dbCase.showOnFace || false,
+        showOnBreast: dbCase.showOnBreast || false,
+        showOnBody: dbCase.showOnBody || false,
+        createdBy: dbCase.createdBy,
+        createdAt: dbCase.createdAt
+      }));
+      
+      console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
+      
+      setGalleryItems(galleryItems);
+      setLoading(false);
+      
+      // Cache the results
+      localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
+      localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+      
+    } catch (error) {
+      console.error('[Gallery] Error loading from database:', error);
+      setGalleryItems([]);
+      setLoading(false);
+    }
+  };
+  
   const fetchAndUpdateGallery = async () => {
     try {
       // 1. Fetch file list from GitHub API
+      console.log('[Gallery] ========== START GALLERY LOAD ==========');
       console.log('[Gallery] Fetching file list from GitHub...');
       const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+      console.log('[Gallery] API URL:', githubApiUrl);
       
       const response = await fetch(githubApiUrl);
+      console.log('[Gallery] Response status:', response.status, response.statusText);
       
       // Handle 404 - folder doesn't exist yet (no images uploaded)
       if (response.status === 404) {
-        console.log('[Gallery] Gallery folder not found in GitHub - no images uploaded yet');
-        setGalleryItems([]);
-        setLoading(false);
-        
-        // Update cache with empty array
-        localStorage.setItem('gallery_items_cache', JSON.stringify([]));
-        localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+        console.log('[Gallery] ❌ Gallery folder not found in GitHub');
+        console.log('[Gallery] Falling back to database-only load...');
+        await loadCasesFromDatabaseOnly();
         return;
       }
       
       // Handle rate limiting
       if (response.status === 403) {
-        console.error('[Gallery] GitHub API rate limit exceeded');
+        console.error('[Gallery] ❌ GitHub API rate limit exceeded');
         
         // Try to get cached data as fallback
         const cachedData = localStorage.getItem('gallery_items_cache');
@@ -155,7 +210,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
           return;
         }
         
-        throw new Error('GitHub API rate limit exceeded. Please try again later.');
+        console.log('[Gallery] No cache, falling back to database-only load...');
+        await loadCasesFromDatabaseOnly();
+        return;
       }
       
       if (!response.ok) {
@@ -259,19 +316,25 @@ export function Gallery({ onNavigate }: GalleryProps) {
       });
       
       console.log('[Gallery] Built', galleryItems.length, 'cases from GitHub');
-      console.log('[Gallery] Gallery items:', galleryItems);
+      console.log('[Gallery] Gallery items sample:', galleryItems.slice(0, 3));
       
       // 5. Fetch case metadata from database (category, featured flags)
       try {
+        console.log('[Gallery] Fetching case metadata from database...');
         const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
           }
         });
         
+        console.log('[Gallery] Database response status:', casesResponse.status);
+        
         if (casesResponse.ok) {
           const casesData = await casesResponse.json();
           const dbCases = casesData.cases || [];
+          
+          console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
+          console.log('[Gallery] Database cases sample:', dbCases.slice(0, 3).map(c => ({ id: c.id, slug: c.slug, title: c.title })));
           
           // Merge database metadata with GitHub images
           galleryItems.forEach(item => {
@@ -298,10 +361,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
       localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
       localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
       
+      console.log('[Gallery] ✅ Setting state with', galleryItems.length, 'items');
       setGalleryItems(galleryItems);
       setLoading(false);
+      console.log('[Gallery] ========== END GALLERY LOAD ==========');
     } catch (error) {
-      console.error('[Gallery] Error fetching gallery:', error);
+      console.error('[Gallery] ❌ ERROR in fetchAndUpdateGallery:', error);
+      console.error('[Gallery] Error stack:', error.stack);
+      setLoading(false);
       throw error;
     }
   };
