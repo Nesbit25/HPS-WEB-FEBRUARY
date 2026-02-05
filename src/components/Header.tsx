@@ -5,9 +5,11 @@ import { Facebook, Instagram, Twitter, Phone, Menu, X, MapPin, User, Video } fro
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { usePatientAuth } from '../contexts/PatientAuthContext';
 import { Link } from 'react-router-dom';
-import logoFull from 'figma:asset/48d1586391b464d3de6bb701d657da6c1850d3b9.png';
-import logoMonogram from 'figma:asset/890b9fa951ba44372ce282df519fdf847858506d.png';
-import logoMonogramCropped from 'figma:asset/2422df9085689a55ba1b0df3ae5c87661596ef8f.png';
+
+// Logo URLs - replace with actual hosted logo URLs
+const logoFull = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';
+const logoMonogram = 'https://placehold.co/100x100/1a1f2e/c9b896?text=HPS';
+const logoMonogramCropped = 'https://placehold.co/80x80/1a1f2e/c9b896?text=HPS';
 
 interface HeaderProps {
   currentPage: string;

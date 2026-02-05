@@ -7,7 +7,9 @@ import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { unsplash_tool } from '../../utils/unsplash';
-import noseServiceImage from 'figma:asset/465990d40c9efc8590319fd361c015ff0b4b3b09.png';
+
+// Placeholder image - replace with actual hosted image URL
+const noseServiceImage = 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=800&q=80';
 
 interface HomeLuxuryProps {
   onNavigate: (page: string) => void;

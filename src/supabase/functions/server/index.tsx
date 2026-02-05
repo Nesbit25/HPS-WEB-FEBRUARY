@@ -696,6 +696,100 @@ app.post("/make-server-fc862019/gallery/upload", async (c) => {
   }
 });
 
+// Upload image directly to GitHub (protected)
+app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    
+    if (!user || error) {
+      console.log('[GitHub Upload] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await c.req.json();
+    const { caseSlug, position, imageType, fileData, fileExtension } = body;
+    
+    if (!caseSlug || !position || !imageType || !fileData) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+    
+    // GitHub configuration
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_BRANCH = 'main';
+    
+    // Calculate image index from position and type
+    // Position 1: before=img1, after=img2
+    // Position 2: before=img3, after=img4
+    // Position 3: before=img5, after=img6
+    const imageIndex = (position * 2) - (imageType === 'before' ? 1 : 0);
+    
+    // Generate filename: {case_slug}_p1_img{index}.{ext}
+    const filename = `${caseSlug}_p1_img${imageIndex}.${fileExtension || 'png'}`;
+    const githubPath = `gallery/${filename}`;
+    
+    console.log(`[GitHub Upload] Uploading ${filename} to GitHub...`);
+    
+    // Check if file exists (to determine if we need to update or create)
+    const checkUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
+    const checkResponse = await fetch(checkUrl, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    
+    let sha = null;
+    if (checkResponse.ok) {
+      const existingFile = await checkResponse.json();
+      sha = existingFile.sha;
+      console.log(`[GitHub Upload] File exists, will update (SHA: ${sha})`);
+    }
+    
+    // Upload to GitHub
+    const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
+    const uploadPayload = {
+      message: `Upload ${imageType} image for ${caseSlug} position ${position}`,
+      content: fileData, // Already base64
+      branch: GITHUB_BRANCH,
+      ...(sha && { sha }) // Include SHA if updating existing file
+    };
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(uploadPayload)
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json();
+      console.error('[GitHub Upload] Error:', errorData);
+      throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
+    }
+    
+    const result = await uploadResponse.json();
+    const publicUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${githubPath}`;
+    
+    console.log(`[GitHub Upload] Successfully uploaded to GitHub: ${publicUrl}`);
+    
+    return c.json({ 
+      success: true, 
+      publicUrl,
+      filename,
+      path: githubPath
+    });
+  } catch (error) {
+    console.error('[GitHub Upload] Error:', error);
+    return c.json({ error: `Failed to upload to GitHub: ${error.message}` }, 500);
+  }
+});
+
 // Create new gallery case (protected)
 app.post("/make-server-fc862019/gallery/create", async (c) => {
   try {
@@ -708,7 +802,7 @@ app.post("/make-server-fc862019/gallery/create", async (c) => {
     }
 
     const body = await c.req.json();
-    const { category, title, procedure, journeyNote } = body;
+    const { category, title, procedure, journeyNote, slug } = body;
     
     if (!category || !title) {
       return c.json({ error: 'Missing required fields (category and title are required)' }, 400);
@@ -727,9 +821,13 @@ app.post("/make-server-fc862019/gallery/create", async (c) => {
     
     const newId = maxId + 1;
     
+    // Generate slug if not provided
+    const caseSlug = slug || `pt_${newId}_${category.toLowerCase()}`;
+    
     // Save case metadata (procedure and journeyNote are now optional)
     await kv.set(`gallery_case_${newId}`, {
       id: newId,
+      slug: caseSlug,
       category,
       title,
       procedure: procedure || category, // Default to category if not provided
@@ -739,9 +837,9 @@ app.post("/make-server-fc862019/gallery/create", async (c) => {
       createdAt: new Date().toISOString()
     });
 
-    console.log(`[Gallery Create] Created new case with ID: ${newId}`);
+    console.log(`[Gallery Create] Created new case with ID: ${newId}, slug: ${caseSlug}`);
 
-    return c.json({ success: true, id: newId });
+    return c.json({ success: true, id: newId, slug: caseSlug });
   } catch (error) {
     console.log('[Gallery Create] Error:', error);
     return c.json({ error: 'Failed to create gallery case' }, 500);

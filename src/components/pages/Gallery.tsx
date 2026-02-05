@@ -29,6 +29,7 @@ interface GalleryOrientation {
 
 interface GalleryItem {
   id: number;
+  slug?: string; // Case slug from filename (e.g., "pt_1_rhino")
   category: string;
   title: string;
   procedure: string;
@@ -66,8 +67,13 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const [activeImages, setActiveImages] = useState<{ [key: number]: { orientationIndex: number; type: 'before' | 'after' } }>({});
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
+  
+  // GitHub configuration
+  const GITHUB_USERNAME = 'Nesbit25';
+  const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+  const GITHUB_FOLDER = 'gallery';
 
-  // Load images from KV store on mount
+  // Load images from GitHub on mount
   useEffect(() => {
     loadGalleryImages();
   }, []);
@@ -75,12 +81,12 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const loadGalleryImages = async () => {
     setLoading(true);
     try {
-      console.log('[Gallery] Loading gallery images...');
+      console.log('[Gallery] Loading gallery images from GitHub...');
       
-      // OPTIMIZATION 1: Check localStorage cache first with LONGER duration
+      // Check localStorage cache first
       const cacheKey = 'gallery_items_cache';
       const cacheTimestampKey = 'gallery_items_cache_timestamp';
-      const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes (increased from 5)
+      const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
       
       const cachedData = localStorage.getItem(cacheKey);
       const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
@@ -92,13 +98,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
           const cachedItems = JSON.parse(cachedData);
           setGalleryItems(cachedItems);
           setLoading(false);
-          
-          // DON'T fetch in background during demo - keep it fast!
           return;
         }
       }
       
-      // No valid cache, fetch fresh data
+      // No valid cache, fetch fresh data from GitHub
       await fetchAndUpdateGallery();
       
     } catch (error) {
@@ -106,163 +110,166 @@ export function Gallery({ onNavigate }: GalleryProps) {
       setLoading(false);
     }
   };
+  
+  // Helper: Generate numeric ID from string
+  const stringToId = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
 
   const fetchAndUpdateGallery = async () => {
     try {
-      // Fetch custom cases from server
-      const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
-        }
-      });
-      const casesData = await casesResponse.json();
-      const allCases = casesData.cases || [];
+      // 1. Fetch file list from GitHub API
+      console.log('[Gallery] Fetching file list from GitHub...');
+      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
       
-      console.log('[Gallery] Cases loaded from database:', allCases);
+      const response = await fetch(githubApiUrl);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+      }
       
-      // OPTIMIZATION 2: Parallel batch fetch with higher concurrency
-      const imageKeys = allCases.flatMap(item => [
-        `gallery_${item.id}_before`,
-        `gallery_${item.id}_after`
-      ]);
+      const files = await response.json();
+      console.log('[Gallery] Found', files.length, 'files in GitHub repo');
       
-      // Also fetch orientation images if they exist
-      const orientationKeys = allCases.flatMap(item => {
-        if (item.orientations && Array.isArray(item.orientations)) {
-          return item.orientations.flatMap(orientationName => [
-            `gallery_${item.id}_${orientationName}_before`,
-            `gallery_${item.id}_${orientationName}_after`
-          ]);
-        }
-        return [];
-      });
+      // 2. Filter to only image files
+      const imageFiles = files.filter(file => 
+        file.type === 'file' && 
+        (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+      );
       
-      const allImageKeys = [...imageKeys, ...orientationKeys];
-      console.log('[Gallery] Total image keys to fetch:', allImageKeys.length);
+      console.log('[Gallery] Filtered to', imageFiles.length, 'image files');
       
-      // Helper function to batch requests with retry logic and exponential backoff
-      const batchFetchParallel = async (keys: string[], batchSize = 2) => {
-        const results: any[] = [];
+      // 3. Parse filenames and build gallery structure
+      // Regex: ^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$
+      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+      
+      const casesMap = new Map();
+      
+      imageFiles.forEach(file => {
+        const match = file.name.match(filenameRegex);
         
-        // Retry helper with exponential backoff
-        const fetchWithRetry = async (key: string, maxRetries = 3) => {
-          for (let attempt = 0; attempt < maxRetries; attempt++) {
-            try {
-              const response = await fetch(`${serverUrl}/content/${key}`, {
-                headers: { 
-                  'Authorization': `Bearer ${publicAnonKey}`
-                }
-              });
-              
-              if (!response.ok) {
-                // Only log if it's not a 404 (missing image) - those are expected
-                if (response.status !== 404) {
-                  console.warn(`[Gallery] Failed to load ${key}: HTTP ${response.status}`);
-                }
-                return { content: null };
-              }
-              
-              return await response.json();
-            } catch (err) {
-              // If this is the last attempt, give up
-              if (attempt === maxRetries - 1) {
-                console.warn(`[Gallery] Failed to load ${key} after ${maxRetries} attempts:`, err.message);
-                return { content: null };
-              }
-              
-              // Otherwise, wait with exponential backoff
-              const backoffMs = Math.min(2000 * Math.pow(2, attempt), 10000);
-              console.log(`[Gallery] Retry ${attempt + 1}/${maxRetries} for ${key} after ${backoffMs}ms`);
-              await new Promise(resolve => setTimeout(resolve, backoffMs));
-            }
-          }
-          return { content: null };
-        };
+        if (!match) {
+          console.warn('[Gallery] Skipping file with invalid format:', file.name);
+          return;
+        }
         
-        for (let i = 0; i < keys.length; i += batchSize) {
-          const batch = keys.slice(i, i + batchSize);
-          console.log(`[Gallery] ⚡ Fetching batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(keys.length / batchSize)} (${batch.length} items)`);
+        const [, caseSlug, pageStr, indexStr, extension] = match;
+        const page = parseInt(pageStr);
+        const index = parseInt(indexStr);
+        
+        // Calculate position: Math.ceil(index / 2)
+        const position = Math.ceil(index / 2);
+        
+        // Determine type: odd = before, even = after
+        const type = (index % 2 !== 0) ? 'before' : 'after';
+        
+        // Construct raw GitHub URL
+        const imageUrl = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${GITHUB_FOLDER}/${file.name}`;
+        
+        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
+        
+        // Get or create case
+        if (!casesMap.has(caseSlug)) {
+          // Generate readable title from slug
+          const title = caseSlug
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
           
-          // Fire all requests in parallel with Promise.all
-          const batchPromises = batch.map(key => fetchWithRetry(key));
-          const batchResults = await Promise.all(batchPromises);
-          results.push(...batchResults);
-          
-          // Add delay between batches to prevent overwhelming the connection
-          if (i + batchSize < keys.length) {
-            await new Promise(resolve => setTimeout(resolve, 800));
-          }
-        }
-        
-        return results;
-      };
-      
-      const imageData = await batchFetchParallel(allImageKeys);
-      
-      // Create a map of image URLs by key
-      const imageMap = new Map();
-      allImageKeys.forEach((key, index) => {
-        imageMap.set(key, imageData[index]?.content?.value || null);
-      });
-      
-      // Build final gallery items with images and orientations
-      const updatedItems = allCases.map(item => {
-        // Build orientations array that includes ALL positions (including position 1)
-        const orientations: any[] = [];
-        
-        // Add position 1 (base images) as the first orientation
-        const baseBeforeImg = imageMap.get(`gallery_${item.id}_before`);
-        const baseAfterImg = imageMap.get(`gallery_${item.id}_after`);
-        
-        if (baseBeforeImg || baseAfterImg) {
-          orientations.push({
-            name: '1',
-            beforeImage: baseBeforeImg,
-            afterImage: baseAfterImg
+          casesMap.set(caseSlug, {
+            slug: caseSlug,
+            title: title,
+            category: 'Face', // Default, can be changed by admin
+            procedure: '',
+            journeyNote: '',
+            orientations: [],
+            createdAt: new Date().toISOString()
           });
         }
         
-        // Add additional orientations (positions 2, 3, etc.)
-        if (item.orientations && Array.isArray(item.orientations) && item.orientations.length > 0) {
-          item.orientations.forEach(orientationName => {
-            const beforeImg = imageMap.get(`gallery_${item.id}_${orientationName}_before`);
-            const afterImg = imageMap.get(`gallery_${item.id}_${orientationName}_after`);
-            
-            if (beforeImg || afterImg) {
-              orientations.push({
-                name: orientationName,
-                beforeImage: beforeImg,
-                afterImage: afterImg
-              });
-            }
-          });
+        const caseData = casesMap.get(caseSlug);
+        
+        // Find or create orientation for this position
+        let orientation = caseData.orientations.find(o => o.name === position.toString());
+        if (!orientation) {
+          orientation = {
+            name: position.toString(),
+            beforeImage: null,
+            afterImage: null
+          };
+          caseData.orientations.push(orientation);
         }
         
-        // For backwards compatibility, also set base images (use first orientation)
-        const firstOrientation = orientations[0] || {};
+        // Set the image
+        if (type === 'before') {
+          orientation.beforeImage = imageUrl;
+        } else {
+          orientation.afterImage = imageUrl;
+        }
+      });
+      
+      // 4. Convert map to array and sort orientations
+      const galleryItems = Array.from(casesMap.values()).map(caseData => {
+        // Sort orientations by position number
+        caseData.orientations.sort((a, b) => parseInt(a.name) - parseInt(b.name));
         
-        const result = {
-          ...item,
-          beforeImage: firstOrientation.beforeImage || null,
-          afterImage: firstOrientation.afterImage || null,
-          orientations: orientations.length > 0 ? orientations : undefined
-        };
+        // Set base before/after images from first orientation
+        const firstOrientation = caseData.orientations[0] || {};
+        caseData.beforeImage = firstOrientation.beforeImage || null;
+        caseData.afterImage = firstOrientation.afterImage || null;
         
-        console.log(`[Gallery] Case ${item.id}: ${orientations.length} total orientations`);
-        orientations.forEach((o, idx) => {
-          console.log(`[Gallery]   - Position ${idx + 1} (${o.name}): before=${!!o.beforeImage}, after=${!!o.afterImage}`);
+        // Convert slug to numeric ID for compatibility
+        caseData.id = stringToId(caseData.slug);
+        
+        return caseData;
+      });
+      
+      console.log('[Gallery] Built', galleryItems.length, 'cases from GitHub');
+      console.log('[Gallery] Gallery items:', galleryItems);
+      
+      // 5. Fetch case metadata from database (category, featured flags)
+      try {
+        const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`
+          }
         });
         
-        return result;
-      });
-
-      console.log('[Gallery] Final gallery items:', updatedItems);
+        if (casesResponse.ok) {
+          const casesData = await casesResponse.json();
+          const dbCases = casesData.cases || [];
+          
+          // Merge database metadata with GitHub images
+          galleryItems.forEach(item => {
+            const dbCase = dbCases.find(c => c.slug === item.slug);
+            if (dbCase) {
+              item.category = dbCase.category || item.category;
+              item.procedure = dbCase.procedure || item.procedure;
+              item.journeyNote = dbCase.journeyNote || item.journeyNote;
+              item.featuredOnHome = dbCase.featuredOnHome || false;
+              item.showOnNose = dbCase.showOnNose || false;
+              item.showOnFace = dbCase.showOnFace || false;
+              item.showOnBreast = dbCase.showOnBreast || false;
+              item.showOnBody = dbCase.showOnBody || false;
+              item.createdBy = dbCase.createdBy;
+              item.createdAt = dbCase.createdAt;
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('[Gallery] Could not fetch case metadata from database:', error);
+      }
       
-      // OPTIMIZATION 3: Cache the results
-      localStorage.setItem('gallery_items_cache', JSON.stringify(updatedItems));
+      // 6. Cache the results
+      localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
       localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
       
-      setGalleryItems(updatedItems);
+      setGalleryItems(galleryItems);
       setLoading(false);
     } catch (error) {
       console.error('[Gallery] Error fetching gallery:', error);

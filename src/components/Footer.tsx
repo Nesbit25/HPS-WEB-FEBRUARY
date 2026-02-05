@@ -2,7 +2,9 @@ import React from 'react';
 import { Facebook, Instagram, Youtube, Phone, MapPin, Clock, Twitter } from 'lucide-react';
 import { Button } from './ui/button';
 import { EditableText } from './cms/EditableText';
-import logoFull from 'figma:asset/48d1586391b464d3de6bb701d657da6c1850d3b9.png';
+
+// Logo URL - replace with actual hosted logo URL
+const logoFull = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';
 
 interface FooterProps {
   onNavigate: (page: string) => void;
