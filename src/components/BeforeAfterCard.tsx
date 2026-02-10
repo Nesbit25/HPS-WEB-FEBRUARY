@@ -1,70 +1,140 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from './ui/card';
+import React, { useState, useEffect, useRef } from 'react';
 
-export interface BeforeAfterCardWithCardProps {
+export interface BeforeAfterCardProps {
   beforeImage?: string;
   afterImage?: string;
+  category?: string;
   title: string;
-  procedure: string;
   onClick?: () => void;
+  className?: string;
   interval?: number;
 }
 
-export function BeforeAfterCardWithCard({ 
+export function BeforeAfterCard({ 
   beforeImage, 
   afterImage, 
+  category, 
   title, 
-  procedure,
   onClick,
+  className = '',
   interval = 3000 
-}: BeforeAfterCardWithCardProps) {
+}: BeforeAfterCardProps) {
   const [showBefore, setShowBefore] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const [beforeLoaded, setBeforeLoaded] = useState(false);
+  const [afterLoaded, setAfterLoaded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!beforeImage || !afterImage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      {
+        rootMargin: '100px',
+        threshold: 0.01
+      }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!beforeImage || !afterImage || !beforeLoaded || !afterLoaded) return;
     
     const timer = setInterval(() => {
       setShowBefore(prev => !prev);
     }, interval);
 
     return () => clearInterval(timer);
-  }, [beforeImage, afterImage, interval]);
+  }, [beforeImage, afterImage, interval, beforeLoaded, afterLoaded]);
+
+  const getOptimizedUrl = (url?: string, size: 'thumb' | 'full' = 'full') => {
+    if (!url) return '';
+    
+    if (url.includes('supabase.co/storage/v1/object/public/')) {
+      const width = size === 'thumb' ? 50 : 800;
+      const quality = size === 'thumb' ? 10 : 80;
+      return `${url}?width=${width}&quality=${quality}&format=webp`;
+    }
+    
+    return url;
+  };
+
+  const beforeThumbUrl = getOptimizedUrl(beforeImage, 'thumb');
+  const afterThumbUrl = getOptimizedUrl(afterImage, 'thumb');
+  const beforeFullUrl = getOptimizedUrl(beforeImage, 'full');
+  const afterFullUrl = getOptimizedUrl(afterImage, 'full');
 
   return (
-    <Card 
-      className="border-border rounded-2xl overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+    <div 
+      ref={cardRef}
+      className={`group relative bg-white/5 rounded-xl overflow-hidden cursor-pointer ${className}`}
       onClick={onClick}
     >
-      <div className="aspect-square relative overflow-hidden">
-        {afterImage && (
-          <img 
-            src={afterImage} 
-            alt="After" 
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-0' : 'opacity-100'}`} 
-          />
+      <div className="aspect-square relative bg-[#1a1f2e]">
+        {isInView && afterImage && (
+          <>
+            <img 
+              src={afterThumbUrl} 
+              alt="" 
+              className={`absolute inset-0 w-full h-full object-cover filter blur-xl scale-110 transition-opacity duration-500 ${afterLoaded ? 'opacity-0' : 'opacity-100'}`}
+              aria-hidden="true"
+            />
+            <img 
+              src={afterFullUrl} 
+              alt="After" 
+              loading="lazy"
+              onLoad={() => setAfterLoaded(true)}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-0' : 'opacity-100'}`} 
+            />
+          </>
         )}
-        {beforeImage && (
-          <img 
-            src={beforeImage} 
-            alt="Before" 
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-100' : 'opacity-0'}`} 
-          />
+        {isInView && beforeImage && (
+          <>
+            <img 
+              src={beforeThumbUrl} 
+              alt="" 
+              className={`absolute inset-0 w-full h-full object-cover filter blur-xl scale-110 transition-opacity duration-500 ${beforeLoaded ? 'opacity-0' : 'opacity-100'}`}
+              aria-hidden="true"
+            />
+            <img 
+              src={beforeFullUrl} 
+              alt="Before" 
+              loading="lazy"
+              onLoad={() => setBeforeLoaded(true)}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-100' : 'opacity-0'}`} 
+            />
+          </>
         )}
-        {!beforeImage || !afterImage ? (
-          <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-muted to-secondary/20 flex items-center justify-center">
-            <span className="text-muted-foreground">Loading...</span>
+        
+        {!isInView && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin"></div>
           </div>
-        ) : null}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-          <span className="text-white text-sm">
-            {showBefore ? 'Before' : 'After'}
-          </span>
+        )}
+        
+        <div className="absolute top-4 right-4 bg-black/60 px-3 py-1 text-xs rounded-full backdrop-blur-sm">
+          <span className={showBefore ? 'hidden' : ''}>After</span>
+          <span className={showBefore ? '' : 'hidden'}>Before</span>
         </div>
+        <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-xl group-hover:border-secondary/50 transition-colors"></div>
       </div>
-      <CardContent className="p-4">
-        <h3 className="mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground line-clamp-2">{procedure}</p>
-      </CardContent>
-    </Card>
+      <div className="p-6">
+        {category && (
+          <div className="text-xs text-secondary uppercase tracking-wider mb-1">{category}</div>
+        )}
+        <h3 className="font-serif text-xl">{title}</h3>
+      </div>
+    </div>
   );
 }
