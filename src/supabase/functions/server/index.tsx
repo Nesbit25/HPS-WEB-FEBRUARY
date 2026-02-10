@@ -1247,6 +1247,9 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
     const files = await response.json();
     console.log('[GitHub Files] Found', files.length, 'files');
     
+    // Add cache headers for better performance (5 min cache)
+    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    
     // Return the raw file list - let client filter/process
     return c.json({ 
       files, 
@@ -1460,6 +1463,9 @@ app.get("/make-server-fc862019/gallery/cases", async (c) => {
       key: item.key
     }));
 
+    // Add cache headers for better performance
+    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    
     return c.json({ cases: formattedCases });
   } catch (error) {
     console.log('[Gallery Cases] Error:', error);
