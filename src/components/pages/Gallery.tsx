@@ -16,6 +16,7 @@ import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon } from 'lucide-re
 import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { getOptimizedSupabaseUrl } from '../../hooks/useImagePreload';
 
 interface GalleryProps {
   onNavigate: (page: string) => void;
@@ -163,6 +164,8 @@ export function Gallery({ onNavigate }: GalleryProps) {
       }));
       
       console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
+      console.log('[Gallery] Sample case images:', galleryItems[0]?.beforeImage, galleryItems[0]?.afterImage);
+      console.log('[Gallery] Sample orientations:', galleryItems[0]?.orientations);
       
       setGalleryItems(galleryItems);
       setLoading(false);
@@ -379,6 +382,48 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // Public users only see items with images
         return item.beforeImage || item.afterImage;
       });
+
+  // Preload first 6 images for faster initial load
+  useEffect(() => {
+    if (filteredItems.length > 0) {
+      const priorityImages = filteredItems
+        .slice(0, 6)
+        .flatMap(item => [
+          item.beforeImage ? getOptimizedSupabaseUrl(item.beforeImage, { width: 800, quality: 80, format: 'webp' }) : null,
+          item.afterImage ? getOptimizedSupabaseUrl(item.afterImage, { width: 800, quality: 80, format: 'webp' }) : null
+        ])
+        .filter(Boolean);
+      
+      // Preload priority images using link rel="preload"
+      const links: HTMLLinkElement[] = [];
+      
+      priorityImages.forEach(url => {
+        if (!url) return;
+        
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = url;
+        
+        // Add CORS for cross-origin images
+        if (url.includes('supabase.co') || url.includes('githubusercontent.com')) {
+          link.crossOrigin = 'anonymous';
+        }
+        
+        document.head.appendChild(link);
+        links.push(link);
+      });
+      
+      // Cleanup
+      return () => {
+        links.forEach(link => {
+          if (link.parentNode) {
+            link.parentNode.removeChild(link);
+          }
+        });
+      };
+    }
+  }, [filteredItems]);
 
   // Auto-cycle between before/after images AND orientations
   useEffect(() => {
@@ -1164,13 +1209,32 @@ export function Gallery({ onNavigate }: GalleryProps) {
                       const displayBeforeImage = currentOrientation.beforeImage || item.beforeImage;
                       const displayAfterImage = currentOrientation.afterImage || item.afterImage;
                       
+                      // Helper function to optimize Supabase URLs
+                      const getOptimizedUrl = (url: string) => {
+                        if (!url) return url;
+                        
+                        // Check if it's a Supabase storage URL
+                        if (url.includes('supabase.co/storage/v1/object/public/')) {
+                          // Add optimization parameters for faster loading
+                          return `${url}?width=800&quality=80&format=webp`;
+                        }
+                        
+                        // Return original URL for non-Supabase URLs (like GitHub)
+                        return url;
+                      };
+                      
+                      // Prioritize first 6 images (above the fold on desktop)
+                      const isPriority = index < 6;
+                      
                       return (
                         <div className="w-full h-full relative">
                           {/* Before Image */}
                           {displayBeforeImage && (
                             <img 
-                              src={displayBeforeImage} 
+                              src={getOptimizedUrl(displayBeforeImage)} 
                               alt="Before" 
+                              loading={isPriority ? 'eager' : 'lazy'}
+                              fetchpriority={isPriority ? 'high' : 'auto'}
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                               style={{ 
                                 opacity: state.type === 'after' ? 0 : 1 
@@ -1180,8 +1244,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
                           {/* After Image */}
                           {displayAfterImage && (
                             <img 
-                              src={displayAfterImage} 
+                              src={getOptimizedUrl(displayAfterImage)} 
                               alt="After" 
+                              loading={isPriority ? 'eager' : 'lazy'}
+                              fetchpriority={isPriority ? 'high' : 'auto'}
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                               style={{ 
                                 opacity: state.type === 'after' ? 1 : 0 
