@@ -6,10 +6,10 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { usePatientAuth } from '../contexts/PatientAuthContext';
 import { Link } from 'react-router';
 
-// Logo URLs - replace with actual hosted logo URLs
-const logoFull = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';
-const logoMonogram = 'https://placehold.co/100x100/1a1f2e/c9b896?text=HPS';
-const logoMonogramCropped = 'https://placehold.co/80x80/1a1f2e/c9b896?text=HPS';
+// Logo paths - static files from public folder
+// Main logo (SVG preferred, PNG fallback)
+const logoPath = '/images/logos/logo-main.svg';
+const logoFallback = '/images/logos/logo-main.png';
 
 interface HeaderProps {
   currentPage: string;
@@ -20,6 +20,7 @@ interface HeaderProps {
 export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const { user } = usePatientAuth();
   // Removed 'Resources' from navigation tabs
   const navigationTabs = ['Home', 'About', 'Nose', 'Face', 'Breast', 'Body', 'Gallery', 'Patient Forms', 'Contact'];
@@ -41,10 +42,20 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
     setMobileMenuOpen(false);
   };
 
+  const handleLogoError = () => {
+    if (!logoError) {
+      setLogoError(true);
+    }
+  };
+
   // Header background class based on scroll state and page
   const headerBgClass = isHomePage && !scrolled
     ? 'bg-transparent'
     : 'bg-[#1a1f2e]/40 backdrop-blur-md shadow-lg';
+
+  // Fallback logo URL (placeholder if both SVG and PNG fail)
+  const fallbackLogo = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';
+  const fallbackLogoMobile = 'https://placehold.co/100x100/1a1f2e/c9b896?text=HPS';
 
   return (
     <>
@@ -75,9 +86,19 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
                 className="group hover:opacity-80 transition-opacity"
               >
                 <img 
-                  src={logoMonogramCropped} 
+                  src={!logoError ? logoPath : logoFallback}
                   alt="Hanemann Plastic Surgery" 
                   className="h-20 md:h-28 w-auto transition-all duration-300"
+                  onError={(e) => {
+                    handleLogoError();
+                    // Try PNG fallback, then placeholder
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.includes('.svg')) {
+                      img.src = logoFallback;
+                    } else if (img.src.includes('logo-main.png')) {
+                      img.src = fallbackLogo;
+                    }
+                  }}
                 />
               </button>
             </div>
@@ -149,9 +170,18 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
           <nav className="flex flex-col gap-6 items-center text-center">
             {/* Logo in mobile menu */}
             <img 
-              src={logoMonogram} 
-              alt="MH" 
+              src={!logoError ? logoPath : logoFallback}
+              alt="Hanemann Plastic Surgery" 
               className="h-72 mb-4 opacity-80"
+              onError={(e) => {
+                handleLogoError();
+                const img = e.target as HTMLImageElement;
+                if (img.src.includes('.svg')) {
+                  img.src = logoFallback;
+                } else if (img.src.includes('logo-main.png')) {
+                  img.src = fallbackLogoMobile;
+                }
+              }}
             />
             
             {navigationTabs.map(tab => (
