@@ -1,0 +1,19 @@
+<!-- 
+  PLACEHOLDER FILE
+  
+  Replace this file with your actual logo file.
+  
+  REQUIRED FILE: logo-main.svg
+  LOCATION: /public/images/logos/logo-main.svg
+  FORMAT: SVG (scalable vector graphics)
+  COLOR: White or light colored (for dark backgrounds)
+  BACKGROUND: Transparent
+  
+  This logo appears in:
+  - Header navigation (desktop & mobile)
+  - Footer
+  
+  Additional recommended files:
+  - logo-main.png (PNG fallback, 400px width)
+  - favicon.ico (browser tab icon, 32x32px)
+-->
