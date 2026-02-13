@@ -10,6 +10,7 @@ import { NewGalleryCaseEditor } from '../cms/NewGalleryCaseEditor';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { SEOHead } from '../seo/SEOHead';
+import { ChevronDown } from 'lucide-react';
 
 interface GalleryItem {
   id: number;
@@ -37,6 +38,9 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
   const [newCaseEditorOpen, setNewCaseEditorOpen] = useState(false);
+  const [expandedService, setExpandedService] = useState<string | null>(null);
+  const carouselRef = React.useRef<HTMLDivElement>(null);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
 
@@ -202,6 +206,49 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Infinite scroll logic for service carousel
+  useEffect(() => {
+    const container = carouselRef.current;
+    if (!container) return;
+
+    const cardWidth = 384; // md:w-96 = 384px
+    const gap = 16; // gap-4 = 16px
+    const cardPlusGap = cardWidth + gap;
+    const serviceCards = [
+      { title: 'Nose' },
+      { title: 'Face' },
+      { title: 'Breast' },
+      { title: 'Body' }
+    ];
+    const totalCards = serviceCards.length;
+    const totalWidth = cardPlusGap * totalCards;
+
+    // Start at the beginning of the middle set
+    container.scrollLeft = totalWidth;
+
+    const handleScroll = () => {
+      if (isAutoScrolling) return;
+
+      const scrollLeft = container.scrollLeft;
+
+      // If scrolled to the end (reached third set), jump back to first set at same position
+      if (scrollLeft >= totalWidth * 2 - cardPlusGap / 2) {
+        setIsAutoScrolling(true);
+        container.scrollLeft = scrollLeft - totalWidth;
+        setTimeout(() => setIsAutoScrolling(false), 50);
+      }
+      // If scrolled to the beginning (reached first set), jump forward to second set at same position
+      else if (scrollLeft <= cardPlusGap / 2) {
+        setIsAutoScrolling(true);
+        container.scrollLeft = scrollLeft + totalWidth;
+        setTimeout(() => setIsAutoScrolling(false), 50);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [isAutoScrolling]);
+
   const handleOpenLightbox = (index: number) => {
     setCurrentLightboxIndex(index);
     setLightboxOpen(true);
@@ -224,88 +271,350 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
         canonical="/"
       />
       {/* Hero Section - Full Screen */}
-      <section className="relative h-screen min-h-[700px] w-full overflow-hidden bg-primary -mt-[180px] pt-[180px]">
-        {[0, 1, 2].map((index) => (
-          <div 
-            key={index}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${activeSlide === index ? 'opacity-100' : 'opacity-0'}`}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-10" />
-            <EditableImage
-              contentKey={`home_hero_image_${index + 1}`}
-              defaultSrc={index === 0 ? 'https://images.unsplash.com/photo-1619975101918-6d27886e8c6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBtZWRpY2FsJTIwc3BhJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzYzNTE0NTg2fDA&ixlib=rb-4.1.0&q=80&w=1080' : index === 1 ? 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080' : 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080'}
-              alt="Hero"
-              className="w-full h-full object-cover"
-              locationLabel={`Home Hero - Slide ${index + 1}`}
-            />
-          </div>
-        ))}
-        
-        <div className="absolute inset-0 z-20 flex items-center pt-[180px]">
-          <div className="container mx-auto px-6">
-            <div className="max-w-3xl">
-              <h2 className="text-secondary text-sm md:text-base uppercase tracking-[0.3em] mb-4 font-bold">
-                <EditableText contentKey="hero_label" defaultValue="Double Board Certified Plastic Surgeon" />
-              </h2>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif text-white mb-6 leading-tight">
-                <EditableText contentKey="home_hero_title" defaultValue="Revealing Beauty" />
-              </h1>
-              <p className="text-gray-200 text-lg md:text-xl mb-8 font-light max-w-2xl leading-relaxed">
-                <EditableText contentKey="home_hero_subtitle" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
-              </p>
-              <button 
-                onClick={() => onNavigate('Contact')}
-                className="inline-block bg-secondary text-white px-10 py-4 rounded-full uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
-              >
-                Schedule Consultation
-              </button>
+      <section className="relative w-full overflow-hidden">
+        {/* Full viewport height container - starts at very top edge */}
+        <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
+          {/* Image slides - absolutely positioned to fill entire container */}
+          {[0, 1, 2].map((index) => (
+            <div 
+              key={index}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${activeSlide === index ? 'opacity-100' : 'opacity-0'}`}
+            >
+              
+              {/* Desktop images - landscape, high res - STATIC FROM PUBLIC FOLDER */}
+              <div className="hidden md:block absolute inset-0 w-full h-full z-0">
+                <img
+                  src={`/images/hero/desktop/hero-slide-${index + 1}.jpg`}
+                  alt={`Hero Desktop ${index + 1}`}
+                  className="w-full h-full object-cover object-center"
+                  onError={(e) => {
+                    // Fallback to PNG if JPG doesn't exist
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.jpg')) {
+                      img.src = `/images/hero/desktop/hero-slide-${index + 1}.png`;
+                    } else {
+                      // Final fallback to Unsplash
+                      img.src = index === 0 
+                        ? 'https://images.unsplash.com/photo-1619975101918-6d27886e8c6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400' 
+                        : index === 1 
+                        ? 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400' 
+                        : 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400';
+                    }
+                  }}
+                />
+              </div>
+              
+              {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
+              <div className="md:hidden absolute inset-0 w-full h-full z-0">
+                <img
+                  src={`/images/hero/mobile/hero-slide-${index + 1}.jpg`}
+                  alt={`Hero Mobile ${index + 1}`}
+                  className="w-full h-full object-cover object-center"
+                  onError={(e) => {
+                    // Fallback to PNG if JPG doesn't exist
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.jpg')) {
+                      img.src = `/images/hero/mobile/hero-slide-${index + 1}.png`;
+                    } else {
+                      // Final fallback to Unsplash
+                      img.src = index === 0 
+                        ? 'https://images.unsplash.com/photo-1631507623121-eaaba8d4e7dc?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200' 
+                        : index === 1 
+                        ? 'https://images.unsplash.com/photo-1764824074438-75ca04e3a4bf?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200' 
+                        : 'https://images.unsplash.com/photo-1631507623121-eaaba8d4e7dc?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200';
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Dark gradient overlay - allow pointer events to pass through in edit mode */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
+            </div>
+          ))}
+          
+          {/* Content Overlay - positioned over images */}
+          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[180px]">
+            <div className="container mx-auto">
+              <div className="max-w-3xl">
+                {/* Slide 1 Content */}
+                <div className={`transition-opacity duration-1000 ${activeSlide === 0 ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
+                    <EditableText contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
+                  </h2>
+                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
+                    <EditableText contentKey="home_hero_title_1" defaultValue="Revealing Beauty" />
+                  </h1>
+                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
+                    <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
+                  </p>
+                  <button 
+                    onClick={() => onNavigate('Contact')}
+                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
+                  >
+                    Schedule Consultation
+                  </button>
+                </div>
+
+                {/* Slide 2 Content */}
+                <div className={`transition-opacity duration-1000 ${activeSlide === 1 ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
+                    <EditableText contentKey="hero_label_2" defaultValue="Artistry Meets Precision" />
+                  </h2>
+                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
+                    <EditableText contentKey="home_hero_title_2" defaultValue="Natural Results" />
+                  </h1>
+                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
+                    <EditableText as="span" contentKey="home_hero_subtitle_2" defaultValue="Experience the perfect balance of surgical expertise and aesthetic vision. Dr. Hanemann's meticulous approach ensures results that look and feel naturally beautiful." />
+                  </p>
+                  <button 
+                    onClick={() => onNavigate('Contact')}
+                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
+                  >
+                    Schedule Consultation
+                  </button>
+                </div>
+
+                {/* Slide 3 Content */}
+                <div className={`transition-opacity duration-1000 ${activeSlide === 2 ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
+                    <EditableText contentKey="hero_label_3" defaultValue="Your Vision, Our Expertise" />
+                  </h2>
+                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
+                    <EditableText contentKey="home_hero_title_3" defaultValue="Transform with Confidence" />
+                  </h1>
+                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
+                    <EditableText as="span" contentKey="home_hero_subtitle_3" defaultValue="Trust in a surgeon who combines technical excellence with compassionate care. Your journey to renewed confidence begins here." />
+                  </p>
+                  <button 
+                    onClick={() => onNavigate('Contact')}
+                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
+                  >
+                    Schedule Consultation
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 flex gap-3">
-          {[0, 1, 2].map(idx => (
-            <button 
-              key={idx}
-              onClick={() => setActiveSlide(idx)}
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${activeSlide === idx ? 'bg-secondary w-8' : 'bg-white/50 hover:bg-white'}`}
-            />
-          ))}
+          {/* Slide Indicators */}
+          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 flex gap-3">
+            {[0, 1, 2].map(idx => (
+              <button 
+                key={idx}
+                onClick={() => setActiveSlide(idx)}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${activeSlide === idx ? 'bg-secondary w-8' : 'bg-white/50 hover:bg-white'}`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Featured Services */}
       <section className="py-24 bg-cream">
         <div className="container mx-auto px-6">
-          <div className="text-center mb-16 max-w-3xl mx-auto">
-            <h2 className="font-serif text-4xl text-primary mb-4">
-              <EditableText contentKey="home_services_heading" defaultValue="Our Expertise" />
-            </h2>
-            <div className="w-20 h-0.5 bg-secondary mx-auto mb-6"></div>
-            <p className="text-gray-600 text-lg font-light">
-              <EditableText contentKey="home_services_description" defaultValue="Comprehensive aesthetic solutions tailored to your unique anatomy and goals." />
-            </p>
-          </div>
+          <div className="grid lg:grid-cols-5 gap-12 items-center">
+            {/* Left Content Section - ONLY ON DESKTOP */}
+            <div className="hidden lg:block lg:col-span-2 space-y-8">
+              <div>
+                <h2 className="text-primary mb-2">
+                  <span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span>
+                  <br />
+                  <span className="font-serif text-5xl md:text-6xl italic">Services</span>
+                </h2>
+                
+                <div className="w-16 h-0.5 bg-secondary my-8"></div>
+                
+                <p className="text-gray-600 leading-relaxed text-base mb-8">
+                  <EditableText 
+                    contentKey="home_services_description_long"
+                    defaultValue="Whether you're looking to refine your facial features, contour your body, or restore symmetry and function after an injury or illness, our classic personalized approach and attention to detail ensure exceptional results tailored to your unique needs. You can trust Dr. Hanemann's skill and artistry to transform your vision into reality and rediscover your confidence and self-assurance."
+                    as="span"
+                    multiline
+                  />
+                </p>
+                
+                <button
+                  onClick={() => onNavigate('Procedures')}
+                  className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300"
+                >
+                  View All Services
+                </button>
+              </div>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction'] },
-              { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation'] },
-              { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction'] },
-              { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring'] },
+            {/* Right Carousel Section - DESKTOP ONLY */}
+            <div className="hidden lg:block lg:col-span-3 relative h-[600px]">
+              <div className="relative overflow-hidden h-full w-[850px] mx-auto">
+                {/* Carousel Container */}
+                <div className="flex gap-4 overflow-x-auto lg:overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full touch-pan-x" ref={carouselRef}>
+                  {/* Render three sets for seamless infinite loop */}
+                  {[
+                    ...[
+                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
+                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
+                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
+                    ],
+                    ...[
+                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
+                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
+                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
+                    ],
+                    ...[
+                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
+                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
+                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
+                    ]
+                  ].map((service, index) => (
+                    <div
+                      key={`${service.title}-${index}`}
+                      className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full"
+                    >
+                      {/* Background Image */}
+                      <div className="absolute inset-0 overflow-hidden">
+                        <EditableImage
+                          contentKey={`service_card_${service.title.toLowerCase()}`}
+                          defaultSrc={service.img}
+                          alt={service.title}
+                          className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
+                          locationLabel={`${service.title} Service Card`}
+                          cropAspectRatio={0.65}
+                        />
+                      </div>
+
+                      {/* Clickable overlay for navigation */}
+                      <div 
+                        className="absolute inset-0 cursor-pointer" 
+                        onClick={() => onNavigate(service.page)}
+                      />
+
+                      {/* Dark Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
+
+                      {/* Category Title - Centered */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">
+                          {service.title.toUpperCase()}
+                        </h3>
+                      </div>
+
+                      {/* Hover Content - Bottom */}
+                      <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div className="space-y-2 mb-4">
+                          {service.procedures.map((proc, i) => (
+                            <p key={i} className="text-sm text-white/90 tracking-wide">
+                              • {proc}
+                            </p>
+                          ))}
+                        </div>
+                        <div className="flex items-center text-secondary mt-4">
+                          <span className="text-sm uppercase tracking-wider mr-2">Explore</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+
+                      {/* Bottom Accent Line */}
+                      <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Navigation Arrows */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const container = e.currentTarget.parentElement?.querySelector('.overflow-x-auto');
+                    if (container) {
+                      container.scrollBy({ left: -320, behavior: 'smooth' });
+                    }
+                  }}
+                  className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10"
+                  aria-label="Previous"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const container = e.currentTarget.parentElement?.querySelector('.overflow-x-auto');
+                    if (container) {
+                      container.scrollBy({ left: 320, behavior: 'smooth' });
+                    }
+                  }}
+                  className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10"
+                  aria-label="Next"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <style>{`
+              .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+
+            {/* Mobile: Expandable Accordion List - ONLY SHOWN ON MOBILE */}
+            <div className="lg:hidden space-y-4">{[
+              { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+              { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
+              { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
+              { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
             ].map((service) => (
-              <div key={service.title} className="relative">
-                <EditableServiceCard
-                  contentKey={`service_card_${service.title.toLowerCase()}`}
-                  defaultSrc={service.img}
-                  alt={service.title}
-                  title={service.title}
-                  description={service.desc}
-                  procedures={service.procedures}
-                  onNavigate={() => onNavigate(service.page)}
-                />
+              <div key={service.title} className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                {/* Collapsible Header */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedService(expandedService === service.title ? null : service.title);
+                  }}
+                  className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <h3 className="text-xl font-serif text-primary mb-1">{service.title}</h3>
+                    <p className="text-sm text-gray-600">{service.desc}</p>
+                  </div>
+                  <ChevronDown 
+                    className={`w-5 h-5 text-secondary transition-transform duration-300 flex-shrink-0 ml-3 ${
+                      expandedService === service.title ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                
+                {/* Expandable Content */}
+                <div 
+                  className={`overflow-hidden transition-all duration-300 ${
+                    expandedService === service.title ? 'max-h-96' : 'max-h-0'
+                  }`}
+                >
+                  <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+                    <h4 className="text-xs uppercase tracking-wider text-secondary font-bold mb-3">Procedures</h4>
+                    <ul className="space-y-2">
+                      {service.procedures.map((procedure, idx) => (
+                        <li key={idx} className="flex items-start">
+                          <span className="text-secondary mr-2 flex-shrink-0">•</span>
+                          <span className="text-gray-700 text-sm leading-relaxed">{procedure}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => onNavigate(service.page)}
+                      className="mt-4 w-full bg-secondary text-white px-6 py-3 rounded-lg text-sm font-semibold uppercase tracking-wider hover:bg-primary transition-colors"
+                    >
+                      Learn More
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       </section>
