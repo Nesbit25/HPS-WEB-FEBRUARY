@@ -1,0 +1,17 @@
+<!-- 
+  PLACEHOLDER FILE
+  
+  Replace this file with your actual desktop hero image.
+  
+  FILE NAME: hero-slide-1.jpg
+  LOCATION: /public/images/hero/desktop/hero-slide-1.jpg
+  DIMENSIONS: 1920x1080px (16:9 landscape)
+  FORMAT: JPG or PNG
+  MAX SIZE: 500KB
+  
+  This is slide #1 of 3 rotating hero images on the home page.
+  It displays on DESKTOP devices only (landscape orientation).
+  
+  For the mobile version, upload to:
+  /public/images/hero/mobile/hero-slide-1.jpg (portrait orientation)
+-->
