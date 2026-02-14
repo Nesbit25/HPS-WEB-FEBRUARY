@@ -14,7 +14,7 @@ interface CacheEntry {
 }
 
 const contentCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache (increased from 5)
 
 // Cached KV get wrapper
 async function getCachedContent(key: string): Promise<any> {
@@ -26,7 +26,13 @@ async function getCachedContent(key: string): Promise<any> {
   }
   
   console.log(`[CACHE MISS] Fetching from database for key: ${key}`);
-  const value = await kv.get(key);
+  
+  // Wrap kv.get with retry logic
+  const value = await retryOperation(
+    async () => await kv.get(key),
+    5,  // Max 5 retries
+    500 // Start with 500ms delay
+  );
   
   // Store in cache
   contentCache.set(key, {
@@ -74,8 +80,8 @@ setInterval(() => {
 // Retry utility for handling connection resets
 async function retryOperation<T>(
   operation: () => Promise<T>,
-  maxRetries = 3,
-  delayMs = 100
+  maxRetries = 5,
+  delayMs = 500
 ): Promise<T> {
   let lastError;
   
@@ -93,10 +99,12 @@ async function retryOperation<T>(
           errorMessage.includes('dns error') ||
           errorMessage.includes('lookup') ||
           errorMessage.includes('name resolution') ||
-          errorMessage.includes('temporary failure')) {
+          errorMessage.includes('temporary failure') ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('network')) {
         console.log(`[RETRY] Attempt ${i + 1}/${maxRetries} failed, retrying in ${delayMs}ms...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
-        delayMs *= 2; // Exponential backoff
+        delayMs = Math.min(delayMs * 1.5, 5000); // Exponential backoff with cap at 5s
         continue;
       }
       

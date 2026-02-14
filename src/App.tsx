@@ -132,7 +132,7 @@ function AppContent() {
       <main className={!isAdminPage ? '' : ''}>
         <Routes>
           <Route path="/" element={
-            <HomeLuxury 
+            <Home 
               onNavigate={handleNavigate}
               onOpenConsultation={() => setConsultationOpen(true)}
             />

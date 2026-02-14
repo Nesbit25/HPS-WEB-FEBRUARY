@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -256,24 +256,23 @@ export function HeroImageEditor() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="rounded-2xl max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogContent className="rounded-2xl max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {showFocalPointPicker && (
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setShowFocalPointPicker(false);
-                    setSelectedPhoto(null);
-                  }}
-                  className="rounded-full -ml-2"
+                  onClick={() => setShowFocalPointPicker(false)}
+                  className="mr-2"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  ← Back
                 </Button>
               )}
-              {showFocalPointPicker ? 'Adjust Image Position' : 'Edit Hero Carousel Images'}
+              {showFocalPointPicker ? 'Adjust Image Position' : `Edit Hero Images`}
             </DialogTitle>
+            <DialogDescription>
+              {showFocalPointPicker ? 'Click on the image to set the focal point for different screen sizes.' : 'Upload and manage hero images for different slides.'}
+            </DialogDescription>
           </DialogHeader>
           
           {!showFocalPointPicker ? (

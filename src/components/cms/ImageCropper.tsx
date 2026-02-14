@@ -30,6 +30,9 @@ export function ImageCropper({
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
+  // DEBUG: Log the received props
+  console.log('[ImageCropper] Received props:', { aspectRatio, orientation, imageSrc });
+
   // Load image when dialog opens
   React.useEffect(() => {
     if (open && imageSrc) {
@@ -104,6 +107,8 @@ export function ImageCropper({
     // Calculate crop area based on orientation or aspect ratio
     let cropWidth, cropHeight;
     
+    console.log('[ImageCropper drawCanvas] Starting calc with:', { aspectRatio, orientation, containerWidth, containerHeight });
+    
     if (aspectRatio) {
       // Use provided aspect ratio - fill as much of the canvas as possible
       if (aspectRatio >= 1) {
@@ -112,10 +117,13 @@ export function ImageCropper({
         cropHeight = containerHeight * 0.9;
         cropWidth = cropHeight * aspectRatio;
         
+        console.log('[ImageCropper] Landscape/Square calc:', { cropWidth, cropHeight });
+        
         // If width exceeds container, scale down
         if (cropWidth > containerWidth * 0.95) {
           cropWidth = containerWidth * 0.95;
           cropHeight = cropWidth / aspectRatio;
+          console.log('[ImageCropper] Scaled down to fit width:', { cropWidth, cropHeight });
         }
       } else {
         // Portrait (width < height)
@@ -123,15 +131,20 @@ export function ImageCropper({
         cropHeight = containerHeight * 0.9;
         cropWidth = cropHeight * aspectRatio;
         
+        console.log('[ImageCropper] Portrait calc (width < height):', { cropWidth, cropHeight, calculatedAs: 'cropHeight * aspectRatio' });
+        
         // If width is too small, use at least 40% of container width
         if (cropWidth < containerWidth * 0.4) {
           cropWidth = containerWidth * 0.4;
           cropHeight = cropWidth / aspectRatio;
           
+          console.log('[ImageCropper] Width too small, adjusted to:', { cropWidth, cropHeight });
+          
           // If height now exceeds container, scale back down
           if (cropHeight > containerHeight * 0.95) {
             cropHeight = containerHeight * 0.95;
             cropWidth = cropHeight * aspectRatio;
+            console.log('[ImageCropper] Height exceeds, scaled back:', { cropWidth, cropHeight });
           }
         }
       }
@@ -139,20 +152,26 @@ export function ImageCropper({
       // Portrait: fill almost the entire canvas to match card behavior
       cropWidth = containerWidth * 0.85; // 85% width
       cropHeight = containerHeight * 0.9; // 90% height
+      console.log('[ImageCropper] Using orientation=portrait fallback:', { cropWidth, cropHeight });
     } else if (orientation === 'landscape') {
       // Landscape: wider than tall (e.g., 16:9)
       cropWidth = containerWidth * 0.8; // 80% width
       cropHeight = containerHeight * 0.5; // 50% height
+      console.log('[ImageCropper] Using orientation=landscape fallback:', { cropWidth, cropHeight });
     } else if (orientation === 'square') {
       // Square: equal dimensions
       const size = Math.min(containerWidth, containerHeight) * 0.7;
       cropWidth = size;
       cropHeight = size;
+      console.log('[ImageCropper] Using orientation=square fallback:', { cropWidth, cropHeight });
     } else {
       // Default: use 70% of both dimensions
       cropWidth = containerWidth * 0.7;
       cropHeight = containerHeight * 0.7;
+      console.log('[ImageCropper] Using default fallback:', { cropWidth, cropHeight });
     }
+    
+    console.log('[ImageCropper drawCanvas] FINAL crop dimensions:', { cropWidth, cropHeight, isPortrait: cropHeight > cropWidth });
     
     const cropX = (containerWidth - cropWidth) / 2;
     const cropY = (containerHeight - cropHeight) / 2;

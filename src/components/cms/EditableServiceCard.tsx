@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
-import { Edit2 } from 'lucide-react';
+import { Edit2, ChevronDown } from 'lucide-react';
 import { EditableImage } from './EditableImage';
 import { ImageSelector } from './ImageSelector';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
@@ -15,6 +15,8 @@ interface EditableServiceCardProps {
   description: string;
   procedures: string[];
   onNavigate: () => void;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
 export function EditableServiceCard({
@@ -24,7 +26,9 @@ export function EditableServiceCard({
   title,
   description,
   procedures,
-  onNavigate
+  onNavigate,
+  expanded,
+  onToggle
 }: EditableServiceCardProps) {
   const { isAdmin, accessToken } = useAuth();
   const { isEditMode } = useEditMode();
@@ -148,38 +152,41 @@ export function EditableServiceCard({
         onClick={onNavigate}
         className="group block relative overflow-hidden rounded-2xl shadow-xl w-full"
       >
-        <div className="aspect-[4/3]">
+        {/* Image Container with proper aspect ratio - STRICT HEIGHT LIMIT */}
+        <div className="relative w-full aspect-[4/3] overflow-hidden">
           <img 
             src={imageUrl || defaultSrc} 
             alt={alt}
-            className="h-full w-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover object-center"
           />
-        </div>
         
-        {/* Diagonal gradient hover overlay with procedures */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-primary/95 via-primary/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end justify-end p-8">
-          <div className="text-card space-y-3 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500 text-right">
-            <h3 className="text-white mb-4 tracking-wide" style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontSize: '2rem', fontWeight: '700', letterSpacing: '0.05em' }}>
-              {title.toUpperCase()}
-            </h3>
-            {procedures.map((procedure, index) => (
-              <div key={index} className="group/item transition-all duration-300">
-                <p 
-                  className="text-white group-hover/item:text-secondary relative leading-relaxed inline-block cursor-pointer transition-colors duration-300" 
-                  style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontSize: '1.125rem', fontWeight: '400', letterSpacing: '0.02em' }}
-                >
-                  {procedure}
-                  <span className="absolute bottom-0 right-0 w-0 h-0.5 bg-secondary group-hover/item:w-full transition-all duration-300"></span>
-                </p>
+          {/* Diagonal gradient hover overlay with procedures - MUST MATCH IMAGE DIMENSIONS */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-primary/95 via-primary/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 overflow-hidden">
+            <div className="absolute inset-0 flex items-end justify-end p-6 md:p-8 lg:p-10">
+              <div className="text-right max-w-[75%] max-h-[80%] flex flex-col overflow-hidden">
+                <h3 className="text-white mb-2 tracking-wide uppercase text-base md:text-lg font-bold flex-shrink-0 truncate">
+                  {title}
+                </h3>
+                {/* Scrollable procedures list on mobile, fixed on desktop */}
+                <div className="overflow-y-auto md:overflow-hidden space-y-1 scrollbar-thin scrollbar-thumb-secondary/50 scrollbar-track-transparent pr-2">
+                  {procedures.map((procedure, index) => (
+                    <p 
+                      key={index}
+                      className="text-white text-xs md:text-sm leading-snug"
+                    >
+                      {procedure}
+                    </p>
+                  ))}
+                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-        
-        {/* Default overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/20 to-transparent flex flex-col justify-end p-6 group-hover:opacity-0 transition-opacity duration-500 pointer-events-none">
-          <h3 className="text-2xl font-serif text-white mb-1">{title}</h3>
-          <p className="text-secondary text-sm">{description}</p>
+          
+          {/* Default overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/20 to-transparent flex flex-col justify-end p-6 md:p-8 group-hover:opacity-0 transition-opacity duration-500 pointer-events-none">
+            <h3 className="text-lg md:text-xl font-serif text-white mb-1 truncate">{title}</h3>
+            <p className="text-secondary text-xs truncate">{description}</p>
+          </div>
         </div>
       </button>
 

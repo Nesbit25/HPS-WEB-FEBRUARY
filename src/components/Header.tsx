@@ -20,7 +20,6 @@ interface HeaderProps {
 export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const { user } = usePatientAuth();
   // Removed 'Resources' from navigation tabs
   const navigationTabs = ['Home', 'About', 'Nose', 'Face', 'Breast', 'Body', 'Gallery', 'Patient Forms', 'Contact'];
@@ -42,20 +41,10 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
     setMobileMenuOpen(false);
   };
 
-  const handleLogoError = () => {
-    if (!logoError) {
-      setLogoError(true);
-    }
-  };
-
   // Header background class based on scroll state and page
   const headerBgClass = isHomePage && !scrolled
     ? 'bg-transparent'
     : 'bg-[#1a1f2e]/40 backdrop-blur-md shadow-lg';
-
-  // Fallback logo URL (placeholder if both SVG and PNG fail)
-  const fallbackLogo = 'https://placehold.co/400x100/1a1f2e/c9b896?text=Hanemann+Plastic+Surgery';
-  const fallbackLogoMobile = 'https://placehold.co/100x100/1a1f2e/c9b896?text=HPS';
 
   return (
     <>
@@ -85,20 +74,11 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
                 onClick={() => handleNavigate('Home')} 
                 className="group hover:opacity-80 transition-opacity"
               >
-                <img 
-                  src={!logoError ? logoPath : logoFallback}
+                <ImageWithFallback 
+                  src={logoPath} 
+                  fallback={logoFallback} 
                   alt="Hanemann Plastic Surgery" 
                   className="h-20 md:h-28 w-auto transition-all duration-300"
-                  onError={(e) => {
-                    handleLogoError();
-                    // Try PNG fallback, then placeholder
-                    const img = e.target as HTMLImageElement;
-                    if (img.src.includes('.svg')) {
-                      img.src = logoFallback;
-                    } else if (img.src.includes('logo-main.png')) {
-                      img.src = fallbackLogo;
-                    }
-                  }}
                 />
               </button>
             </div>
@@ -166,29 +146,20 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-[#1a1f2e] pt-24 px-6 lg:hidden animate-fade-in">
-          <nav className="flex flex-col gap-6 items-center text-center">
-            {/* Logo in mobile menu */}
+        <div className="fixed inset-0 z-40 bg-[#1a1f2e] pt-20 px-6 lg:hidden animate-fade-in overflow-y-auto">
+          <nav className="flex flex-col gap-4 items-center text-center pb-8">
+            {/* Logo in mobile menu - SMALLER */}
             <img 
-              src={!logoError ? logoPath : logoFallback}
-              alt="Hanemann Plastic Surgery" 
-              className="h-72 mb-4 opacity-80"
-              onError={(e) => {
-                handleLogoError();
-                const img = e.target as HTMLImageElement;
-                if (img.src.includes('.svg')) {
-                  img.src = logoFallback;
-                } else if (img.src.includes('logo-main.png')) {
-                  img.src = fallbackLogoMobile;
-                }
-              }}
+              src={logoPath} 
+              alt="MH" 
+              className="h-32 mb-2 opacity-80"
             />
             
             {navigationTabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => handleNavigate(tab)}
-                className="text-xl font-serif text-white hover:text-[#c9b896] transition-colors"
+                className="text-base font-serif text-white hover:text-[#c9b896] transition-colors py-1"
               >
                 {tab}
               </button>
@@ -197,22 +168,22 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
             <Link 
               to={user ? '/patient/dashboard' : '/patient/login'}
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 text-lg text-[#c9b896] hover:text-[#b8976a] transition-colors mt-4"
+              className="flex items-center gap-2 text-sm text-[#c9b896] hover:text-[#b8976a] transition-colors mt-2"
             >
-              <User size={18} />
+              <User size={16} />
               {user ? `${user.firstName}'s Portal` : 'Patient Portal'}
             </Link>
 
             <a 
               href="tel:2257662166" 
-              className="flex items-center gap-2 text-lg text-white hover:text-[#c9b896] transition-colors"
+              className="flex items-center gap-2 text-sm text-white hover:text-[#c9b896] transition-colors"
             >
-              <Phone size={18} className="text-[#c9b896]"/> 
+              <Phone size={16} className="text-[#c9b896]"/> 
               (225) 766-2166
             </a>
             
             <Button 
-              className="bg-[#c9b896] text-[#1a1f2e] px-8 py-3 rounded-none uppercase tracking-wider hover:bg-[#b8976a] transition-colors mt-4"
+              className="bg-[#c9b896] text-[#1a1f2e] px-6 py-2 rounded-none text-sm uppercase tracking-wider hover:bg-[#b8976a] transition-colors mt-2"
               onClick={() => {
                 setMobileMenuOpen(false);
                 onNavigate('Contact');

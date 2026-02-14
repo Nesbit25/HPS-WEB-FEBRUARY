@@ -81,13 +81,15 @@ export function BeforeAfterCard({
       className={`group relative bg-white/5 rounded-xl overflow-hidden cursor-pointer ${className}`}
       onClick={onClick}
     >
-      <div className="aspect-square relative bg-[#1a1f2e]">
+      <div 
+        className="relative bg-[#1a1f2e] aspect-square"
+      >
         {isInView && afterImage && (
           <>
             <img 
               src={afterThumbUrl} 
               alt="" 
-              className={`absolute inset-0 w-full h-full object-cover filter blur-xl scale-110 transition-opacity duration-500 ${afterLoaded ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 w-full h-full object-contain filter blur-xl scale-110 transition-opacity duration-500 ${afterLoaded ? 'opacity-0' : 'opacity-100'}`}
               aria-hidden="true"
             />
             <img 
@@ -95,7 +97,7 @@ export function BeforeAfterCard({
               alt="After" 
               loading="lazy"
               onLoad={() => setAfterLoaded(true)}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-0' : 'opacity-100'}`} 
+              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${showBefore ? 'opacity-0' : 'opacity-100'}`} 
             />
           </>
         )}
@@ -104,7 +106,7 @@ export function BeforeAfterCard({
             <img 
               src={beforeThumbUrl} 
               alt="" 
-              className={`absolute inset-0 w-full h-full object-cover filter blur-xl scale-110 transition-opacity duration-500 ${beforeLoaded ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 w-full h-full object-contain filter blur-xl scale-110 transition-opacity duration-500 ${beforeLoaded ? 'opacity-0' : 'opacity-100'}`}
               aria-hidden="true"
             />
             <img 
@@ -112,7 +114,7 @@ export function BeforeAfterCard({
               alt="Before" 
               loading="lazy"
               onLoad={() => setBeforeLoaded(true)}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${showBefore ? 'opacity-100' : 'opacity-0'}`} 
+              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${showBefore ? 'opacity-100' : 'opacity-0'}`} 
             />
           </>
         )}

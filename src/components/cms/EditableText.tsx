@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Edit2, Save, X, History, RotateCcw } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
@@ -209,9 +209,12 @@ export function EditableText({
           </Button>
 
           <Dialog open={isEditing} onOpenChange={setIsEditing}>
-            <DialogContent className="rounded-2xl" aria-describedby={undefined}>
+            <DialogContent className="rounded-2xl">
               <DialogHeader>
                 <DialogTitle>Edit Content</DialogTitle>
+                <DialogDescription>
+                  Update the text content for this element.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 {multiline ? (
@@ -266,9 +269,12 @@ export function EditableText({
           </Button>
 
           <Dialog open={showHistory} onOpenChange={setShowHistory}>
-            <DialogContent className="rounded-2xl max-w-2xl" aria-describedby={undefined}>
+            <DialogContent className="rounded-2xl max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Content History</DialogTitle>
+                <DialogDescription>
+                  View and restore previous versions of this content.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 {loadingHistory ? (

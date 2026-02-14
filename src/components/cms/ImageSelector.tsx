@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -281,11 +281,14 @@ export function ImageSelector({ isOpen, onClose, onSelect, currentLocation, loca
       />
       
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="rounded-2xl max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogContent className="rounded-2xl max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {showFocalPointPicker ? 'Adjust Image Position' : `Select Image for ${locationLabel}`}
             </DialogTitle>
+            <DialogDescription>
+              {showFocalPointPicker ? 'Click on the image to set the focal point for different screen sizes.' : 'Choose an image from the gallery or upload a new one.'}
+            </DialogDescription>
           </DialogHeader>
 
           {!showFocalPointPicker ? (
