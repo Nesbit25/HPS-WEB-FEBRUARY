@@ -4,7 +4,6 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { Facebook, Instagram, Twitter, Phone, Menu, X, MapPin, User, Video } from 'lucide-react';
 import { usePatientAuth } from '../contexts/PatientAuthContext';
 import { Link } from 'react-router';
-import logoImage from 'figma:asset/2422df9085689a55ba1b0df3ae5c87661596ef8f.png';
 
 interface HeaderProps {
   currentPage: string;
@@ -70,9 +69,16 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
                 className="group hover:opacity-80 transition-opacity"
               >
                 <img 
-                  src={logoImage}
+                  src="/images/logos/logo-main.png"
                   alt="Hanemann Plastic Surgery" 
                   className="h-20 md:h-28 w-auto transition-all duration-300"
+                  onError={(e) => {
+                    // Fallback to SVG if PNG doesn't exist
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/logos/logo-main.svg';
+                    }
+                  }}
                 />
               </button>
             </div>
@@ -144,9 +150,16 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
           <nav className="flex flex-col gap-4 items-center text-center pb-8">
             {/* Logo in mobile menu - SMALLER */}
             <img 
-              src={logoImage} 
+              src="/images/logos/logo-main.png" 
               alt="MH" 
               className="h-32 mb-2 opacity-80"
+              onError={(e) => {
+                // Fallback to SVG if PNG doesn't exist
+                const img = e.target as HTMLImageElement;
+                if (img.src.endsWith('.png')) {
+                  img.src = '/images/logos/logo-main.svg';
+                }
+              }}
             />
             
             {navigationTabs.map(tab => (

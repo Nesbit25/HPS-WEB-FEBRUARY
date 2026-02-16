@@ -1,7 +1,6 @@
 import { Instagram, Facebook, Twitter } from 'lucide-react';
 import { Button } from './ui/button';
 import { EditableText } from './cms/EditableText';
-import logoImage from 'figma:asset/2422df9085689a55ba1b0df3ae5c87661596ef8f.png';
 
 interface FooterProps {
   onNavigate: (page: string) => void;
@@ -23,9 +22,16 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
         {/* Column 1: Brand */}
         <div className="md:col-span-1 flex flex-col items-center md:items-start">
           <img 
-            src={logoImage}
+            src="/images/logos/logo-main.png"
             alt="Hanemann Plastic Surgery" 
             className="h-32 md:h-36 w-auto mb-6"
+            onError={(e) => {
+              // Fallback to SVG if PNG doesn't exist
+              const img = e.target as HTMLImageElement;
+              if (img.src.endsWith('.png')) {
+                img.src = '/images/logos/logo-main.svg';
+              }
+            }}
           />
           <p className="text-gray-400 text-sm leading-relaxed mb-6 text-center md:text-left">
             Dedicated to restoring form and function with an artistic touch. Experience the highest standard of aesthetic care.
