@@ -121,36 +121,62 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 );
 
+// Helper function to get user with retry logic for connection resets
+async function getUserWithRetry(accessToken: string | undefined) {
+  if (!accessToken) {
+    return { data: { user: null }, error: { message: 'No access token provided' } };
+  }
+  
+  return await retryOperation(
+    async () => await supabase.auth.getUser(accessToken),
+    5,  // Max 5 retries
+    500 // Start with 500ms delay
+  );
+}
+
 // Initialize test user on startup
 const initTestUser = async () => {
   try {
     console.log('Checking for test user...');
     
-    // Try to create the test user
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: 'test@hanemannplasticsurgery.com',
-      password: 'Password',
-      user_metadata: { 
-        name: 'Test',
-        role: 'admin',
-        username: 'Test'
-      },
-      email_confirm: true
-    });
+    // Wrap in retry operation to handle connection resets
+    await retryOperation(async () => {
+      // Try to create the test user
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: 'test@hanemannplasticsurgery.com',
+        password: 'Password',
+        user_metadata: { 
+          name: 'Test',
+          role: 'admin',
+          username: 'Test'
+        },
+        email_confirm: true
+      });
 
-    if (error) {
-      // User might already exist
-      if (error.message.includes('already registered')) {
-        console.log('Test user already exists - Username: Test, Password: Password');
+      if (error) {
+        // User might already exist
+        if (error.message.includes('already registered')) {
+          console.log('Test user already exists - Username: Test, Password: Password');
+          return; // Success case - don't retry
+        } else {
+          // Check if it's a connection error that should be retried
+          if (error.message.includes('connection reset') || 
+              error.message.includes('connection error') ||
+              error.message.includes('network')) {
+            throw error; // Will be caught by retryOperation
+          }
+          console.log('Error creating test user:', error.message);
+          return; // Non-connection error - don't retry
+        }
       } else {
-        console.log('Error creating test user:', error.message);
+        console.log('Test user created successfully - Username: Test, Password: Password');
+        console.log('User ID:', data?.user?.id);
       }
-    } else {
-      console.log('Test user created successfully - Username: Test, Password: Password');
-      console.log('User ID:', data?.user?.id);
-    }
+    }, 3, 2000); // Max 3 retries with 2 second initial delay
+    
   } catch (error) {
-    console.log('Error initializing test user:', error);
+    console.log('Error initializing test user after retries:', error?.message || error);
+    console.log('Server will continue without test user initialization');
   }
 };
 
@@ -313,7 +339,7 @@ app.post("/make-server-fc862019/patient-forms", async (c) => {
 app.get("/make-server-fc862019/patient-forms", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -365,7 +391,7 @@ app.get("/make-server-fc862019/patient-forms", async (c) => {
 app.get("/make-server-fc862019/patient-forms/patient/:name", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -394,7 +420,7 @@ app.get("/make-server-fc862019/patient-forms/patient/:name", async (c) => {
 app.put("/make-server-fc862019/patient-forms/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);

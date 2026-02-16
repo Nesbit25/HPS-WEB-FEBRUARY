@@ -4,16 +4,17 @@ import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Edit2, LogOut, Settings, Eye, EyeOff, Home } from 'lucide-react';
+import { Edit2, LogOut, Settings, Eye, EyeOff, Home, Image } from 'lucide-react';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 
 interface AdminEditPanelProps {
   onNavigateToPortal?: () => void;
   onNavigateHome?: () => void;
+  onAdjustHeroPosition?: (type: 'desktop' | 'mobile') => void;
 }
 
-export function AdminEditPanel({ onNavigateToPortal, onNavigateHome }: AdminEditPanelProps) {
+export function AdminEditPanel({ onNavigateToPortal, onNavigateHome, onAdjustHeroPosition }: AdminEditPanelProps) {
   const { isAdmin, user, logout, loading } = useAuth();
   const { isEditMode, setEditMode } = useEditMode();
   const [open, setOpen] = useState(false);
@@ -90,6 +91,42 @@ export function AdminEditPanel({ onNavigateToPortal, onNavigateHome }: AdminEdit
                     />
                   </div>
                 </div>
+
+                {/* Hero Image Position Controls */}
+                {onAdjustHeroPosition && (
+                  <>
+                    <Button
+                      onClick={() => {
+                        onAdjustHeroPosition('desktop');
+                        setOpen(false);
+                      }}
+                      variant="outline"
+                      className="w-full justify-start rounded-xl border-secondary/30 hover:bg-secondary/10 hover:border-secondary"
+                      size="lg"
+                    >
+                      <Image className="w-5 h-5 mr-3 text-secondary" />
+                      <div className="text-left">
+                        <div className="font-medium">Adjust Desktop Hero Image</div>
+                        <div className="text-xs text-muted-foreground font-normal">Change position & focal point</div>
+                      </div>
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        onAdjustHeroPosition('mobile');
+                        setOpen(false);
+                      }}
+                      variant="outline"
+                      className="w-full justify-start rounded-xl border-secondary/30 hover:bg-secondary/10 hover:border-secondary"
+                      size="lg"
+                    >
+                      <Image className="w-5 h-5 mr-3 text-secondary" />
+                      <div className="text-left">
+                        <div className="font-medium">Adjust Mobile Hero Image</div>
+                        <div className="text-xs text-muted-foreground font-normal">Change position & focal point</div>
+                      </div>
+                    </Button>
+                  </>
+                )}
 
                 {/* Info Card */}
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">

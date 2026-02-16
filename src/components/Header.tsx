@@ -8,8 +8,7 @@ import { Link } from 'react-router';
 
 // Logo paths - static files from public folder
 // Main logo (SVG preferred, PNG fallback)
-const logoPath = '/images/logos/logo-main.svg';
-const logoFallback = '/images/logos/logo-main.png';
+const logoPath = '/images/logos/logo-main.png';
 
 interface HeaderProps {
   currentPage: string;
@@ -76,7 +75,7 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               >
                 <ImageWithFallback 
                   src={logoPath} 
-                  fallback={logoFallback} 
+                  fallback={logoPath} 
                   alt="Hanemann Plastic Surgery" 
                   className="h-20 md:h-28 w-auto transition-all duration-300"
                 />

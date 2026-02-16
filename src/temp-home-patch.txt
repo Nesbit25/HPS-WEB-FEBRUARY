@@ -1,0 +1,51 @@
+CHANGES TO MAKE TO Home.tsx:
+
+1. In imports, add Settings to lucide-react line 5:
+   FROM: import { ArrowRight, Star, Shield, Award, Plus } from 'lucide-react';
+   TO: import { ArrowRight, Star, Shield, Award, Plus, Settings } from 'lucide-react';
+
+2. Add after line 13:
+   import { ImagePositionPicker } from '../cms/ImagePositionPicker';
+
+3. Add these three new states after line 48:
+   const [positionPickerOpen, setPositionPickerOpen] = useState<'desktop' | 'mobile' | null>(null);
+   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center');
+   const [heroMobilePosition, setHeroMobilePosition] = useState('center');
+
+4. Change desktop hero img (around line 288) object-position from "object-center" to use heroDesktopPosition state:
+   FROM: className="w-full h-full object-cover object-center"
+   TO: className="w-full h-full object-cover"
+        style={{ objectPosition: heroDesktopPosition }}
+
+5. Add admin button after desktop img, before closing </div>:
+   {isAdmin && isEditMode && (
+     <button
+       onClick={() => setPositionPickerOpen('desktop')}
+       className="absolute top-4 right-4 bg-white/90 hover:bg-white text-gray-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 z-50 transition-all"
+       title="Adjust hero image position"
+     >
+       <Settings className="w-4 h-4" />
+       <span className="text-sm font-semibold">Adjust Position</span>
+     </button>
+   )}
+
+6. Change mobile hero img object-position from "object-center" to use heroMobilePosition state
+
+7. Add admin button after mobile img
+
+8. Add ImagePositionPicker modal before final closing </div> of return statement:
+   {positionPickerOpen && (
+     <ImagePositionPicker
+       imageUrl={positionPickerOpen === 'desktop' ? '/images/hero/desktop/hero-slide-1.png' : '/images/hero/mobile/hero-slide-1.png'}
+       currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition}
+       onSave={(position) => {
+         if (positionPickerOpen === 'desktop') {
+           setHeroDesktopPosition(position);
+         } else if (positionPickerOpen === 'mobile') {
+           setHeroMobilePosition(position);
+         }
+       }}
+       onClose={() => setPositionPickerOpen(null)}
+       label={positionPickerOpen === 'desktop' ? 'Desktop Hero Image' : 'Mobile Hero Image'}
+     />
+   )}

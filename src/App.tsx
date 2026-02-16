@@ -29,6 +29,7 @@ import { noseData, faceData, breastData, bodyData } from './components/data/proc
 import { getBlogPostBySlug } from './components/data/blogPosts';
 import { Button } from './components/ui/button';
 import { StructuredData } from './components/seo/StructuredData';
+import { HeroImagePreview } from './components/HeroImagePreview';
 
 export default function App() {
   return (
@@ -54,6 +55,7 @@ function AppContent() {
   const [consultationOpen, setConsultationOpen] = useState(false);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
+  const [heroPositionRequest, setHeroPositionRequest] = useState<'desktop' | 'mobile' | null>(null);
   
   // Initialize analytics tracking (will use patient user ID if available)
   const { trackClick } = useAnalytics(patientUser?.id);
@@ -135,6 +137,8 @@ function AppContent() {
             <Home 
               onNavigate={handleNavigate}
               onOpenConsultation={() => setConsultationOpen(true)}
+              heroPositionRequest={heroPositionRequest}
+              onHeroPositionHandled={() => setHeroPositionRequest(null)}
             />
           } />
           <Route path="/about" element={<About onNavigate={handleNavigate} />} />
@@ -164,6 +168,9 @@ function AppContent() {
             <PatientAuth onSuccess={() => navigate('/patient/dashboard')} />
           } />
           <Route path="/patient/dashboard" element={<PatientDashboard />} />
+          
+          {/* Hero Image Preview - Temporary */}
+          <Route path="/preview-hero" element={<HeroImagePreview />} />
           
           <Route path="/admin/login" element={
             <AdminLogin 
@@ -241,6 +248,13 @@ function AppContent() {
         <AdminEditPanel 
           onNavigateToPortal={() => navigate('/admin/dashboard')}
           onNavigateHome={() => navigate('/')}
+          onAdjustHeroPosition={(type) => {
+            setHeroPositionRequest(type);
+            // Navigate to home if not already there
+            if (currentPage !== 'Home') {
+              navigate('/');
+            }
+          }}
         />
       )}
     </div>

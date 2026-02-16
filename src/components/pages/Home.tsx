@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { EditableText } from '../cms/EditableText';
 import { EditableImage } from '../cms/EditableImage';
 import { EditableServiceCard } from '../cms/EditableServiceCard';
-import { ArrowRight, Star, Shield, Award, Plus } from 'lucide-react';
+import { ArrowRight, Star, Shield, Award, Plus, Settings } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { BeforeAfterCard } from '../BeforeAfterCard';
 import { GalleryLightbox } from '../GalleryLightbox';
@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { SEOHead } from '../seo/SEOHead';
 import { ChevronDown } from 'lucide-react';
+import { ImagePositionPicker } from '../cms/ImagePositionPicker';
 
 interface GalleryItem {
   id: number;
@@ -27,9 +28,11 @@ interface HomeProps {
   onNavigate: (page: string) => void;
   onOpenConsultation?: () => void;
   onOpenNewsletter?: () => void;
+  heroPositionRequest?: 'desktop' | 'mobile' | null;
+  onHeroPositionHandled?: () => void;
 }
 
-export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
+export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHeroPositionHandled }: HomeProps) {
   const { isAdmin, accessToken } = useAuth();
   const { isEditMode } = useEditMode();
   
@@ -41,8 +44,48 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const carouselRef = React.useRef<HTMLDivElement>(null);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+  
+  // Image position picker state
+  const [positionPickerOpen, setPositionPickerOpen] = useState<'desktop' | 'mobile' | null>(null);
+  const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
+  const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
+
+  // Load hero image positions from database
+  useEffect(() => {
+    loadHeroPositions();
+  }, []);
+
+  const loadHeroPositions = async () => {
+    try {
+      const desktopRes = await fetch(`${serverUrl}/content/hero_desktop_position`, {
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      const desktopData = await desktopRes.json();
+      if (desktopData.content?.value) {
+        setHeroDesktopPosition(desktopData.content.value);
+      }
+
+      const mobileRes = await fetch(`${serverUrl}/content/hero_mobile_position`, {
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      const mobileData = await mobileRes.json();
+      if (mobileData.content?.value) {
+        setHeroMobilePosition(mobileData.content.value);
+      }
+    } catch (error) {
+      console.error('Error loading hero positions:', error);
+    }
+  };
+
+  // Listen for hero position adjustment requests from Admin Panel
+  useEffect(() => {
+    if (heroPositionRequest) {
+      setPositionPickerOpen(heroPositionRequest);
+      onHeroPositionHandled?.();
+    }
+  }, [heroPositionRequest, onHeroPositionHandled]);
 
   // Base gallery items with full metadata
   const baseGalleryItems: GalleryItem[] = [
@@ -274,70 +317,53 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
       <section className="relative w-full overflow-hidden">
         {/* Full viewport height container - starts at very top edge */}
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
-          {/* Image slides - absolutely positioned to fill entire container */}
-          {[0, 1, 2].map((index) => (
-            <div 
-              key={index}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${activeSlide === index ? 'opacity-100' : 'opacity-0'}`}
-            >
-              
-              {/* Desktop images - landscape, high res - STATIC FROM PUBLIC FOLDER */}
-              <div className="hidden md:block absolute inset-0 w-full h-full z-0">
-                <img
-                  src={`/images/hero/desktop/hero-slide-${index + 1}.jpg`}
-                  alt={`Hero Desktop ${index + 1}`}
-                  className="w-full h-full object-cover object-center"
-                  onError={(e) => {
-                    // Fallback to PNG if JPG doesn't exist
-                    const img = e.target as HTMLImageElement;
-                    if (img.src.endsWith('.jpg')) {
-                      img.src = `/images/hero/desktop/hero-slide-${index + 1}.png`;
-                    } else {
-                      // Final fallback to Unsplash
-                      img.src = index === 0 
-                        ? 'https://images.unsplash.com/photo-1619975101918-6d27886e8c6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400' 
-                        : index === 1 
-                        ? 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400' 
-                        : 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=2400';
-                    }
-                  }}
-                />
-              </div>
-              
-              {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
-              <div className="md:hidden absolute inset-0 w-full h-full z-0">
-                <img
-                  src={`/images/hero/mobile/hero-slide-${index + 1}.jpg`}
-                  alt={`Hero Mobile ${index + 1}`}
-                  className="w-full h-full object-cover object-center"
-                  onError={(e) => {
-                    // Fallback to PNG if JPG doesn't exist
-                    const img = e.target as HTMLImageElement;
-                    if (img.src.endsWith('.jpg')) {
-                      img.src = `/images/hero/mobile/hero-slide-${index + 1}.png`;
-                    } else {
-                      // Final fallback to Unsplash
-                      img.src = index === 0 
-                        ? 'https://images.unsplash.com/photo-1631507623121-eaaba8d4e7dc?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200' 
-                        : index === 1 
-                        ? 'https://images.unsplash.com/photo-1764824074438-75ca04e3a4bf?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200' 
-                        : 'https://images.unsplash.com/photo-1631507623121-eaaba8d4e7dc?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=80&w=800&h=1200';
-                    }
-                  }}
-                />
-              </div>
-
-              {/* Dark gradient overlay - allow pointer events to pass through in edit mode */}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
+          {/* Single hero image - absolutely positioned to fill entire container */}
+          <div className="absolute inset-0">
+            
+            {/* Desktop images - landscape, high res - STATIC FROM PUBLIC FOLDER */}
+            <div className="hidden md:block absolute inset-0 w-full h-full z-0">
+              <img
+                src="/images/hero/desktop/hero-slide-1.jpg"
+                alt="Hanemann Plastic Surgery Hero"
+                className="w-full h-full object-cover"
+                style={{ objectPosition: heroDesktopPosition }}
+                onError={(e) => {
+                  // Fallback to PNG if JPG doesn't exist
+                  const img = e.target as HTMLImageElement;
+                  if (img.src.endsWith('.jpg')) {
+                    img.src = '/images/hero/desktop/hero-slide-1.png';
+                  }
+                }}
+              />
             </div>
-          ))}
+            
+            {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
+            <div className="md:hidden absolute inset-0 w-full h-full z-0">
+              <img
+                src="/images/hero/mobile/hero-slide-1.jpg"
+                alt="Hanemann Plastic Surgery Hero Mobile"
+                className="w-full h-full object-cover"
+                style={{ objectPosition: heroMobilePosition }}
+                onError={(e) => {
+                  // Fallback to PNG if JPG doesn't exist
+                  const img = e.target as HTMLImageElement;
+                  if (img.src.endsWith('.jpg')) {
+                    img.src = '/images/hero/mobile/hero-slide-1.png';
+                  }
+                }}
+              />
+            </div>
+
+            {/* Dark gradient overlay - allow pointer events to pass through in edit mode */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
+          </div>
           
           {/* Content Overlay - positioned over images */}
-          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[180px]">
-            <div className="container mx-auto">
+          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[180px] pointer-events-none">
+            <div className="container mx-auto pointer-events-auto">
               <div className="max-w-3xl">
-                {/* Slide 1 Content */}
-                <div className={`transition-opacity duration-1000 ${activeSlide === 0 ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                {/* Hero Content */}
+                <div>
                   <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
                     <EditableText contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
                   </h2>
@@ -354,58 +380,29 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
                     Schedule Consultation
                   </button>
                 </div>
-
-                {/* Slide 2 Content */}
-                <div className={`transition-opacity duration-1000 ${activeSlide === 1 ? 'opacity-100' : 'opacity-0 absolute'}`}>
-                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
-                    <EditableText contentKey="hero_label_2" defaultValue="Artistry Meets Precision" />
-                  </h2>
-                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText contentKey="home_hero_title_2" defaultValue="Natural Results" />
-                  </h1>
-                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
-                    <EditableText as="span" contentKey="home_hero_subtitle_2" defaultValue="Experience the perfect balance of surgical expertise and aesthetic vision. Dr. Hanemann's meticulous approach ensures results that look and feel naturally beautiful." />
-                  </p>
-                  <button 
-                    onClick={() => onNavigate('Contact')}
-                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
-                  >
-                    Schedule Consultation
-                  </button>
-                </div>
-
-                {/* Slide 3 Content */}
-                <div className={`transition-opacity duration-1000 ${activeSlide === 2 ? 'opacity-100' : 'opacity-0 absolute'}`}>
-                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
-                    <EditableText contentKey="hero_label_3" defaultValue="Your Vision, Our Expertise" />
-                  </h2>
-                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText contentKey="home_hero_title_3" defaultValue="Transform with Confidence" />
-                  </h1>
-                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
-                    <EditableText as="span" contentKey="home_hero_subtitle_3" defaultValue="Trust in a surgeon who combines technical excellence with compassionate care. Your journey to renewed confidence begins here." />
-                  </p>
-                  <button 
-                    onClick={() => onNavigate('Contact')}
-                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
-                  >
-                    Schedule Consultation
-                  </button>
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Slide Indicators */}
-          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 flex gap-3">
-            {[0, 1, 2].map(idx => (
-              <button 
-                key={idx}
-                onClick={() => setActiveSlide(idx)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${activeSlide === idx ? 'bg-secondary w-8' : 'bg-white/50 hover:bg-white'}`}
-              />
-            ))}
-          </div>
+          {/* Edit Mode - Hero Image Position Buttons */}
+          {isEditMode && isAdmin && (
+            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 flex gap-4 pointer-events-auto">
+              <button
+                onClick={() => setPositionPickerOpen('desktop')}
+                className="bg-secondary/90 hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-2xl backdrop-blur-sm border-2 border-white/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="text-sm font-medium">Adjust Desktop Hero</span>
+              </button>
+              <button
+                onClick={() => setPositionPickerOpen('mobile')}
+                className="bg-secondary/90 hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-2xl backdrop-blur-sm border-2 border-white/30 transition-all duration-300 hover:scale-105 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="text-sm font-medium">Adjust Mobile Hero</span>
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -811,6 +808,24 @@ export function Home({ onNavigate, onOpenConsultation }: HomeProps) {
           isOpen={newCaseEditorOpen}
           onClose={() => setNewCaseEditorOpen(false)}
           onSaved={loadFeaturedGallery}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* Image Position Picker */}
+      {positionPickerOpen && (
+        <ImagePositionPicker
+          isOpen={true}
+          type={positionPickerOpen}
+          onClose={() => setPositionPickerOpen(null)}
+          onSave={(position) => {
+            if (positionPickerOpen === 'desktop') {
+              setHeroDesktopPosition(position);
+            } else {
+              setHeroMobilePosition(position);
+            }
+          }}
+          currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition}
           accessToken={accessToken}
         />
       )}

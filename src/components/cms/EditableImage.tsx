@@ -322,7 +322,7 @@ export function EditableImage({
   return (
     <>
       <div 
-        className={`relative ${showEditControls && !externalControls ? 'ring-2 ring-blue-400 ring-offset-2' : ''}`}
+        className={`relative group ${showEditControls && !externalControls ? 'ring-2 ring-transparent hover:ring-secondary/20 ring-offset-2' : ''}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -345,7 +345,7 @@ export function EditableImage({
           <div className="absolute top-2 right-2 z-50">
             <Button
               onClick={() => setIsSelectorOpen(true)}
-              className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xl border-2 border-white"
+              className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-xl border-2 border-white"
               size="sm"
             >
               <Edit2 className="w-3 h-3 mr-2" />
