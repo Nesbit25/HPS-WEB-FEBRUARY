@@ -124,16 +124,17 @@ export function HeroImageEditor() {
     });
   };
 
-  const handleUploadAndSelect = async () => {
+  const handleUpload = async () => {
     if (!uploadFile || !accessToken) return;
 
     try {
       setUploading(true);
 
       // Compress the image before uploading
-      console.log('Compressing image...');
+      console.log('[HeroImageEditor] Starting compression...');
       const base64Data = await compressImage(uploadFile);
-      console.log('Image compressed, uploading...');
+      console.log('[HeroImageEditor] Compression complete, size:', Math.round(base64Data.length * 0.75 / 1024), 'KB');
+      console.log('[HeroImageEditor] Uploading to server...');
 
       const uploadResponse = await fetch(`${serverUrl}/photos/upload`, {
         method: 'POST',
@@ -153,18 +154,21 @@ export function HeroImageEditor() {
         })
       });
 
+      console.log('[HeroImageEditor] Upload response status:', uploadResponse.status);
+
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
-        console.error('Upload failed with status:', uploadResponse.status);
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to upload image: ${errorText}`);
+        console.error('[HeroImageEditor] Upload failed with status:', uploadResponse.status);
+        console.error('[HeroImageEditor] Error response:', errorText);
+        throw new Error(`Failed to upload image: ${uploadResponse.status} - ${errorText}`);
       }
 
       const uploadData = await uploadResponse.json();
-      console.log('Upload successful:', uploadData);
+      console.log('[HeroImageEditor] Upload successful:', uploadData);
 
       // Check if upload was successful
       if (!uploadData.success || !uploadData.publicUrl) {
+        console.error('[HeroImageEditor] Upload response missing data:', uploadData);
         throw new Error('Upload response missing required data');
       }
 
@@ -179,9 +183,11 @@ export function HeroImageEditor() {
       setFocalPoint({ x: 50, y: 50 });
       setUploadFile(null);
       setUploadPreview(null);
+      
+      console.log('[HeroImageEditor] Ready for focal point selection');
     } catch (error) {
-      console.error('Error uploading image:', error);
-      alert(error instanceof Error ? error.message : 'Failed to upload image');
+      console.error('[HeroImageEditor] Error uploading image:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload image. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -410,7 +416,7 @@ export function HeroImageEditor() {
                             Cancel
                           </Button>
                           <Button
-                            onClick={handleUploadAndSelect}
+                            onClick={handleUpload}
                             disabled={uploading}
                             className="rounded-full bg-secondary hover:bg-secondary/90"
                           >

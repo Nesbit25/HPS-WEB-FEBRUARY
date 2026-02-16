@@ -12,6 +12,7 @@ import { useEditMode } from '../../contexts/EditModeContext';
 import { SEOHead } from '../seo/SEOHead';
 import { ChevronDown } from 'lucide-react';
 import { ImagePositionPicker } from '../cms/ImagePositionPicker';
+import { HeroImageUploader } from '../cms/HeroImageUploader';
 
 interface GalleryItem {
   id: number;
@@ -30,9 +31,11 @@ interface HomeProps {
   onOpenNewsletter?: () => void;
   heroPositionRequest?: 'desktop' | 'mobile' | null;
   onHeroPositionHandled?: () => void;
+  heroUploadRequest?: 'desktop' | 'mobile' | null;
+  onHeroUploadHandled?: () => void;
 }
 
-export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHeroPositionHandled }: HomeProps) {
+export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHeroPositionHandled, heroUploadRequest, onHeroUploadHandled }: HomeProps) {
   const { isAdmin, accessToken } = useAuth();
   const { isEditMode } = useEditMode();
   
@@ -47,6 +50,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   
   // Image position picker state
   const [positionPickerOpen, setPositionPickerOpen] = useState<'desktop' | 'mobile' | null>(null);
+  const [uploaderOpen, setUploaderOpen] = useState<'desktop' | 'mobile' | null>(null);
   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
   const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
 
@@ -86,6 +90,14 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       onHeroPositionHandled?.();
     }
   }, [heroPositionRequest, onHeroPositionHandled]);
+
+  // Listen for hero image upload requests from Admin Panel
+  useEffect(() => {
+    if (heroUploadRequest) {
+      setUploaderOpen(heroUploadRequest);
+      onHeroUploadHandled?.();
+    }
+  }, [heroUploadRequest, onHeroUploadHandled]);
 
   // Base gallery items with full metadata
   const baseGalleryItems: GalleryItem[] = [
@@ -826,6 +838,20 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             }
           }}
           currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* Hero Image Uploader */}
+      {uploaderOpen && (
+        <HeroImageUploader
+          isOpen={true}
+          type={uploaderOpen}
+          onClose={() => setUploaderOpen(null)}
+          onUploadComplete={(newImageUrl) => {
+            console.log('Hero image uploaded:', newImageUrl);
+            // Image URL is saved to database by the component
+          }}
           accessToken={accessToken}
         />
       )}

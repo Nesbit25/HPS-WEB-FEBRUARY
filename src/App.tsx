@@ -56,6 +56,7 @@ function AppContent() {
   const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [heroPositionRequest, setHeroPositionRequest] = useState<'desktop' | 'mobile' | null>(null);
+  const [heroUploadRequest, setHeroUploadRequest] = useState<'desktop' | 'mobile' | null>(null);
   
   // Initialize analytics tracking (will use patient user ID if available)
   const { trackClick } = useAnalytics(patientUser?.id);
@@ -139,6 +140,8 @@ function AppContent() {
               onOpenConsultation={() => setConsultationOpen(true)}
               heroPositionRequest={heroPositionRequest}
               onHeroPositionHandled={() => setHeroPositionRequest(null)}
+              heroUploadRequest={heroUploadRequest}
+              onHeroUploadHandled={() => setHeroUploadRequest(null)}
             />
           } />
           <Route path="/about" element={<About onNavigate={handleNavigate} />} />
@@ -250,6 +253,13 @@ function AppContent() {
           onNavigateHome={() => navigate('/')}
           onAdjustHeroPosition={(type) => {
             setHeroPositionRequest(type);
+            // Navigate to home if not already there
+            if (currentPage !== 'Home') {
+              navigate('/');
+            }
+          }}
+          onUploadHeroImage={(type) => {
+            setHeroUploadRequest(type);
             // Navigate to home if not already there
             if (currentPage !== 'Home') {
               navigate('/');

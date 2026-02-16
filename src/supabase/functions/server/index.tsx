@@ -673,6 +673,20 @@ const initBucket = async () => {
         fileSizeLimit: 10485760 // 10MB
       });
       console.log('Created storage bucket:', bucketName);
+    } else {
+      // Bucket exists - ensure it's public
+      console.log('Storage bucket already exists:', bucketName);
+      
+      // Update bucket to ensure it's public
+      try {
+        await supabase.storage.updateBucket(bucketName, {
+          public: true,
+          fileSizeLimit: 10485760
+        });
+        console.log('✅ Updated bucket to public:', bucketName);
+      } catch (updateError) {
+        console.log('Note: Could not update bucket settings (this is normal if settings are already correct)');
+      }
     }
   } catch (error) {
     console.log('Error initializing bucket:', error);
@@ -680,6 +694,89 @@ const initBucket = async () => {
 };
 
 initBucket();
+
+// Health check endpoint for storage bucket
+app.get("/make-server-fc862019/storage/health", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+    
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Check bucket exists and is public
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucket = buckets?.find(b => b.name === bucketName);
+    
+    if (!bucket) {
+      return c.json({ 
+        status: 'error',
+        message: 'Bucket does not exist',
+        bucketName 
+      });
+    }
+
+    // List some files to verify access
+    const { data: files, error: listError } = await supabase.storage
+      .from(bucketName)
+      .list('', { limit: 10 });
+
+    return c.json({
+      status: 'ok',
+      bucket: {
+        name: bucket.name,
+        public: bucket.public,
+        fileCount: files?.length || 0,
+        sampleFiles: files?.slice(0, 3).map(f => f.name) || []
+      }
+    });
+  } catch (error) {
+    console.log('[Storage Health] Error:', error);
+    return c.json({ 
+      status: 'error',
+      error: String(error)
+    }, 500);
+  }
+});
+
+// Fix bucket permissions endpoint
+app.post("/make-server-fc862019/storage/fix-permissions", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+    
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Update bucket to be public
+    const { data, error: updateError } = await supabase.storage.updateBucket(bucketName, {
+      public: true,
+      fileSizeLimit: 10485760
+    });
+
+    if (updateError) {
+      console.error('[Fix Permissions] Error:', updateError);
+      return c.json({ 
+        success: false,
+        error: updateError.message 
+      }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: 'Bucket permissions updated to public',
+      bucketName
+    });
+  } catch (error) {
+    console.log('[Fix Permissions] Error:', error);
+    return c.json({ 
+      success: false,
+      error: String(error)
+    }, 500);
+  }
+});
 
 // Debug endpoint to list all gallery keys
 app.get("/make-server-fc862019/gallery/debug", async (c) => {

@@ -319,6 +319,14 @@ export function EditableImage({
 
   const showEditControls = isAdmin && isEditMode;
 
+  // DEBUG: Log render state
+  console.log(`[EditableImage RENDER] ${contentKey}:`, {
+    imageUrl,
+    loading,
+    showEditControls,
+    hasImage: !!imageUrl
+  });
+
   return (
     <>
       <div 
@@ -332,6 +340,12 @@ export function EditableImage({
             alt={alt} 
             className={`${className}`}
             style={{ objectPosition: `${focalPoint.x}% ${focalPoint.y}%` }}
+            onError={(e) => {
+              console.error(`[EditableImage] Failed to load image: ${imageUrl}`);
+              const img = e.target as HTMLImageElement;
+              // Don't set to placeholder, just log the error
+              img.style.opacity = '0.5';
+            }}
           />
         ) : (
           <ImagePlaceholder
