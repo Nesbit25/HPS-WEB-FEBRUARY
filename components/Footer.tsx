@@ -1,6 +1,7 @@
 import { Instagram, Facebook, Twitter } from 'lucide-react';
 import { Button } from './ui/button';
 import { EditableText } from './cms/EditableText';
+import { ImageWithFallback } from './figma/ImageWithFallback';
 
 // Logo path - same as header
 const logoFull = '/images/logos/logo-main.png';
@@ -24,10 +25,11 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
       <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
         {/* Column 1: Brand */}
         <div className="md:col-span-1 flex flex-col items-center md:items-start">
-          <img 
-            src={logoFull} 
+          <ImageWithFallback 
+            src={logoFull}
+            fallback={logoFull}
             alt="Hanemann Plastic Surgery" 
-            className="h-48 mb-6 logo-footer"
+            className="h-32 md:h-36 w-auto mb-6 logo-footer"
           />
           <p className="text-gray-400 text-sm leading-relaxed mb-6 text-center md:text-left">
             Dedicated to restoring form and function with an artistic touch. Experience the highest standard of aesthetic care.
@@ -40,8 +42,7 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
               <Facebook size={18}/>
             </a>
             <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors">
-              <Twitter size={18}/>
-            </a>
+              <Twitter size={18}/>              </a>
           </div>
         </div>
 
