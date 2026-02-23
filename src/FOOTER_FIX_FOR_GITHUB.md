@@ -1,6 +1,47 @@
+# 🚨 URGENT: Footer.tsx Missing Icon Imports
+
+## The Problem
+Footer.tsx is missing the lucide-react icon imports, causing the error:
+```
+ReferenceError: Instagram is not defined at Footer.tsx:36:15
+```
+
+## The Fix - Update Footer.tsx on GitHub
+
+### Go to this URL:
+```
+https://github.com/Nesbit25/HPS-WEB-FEBRUARY/edit/main/components/Footer.tsx
+```
+
+### Replace Line 1-6 with:
+```typescript
 import { Instagram, Facebook, Twitter } from 'lucide-react';
 import { Button } from './ui/button';
 import { EditableText } from './cms/EditableText';
+
+// Logo path - same as header
+const logoFull = '/images/logos/logo-main.png';
+```
+
+**Key Changes:**
+1. **Line 1:** Added `import { Instagram, Facebook, Twitter } from 'lucide-react';`
+2. **Line 5:** Changed logo from placeholder to `/images/logos/logo-main.png`
+
+### Click "Commit changes" and wait 2 minutes for Vercel to deploy
+
+---
+
+## Alternative: Copy Full File
+
+If you want to replace the entire file, here's the complete corrected Footer.tsx:
+
+```typescript
+import { Instagram, Facebook, Twitter } from 'lucide-react';
+import { Button } from './ui/button';
+import { EditableText } from './cms/EditableText';
+
+// Logo path - same as header
+const logoFull = '/images/logos/logo-main.png';
 
 interface FooterProps {
   onNavigate: (page: string) => void;
@@ -22,16 +63,9 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
         {/* Column 1: Brand */}
         <div className="md:col-span-1 flex flex-col items-center md:items-start">
           <img 
-            src="/images/logos/logo-main.png"
+            src={logoFull} 
             alt="Hanemann Plastic Surgery" 
-            className="h-32 md:h-36 w-auto mb-6"
-            onError={(e) => {
-              // Fallback to SVG if PNG doesn't exist
-              const img = e.target as HTMLImageElement;
-              if (img.src.endsWith('.png')) {
-                img.src = '/images/logos/logo-main.svg';
-              }
-            }}
+            className="h-48 mb-6 logo-footer"
           />
           <p className="text-gray-400 text-sm leading-relaxed mb-6 text-center md:text-left">
             Dedicated to restoring form and function with an artistic touch. Experience the highest standard of aesthetic care.
@@ -155,3 +189,18 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
     </footer>
   );
 }
+```
+
+---
+
+## What This Fixes
+
+✅ **Missing icon imports** - Instagram, Facebook, Twitter from lucide-react
+✅ **Logo mismatch** - Now uses same logo as header (`/images/logos/logo-main.png`)
+✅ **No more ReferenceError** - All icons properly imported
+
+## After Pushing to GitHub
+
+1. Wait 2-3 minutes for Vercel to auto-deploy
+2. Hard refresh your browser (Ctrl+Shift+R or Cmd+Shift+R)
+3. The footer should now display correctly with icons and the proper logo

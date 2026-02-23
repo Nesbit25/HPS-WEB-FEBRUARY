@@ -1904,10 +1904,12 @@ app.post("/make-server-fc862019/photos/upload", async (c) => {
       return c.json({ error: uploadError.message }, 400);
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    // Generate signed URL (valid for 1 year) - works for both public and private buckets
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(bucketName)
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 31536000); // 1 year
+    
+    const publicUrl = signedData?.signedUrl || supabase.storage.from(bucketName).getPublicUrl(filePath).data.publicUrl;
 
     // Save metadata to KV
     const photoId = `photo_${timestamp}`;
@@ -1954,8 +1956,31 @@ app.get("/make-server-fc862019/photos/published", async (c) => {
     
     console.log('Published photos:', publishedPhotos.length);
     
+    // Generate fresh signed URLs for all photos (valid for 1 year)
+    // This ensures images work even if bucket is private
+    const photosWithSignedUrls = await Promise.all(publishedPhotos.map(async (photo: any) => {
+      try {
+        if (photo.filePath) {
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from(bucketName)
+            .createSignedUrl(photo.filePath, 31536000); // 1 year
+          
+          if (!signedError && signedData?.signedUrl) {
+            return {
+              ...photo,
+              publicUrl: signedData.signedUrl // Replace with signed URL
+            };
+          }
+        }
+        return photo; // Fallback to original URL if signing fails
+      } catch (err) {
+        console.log(`Error generating signed URL for ${photo.id}:`, err);
+        return photo;
+      }
+    }));
+    
     const result = { 
-      photos: publishedPhotos.sort((a: any, b: any) => 
+      photos: photosWithSignedUrls.sort((a: any, b: any) => 
         new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
       )
     };

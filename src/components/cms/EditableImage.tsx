@@ -149,7 +149,32 @@ export function EditableImage({
         let finalUrl = defaultSrc;
         if (data.content?.value) {
           console.log(`[EditableImage FETCH] ✅ Loaded URL for ${contentKey}:`, data.content.value);
-          finalUrl = data.content.value;
+          
+          // Check if this is a broken Supabase Storage URL (public bucket that no longer exists)
+          const isBrokenStorageUrl = data.content.value.includes('supabase.co/storage/v1/object/public/make-fc862019-gallery');
+          
+          if (isBrokenStorageUrl) {
+            console.warn(`[EditableImage FETCH] 🔧 Detected broken public storage URL for ${contentKey}, clearing and using default`);
+            
+            // Clear the broken URL from the database (fire and forget)
+            if (accessToken) {
+              fetch(`${serverUrl}/content/${contentKey}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`
+                }
+              }).catch(err => console.warn('[EditableImage] Failed to clear broken URL:', err));
+            }
+            
+            // Also clear from localStorage cache
+            localStorage.removeItem(`img_${contentKey}`);
+            localStorage.removeItem(`focal_${contentKey}`);
+            
+            // Use default instead
+            finalUrl = defaultSrc;
+          } else {
+            finalUrl = data.content.value;
+          }
         } else {
           console.log(`[EditableImage FETCH] ⚠️ No URL stored for ${contentKey}, using default:`, defaultSrc);
         }
@@ -341,10 +366,12 @@ export function EditableImage({
             className={`${className}`}
             style={{ objectPosition: `${focalPoint.x}% ${focalPoint.y}%` }}
             onError={(e) => {
-              console.error(`[EditableImage] Failed to load image: ${imageUrl}`);
               const img = e.target as HTMLImageElement;
-              // Don't set to placeholder, just log the error
-              img.style.opacity = '0.5';
+              // Fallback to default image on error
+              if (img.src !== defaultSrc) {
+                console.warn(`[EditableImage] Image load failed for ${contentKey}, using fallback: ${imageUrl} → ${defaultSrc}`);
+                img.src = defaultSrc;
+              }
             }}
           />
         ) : (
