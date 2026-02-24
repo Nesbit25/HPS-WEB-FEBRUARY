@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
@@ -34,26 +34,42 @@ export function EditableServiceCard({
   const { isEditMode } = useEditMode();
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  // Store defaultSrc in ref to avoid re-triggering useEffect
+  const defaultSrcRef = useRef(defaultSrc);
+  defaultSrcRef.current = defaultSrc;
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
   const showEditControls = isAdmin && isEditMode;
 
-  // Load the image URL
+  // Load the image URL — only depends on contentKey
   React.useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
     const loadImage = async () => {
       try {
         const response = await fetch(`${serverUrl}/content/${contentKey}`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+          headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+          signal: controller.signal
         });
+        if (!isMounted) return;
         const data = await response.json();
-        setImageUrl(data.content?.value || defaultSrc);
-      } catch (error) {
-        console.error('Error loading image:', error);
-        setImageUrl(defaultSrc);
+        setImageUrl(data.content?.value || defaultSrcRef.current);
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        console.error('Error loading service card image:', error);
+        if (isMounted) setImageUrl(defaultSrcRef.current);
       }
     };
     loadImage();
-  }, [contentKey, defaultSrc, serverUrl]);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [contentKey, serverUrl]);
 
   const handleImageSelect = async (selectedPhotoId: string, publicUrl: string, focal: { x: number; y: number }) => {
     if (!accessToken) return;
@@ -155,9 +171,13 @@ export function EditableServiceCard({
         {/* Image Container with proper aspect ratio - STRICT HEIGHT LIMIT */}
         <div className="relative w-full aspect-[4/3] overflow-hidden">
           <img 
-            src={imageUrl || defaultSrc} 
+            src={(!imgError && imageUrl) ? imageUrl : defaultSrc} 
             alt={alt}
             className="absolute inset-0 w-full h-full object-cover object-center"
+            onError={() => {
+              if (!imgError) setImgError(true);
+            }}
+            loading="lazy"
           />
         
           {/* Diagonal gradient hover overlay with procedures - MUST MATCH IMAGE DIMENSIONS */}

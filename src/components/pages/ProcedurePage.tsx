@@ -272,38 +272,7 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
       <Breadcrumbs items={seoData.breadcrumbs} />
       
       {/* Page Hero */}
-      <section className="relative bg-gradient-to-br from-[#242938] to-[#1a1f2e] py-32 border-b border-[#2d3548] overflow-hidden">
-        {/* Ambient glow effects */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#c9b896]/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-[#b8976a]/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        
-        <div className="container mx-auto px-6 text-center relative z-10">
-          <motion.h1 
-            className="mb-6 text-[#faf9f7]"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            {seoData.h1}
-          </motion.h1>
-          <motion.p 
-            className="text-gray-300 max-w-3xl mx-auto text-lg"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            {data.subtitle}
-          </motion.p>
-          
-          {/* Gold accent divider */}
-          <motion.div 
-            className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-8"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 96, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-          />
-        </div>
-      </section>
+      
 
       {/* Overview Section */}
       <section className="py-24 bg-[#1a1f2e] relative overflow-hidden">

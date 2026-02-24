@@ -13,7 +13,7 @@ interface LogEntry {
 export function DebugConsole() {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [logId, setLogId] = useState(0);
+  const logIdRef = React.useRef(0);
 
   useEffect(() => {
     // Intercept console methods
@@ -27,15 +27,16 @@ export function DebugConsole() {
         typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
       ).join(' ');
 
+      const currentId = logIdRef.current++;
+
       const newLog: LogEntry = {
-        id: logId,
+        id: currentId,
         timestamp: new Date().toLocaleTimeString(),
         message,
         type,
         data: args.length === 1 && typeof args[0] === 'object' ? args[0] : undefined
       };
 
-      setLogId(prev => prev + 1);
       setLogs(prev => [newLog, ...prev].slice(0, 100)); // Keep last 100 logs
     };
 
@@ -65,7 +66,7 @@ export function DebugConsole() {
       console.warn = originalWarn;
       console.info = originalInfo;
     };
-  }, [logId]);
+  }, []); // Empty deps — only patch console once on mount
 
   const clearLogs = () => {
     setLogs([]);

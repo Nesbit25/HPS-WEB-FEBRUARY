@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEditMode } from '../../contexts/EditModeContext';
 import { Button } from '../ui/button';
@@ -13,9 +13,9 @@ interface EditableImageProps {
   alt: string;
   className?: string;
   locationLabel?: string;
-  externalControls?: boolean; // Position edit button outside the image bounds
-  cropOrientation?: 'landscape' | 'portrait' | 'square'; // Crop orientation for the image
-  cropAspectRatio?: number; // Exact aspect ratio (width/height) for cropping
+  externalControls?: boolean;
+  cropOrientation?: 'landscape' | 'portrait' | 'square';
+  cropAspectRatio?: number;
 }
 
 export function EditableImage({ 
@@ -33,259 +33,161 @@ export function EditableImage({
   const [isHovered, setIsHovered] = useState(false);
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   
-  // SIMPLIFIED: Just store the image URL directly - start with cached value for instant display
+  // Store defaultSrc in a ref so the useEffect doesn't re-trigger when it changes
+  const defaultSrcRef = useRef(defaultSrc);
+  defaultSrcRef.current = defaultSrc;
+  
   const [imageUrl, setImageUrl] = useState<string | null>(() => {
-    // Try to load from localStorage cache immediately
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem(`img_${contentKey}`);
-      if (cached) {
-        console.log(`[EditableImage] 🚀 Loaded from cache: ${contentKey}`);
-        return cached;
-      }
+      if (cached) return cached;
     }
     return null;
   });
+  
   const [focalPoint, setFocalPoint] = useState(() => {
-    // Also cache focal point
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem(`focal_${contentKey}`);
       if (cached) {
         const [x, y] = cached.split(',').map(parseFloat);
-        return { x, y };
+        if (!isNaN(x) && !isNaN(y)) return { x, y };
       }
     }
     return { x: 50, y: 50 };
   });
+  
   const [loading, setLoading] = useState(true);
+  const [imgError, setImgError] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
 
-  // DEBUG: Log the auth state
-  console.log('[EditableImage] Auth State:', { 
-    contentKey, 
-    isAdmin, 
-    isEditMode,
-    hasToken: !!accessToken 
-  });
-
-  // Fetch the stored image URL from content
+  // Fetch the stored image URL from content — only depends on contentKey
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
+    const controller = new AbortController();
     
-    const fetchContent = async (retryCount = 0) => {
-      const maxRetries = 3;
-      
+    const fetchContent = async () => {
       try {
-        // Only update state if component is still mounted
         if (!isMounted) return;
-        
         setLoading(true);
-        
-        console.log(`[EditableImage FETCH] Starting fetch for ${contentKey}`);
-        
-        // Get the stored image URL - use publicAnonKey for public endpoint access
-        // Use AbortController properly with better timeout handling
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          console.warn(`[EditableImage FETCH] Request timeout for ${contentKey}`);
-          controller.abort(new Error('Request timeout after 15 seconds'));
-        }, 15000); // Increased to 15 seconds
         
         const response = await fetch(`${serverUrl}/content/${contentKey}`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
           },
           signal: controller.signal
-        }).catch(err => {
-          // Clear timeout on error
-          if (timeoutId) clearTimeout(timeoutId);
-          
-          // Handle abort errors gracefully
-          if (err.name === 'AbortError') {
-            console.warn(`[EditableImage FETCH] Request aborted for ${contentKey}`);
-            throw new Error('Request timeout');
-          }
-          
-          // Catch other network errors
-          console.warn(`[EditableImage FETCH] Network error for ${contentKey}:`, err.message);
-          throw err;
         });
         
-        // Clear timeout after successful response
-        if (timeoutId) clearTimeout(timeoutId);
-        
-        // Check if component is still mounted
         if (!isMounted) return;
         
-        // Check if response is ok before parsing
         if (!response.ok) {
-          console.warn(`[EditableImage FETCH] Server returned ${response.status} for ${contentKey}`);
-          
-          // Don't retry on 404 - just use default
           if (response.status === 404) {
-            console.log(`[EditableImage FETCH] No content stored yet for ${contentKey}, using default`);
-            setImageUrl(defaultSrc);
-            localStorage.setItem(`img_${contentKey}`, defaultSrc);
+            setImageUrl(defaultSrcRef.current);
+            localStorage.setItem(`img_${contentKey}`, defaultSrcRef.current);
             setLoading(false);
             return;
           }
-          
           throw new Error(`HTTP ${response.status}`);
         }
         
         const data = await response.json();
         
-        console.log(`[EditableImage FETCH] Response for ${contentKey}:`, data);
+        if (!isMounted) return;
         
-        // Retry on connection errors
-        if (data.error && data.retryable && retryCount < maxRetries) {
-          console.warn(`[EditableImage] Connection issue for ${contentKey}, retrying... (${retryCount + 1}/${maxRetries})`);
-          const delay = 1000 * Math.pow(2, retryCount);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchContent(retryCount + 1);
-        }
-        
-        let finalUrl = defaultSrc;
+        let finalUrl = defaultSrcRef.current;
         if (data.content?.value) {
-          console.log(`[EditableImage FETCH] ✅ Loaded URL for ${contentKey}:`, data.content.value);
-          
-          // Check if this is a broken Supabase Storage URL (public bucket that no longer exists)
-          const isBrokenStorageUrl = data.content.value.includes('supabase.co/storage/v1/object/public/make-fc862019-gallery');
-          
-          if (isBrokenStorageUrl) {
-            console.warn(`[EditableImage FETCH] 🔧 Detected broken public storage URL for ${contentKey}, clearing and using default`);
-            
-            // Clear the broken URL from the database (fire and forget)
-            if (accessToken) {
-              fetch(`${serverUrl}/content/${contentKey}`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`
-                }
-              }).catch(err => console.warn('[EditableImage] Failed to clear broken URL:', err));
-            }
-            
-            // Also clear from localStorage cache
-            localStorage.removeItem(`img_${contentKey}`);
-            localStorage.removeItem(`focal_${contentKey}`);
-            
-            // Use default instead
-            finalUrl = defaultSrc;
-          } else {
-            finalUrl = data.content.value;
-          }
-        } else {
-          console.log(`[EditableImage FETCH] ⚠️ No URL stored for ${contentKey}, using default:`, defaultSrc);
+          // Use the stored URL directly — no broken-URL detection/clearing
+          finalUrl = data.content.value;
         }
         
-        // Update state and cache
         setImageUrl(finalUrl);
         localStorage.setItem(`img_${contentKey}`, finalUrl);
         
         // Get focal point if exists
-        const focalResponse = await fetch(`${serverUrl}/content/${contentKey}_focal`, {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
+        try {
+          const focalResponse = await fetch(`${serverUrl}/content/${contentKey}_focal`, {
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`
+            },
+            signal: controller.signal
+          });
+          
+          if (!isMounted) return;
+          
+          if (focalResponse.ok) {
+            const focalData = await focalResponse.json();
+            if (focalData.content?.value) {
+              const [x, y] = focalData.content.value.split(' ').map((v: string) => parseFloat(v));
+              if (!isNaN(x) && !isNaN(y)) {
+                setFocalPoint({ x, y });
+                localStorage.setItem(`focal_${contentKey}`, `${x},${y}`);
+              }
+            }
           }
-        });
-        const focalData = await focalResponse.json();
-        
-        console.log(`[EditableImage FETCH] Focal point response:`, focalData);
-        
-        if (focalData.content?.value) {
-          const [x, y] = focalData.content.value.split(' ').map((v: string) => parseFloat(v));
-          console.log(`[EditableImage FETCH] ✅ Loaded focal point:`, { x, y });
-          setFocalPoint({ x, y });
-          localStorage.setItem(`focal_${contentKey}`, `${x},${y}`);
+        } catch {
+          // Focal point fetch failed — not critical, ignore
         }
-      } catch (error) {
-        console.error('[EditableImage FETCH] ❌ Error loading content:', error);
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        console.error(`[EditableImage] Error loading ${contentKey}:`, error);
         
-        // Retry on network errors
-        if (retryCount < maxRetries) {
-          console.warn(`[EditableImage] Network error, retrying... (${retryCount + 1}/${maxRetries})`);
-          const delay = 1000 * Math.pow(2, retryCount);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchContent(retryCount + 1);
+        // Fall back to default
+        if (isMounted) {
+          setImageUrl(defaultSrcRef.current);
+          localStorage.setItem(`img_${contentKey}`, defaultSrcRef.current);
         }
-        
-        const fallback = defaultSrc;
-        setImageUrl(fallback);
-        localStorage.setItem(`img_${contentKey}`, fallback);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchContent();
 
-    // Cleanup function to set isMounted to false when component unmounts
     return () => {
       isMounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      controller.abort();
     };
-  }, [contentKey, serverUrl, defaultSrc, publicAnonKey]);
+  }, [contentKey, serverUrl]);
 
-  // Handle image selection - SIMPLIFIED: Just save the URL
+  // Handle image selection
   const handleImageSelect = async (selectedPhotoId: string, publicUrl: string, focal: { x: number; y: number }) => {
     if (!accessToken) return;
 
-    console.log('[EditableImage] Saving image URL:', {
-      contentKey,
-      url: publicUrl,
-      focalPoint: focal
-    });
-
     try {
-      // STEP 1: Get the currently assigned photo for this location (if any)
+      // Get currently assigned photo
       const currentResponse = await fetch(`${serverUrl}/content/${contentKey}`);
       let previousPhotoId: string | null = null;
       
       if (currentResponse.ok) {
         const currentData = await currentResponse.json();
-        // Check if there was a previously assigned photo
         if (currentData.content?.photoId) {
           previousPhotoId = currentData.content.photoId;
-          console.log('[EditableImage] Found previously assigned photo:', previousPhotoId);
         }
       }
 
-      // STEP 2: Publish the newly selected photo
-      console.log('[EditableImage] Publishing selected photo:', selectedPhotoId);
+      // Publish the newly selected photo
       await fetch(`${serverUrl}/photos/${selectedPhotoId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          status: 'published'
-        })
+        body: JSON.stringify({ status: 'published' })
       });
 
-      // STEP 3: Unpublish the previous photo (if different from the new one)
+      // Unpublish the previous photo if different
       if (previousPhotoId && previousPhotoId !== selectedPhotoId) {
-        console.log('[EditableImage] Unpublishing previous photo:', previousPhotoId);
         await fetch(`${serverUrl}/photos/${previousPhotoId}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            status: 'unpublished'
-          })
+          body: JSON.stringify({ status: 'unpublished' })
         });
       }
 
-      // STEP 4: Save the public URL and photo ID to content
-      console.log('[EditableImage SAVE] Saving content:', {
-        contentKey,
-        value: publicUrl,
-        photoId: selectedPhotoId
-      });
-      
+      // Save the URL and photo ID
       const saveResponse = await fetch(`${serverUrl}/content/${contentKey}`, {
         method: 'PUT',
         headers: {
@@ -293,28 +195,18 @@ export function EditableImage({
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          value: publicUrl,  // Save the URL for display
-          photoId: selectedPhotoId  // Also save the photo ID for tracking
+          value: publicUrl,
+          photoId: selectedPhotoId
         })
       });
 
       if (!saveResponse.ok) {
         const errorText = await saveResponse.text();
-        console.error('[EditableImage SAVE] ❌ Save failed:', errorText);
         throw new Error(`Failed to save image URL: ${errorText}`);
       }
-      
-      const saveData = await saveResponse.json();
-      console.log('[EditableImage SAVE] ✅ Save successful:', saveData);
 
-      // STEP 5: Save focal point
-      const focalKey = `${contentKey}_focal`;
-      console.log('[EditableImage SAVE] Saving focal point:', {
-        focalKey,
-        value: `${focal.x}% ${focal.y}%`
-      });
-      
-      await fetch(`${serverUrl}/content/${focalKey}`, {
+      // Save focal point
+      await fetch(`${serverUrl}/content/${contentKey}_focal`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -328,14 +220,13 @@ export function EditableImage({
       // Update UI immediately
       setImageUrl(publicUrl);
       setFocalPoint(focal);
+      setImgError(false);
       
       // Update localStorage cache
       localStorage.setItem(`img_${contentKey}`, publicUrl);
       localStorage.setItem(`focal_${contentKey}`, `${focal.x},${focal.y}`);
       
       setIsSelectorOpen(false);
-      
-      console.log('[EditableImage] Image saved successfully, publish status updated');
     } catch (error) {
       console.error('[EditableImage] Error saving:', error);
       alert('Failed to save image. Please try again.');
@@ -343,14 +234,7 @@ export function EditableImage({
   };
 
   const showEditControls = isAdmin && isEditMode;
-
-  // DEBUG: Log render state
-  console.log(`[EditableImage RENDER] ${contentKey}:`, {
-    imageUrl,
-    loading,
-    showEditControls,
-    hasImage: !!imageUrl
-  });
+  const displayUrl = imageUrl || defaultSrc;
 
   return (
     <>
@@ -359,20 +243,18 @@ export function EditableImage({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {imageUrl ? (
-          <img 
-            src={imageUrl} 
-            alt={alt} 
-            className={`${className}`}
+        {/* Always render the image when we have a URL */}
+        {displayUrl && !imgError ? (
+          <img
+            src={displayUrl}
+            alt={alt}
+            className={className}
             style={{ objectPosition: `${focalPoint.x}% ${focalPoint.y}%` }}
-            onError={(e) => {
-              const img = e.target as HTMLImageElement;
-              // Fallback to default image on error
-              if (img.src !== defaultSrc) {
-                console.warn(`[EditableImage] Image load failed for ${contentKey}, using fallback: ${imageUrl} → ${defaultSrc}`);
-                img.src = defaultSrc;
-              }
+            onError={() => {
+              console.warn(`[EditableImage] Image load failed for ${contentKey}: ${displayUrl}`);
+              setImgError(true);
             }}
+            loading="lazy"
           />
         ) : (
           <ImagePlaceholder

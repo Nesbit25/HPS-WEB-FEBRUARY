@@ -11,12 +11,12 @@ export function HeroImagePreview() {
           {/* Desktop Preview */}
           <div className="relative w-full h-[600px] rounded-lg overflow-hidden shadow-2xl border-4 border-gray-300">
             {/* Hero Image */}
-            <img
-              src="figma:asset/0218e27594568d6d88e8a1a81fef94b5f944513c.png"
-              alt="Dr. Hanemann Desktop Hero"
-              className="w-full h-full object-cover"
+            <div
+              className="w-full h-full bg-gray-300 flex items-center justify-center"
               style={{ objectPosition: 'center center' }}
-            />
+            >
+              <p className="text-gray-500 text-lg">Hero image preview — upload an image from the admin panel</p>
+            </div>
             
             {/* Dark gradient overlay - exactly as in production */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />

@@ -2095,6 +2095,40 @@ app.delete("/make-server-fc862019/photos/:id", async (c) => {
   }
 });
 
+// Clear service card images (admin utility - protected)
+app.delete("/make-server-fc862019/admin/clear-service-cards", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const serviceCards = ['nose', 'face', 'breast', 'body'];
+    const cleared = [];
+    
+    for (const card of serviceCards) {
+      const contentKey = `service_card_${card}`;
+      await kv.del(contentKey);
+      await kv.del(`${contentKey}_focal`);
+      clearCacheEntry(contentKey);
+      clearCacheEntry(`${contentKey}_focal`);
+      cleared.push(contentKey);
+      console.log(`[Clear Service Cards] Deleted ${contentKey}`);
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: 'Service card images cleared successfully',
+      cleared 
+    });
+  } catch (error) {
+    console.log('[Clear Service Cards] Error:', error);
+    return c.json({ error: 'Failed to clear service cards' }, 500);
+  }
+});
+
 // Update photo metadata (protected)
 app.put("/make-server-fc862019/photos/:id", async (c) => {
   try {

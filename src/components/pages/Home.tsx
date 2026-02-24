@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { EditableText } from '../cms/EditableText';
-import { EditableImage } from '../cms/EditableImage';
 import { EditableServiceCard } from '../cms/EditableServiceCard';
 import { ArrowRight, Star, Shield, Award, Plus, Settings } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
@@ -13,6 +12,7 @@ import { SEOHead } from '../seo/SEOHead';
 import { ChevronDown } from 'lucide-react';
 import { ImagePositionPicker } from '../cms/ImagePositionPicker';
 import { HeroImageUploader } from '../cms/HeroImageUploader';
+import { ImageWithFallback } from '../figma/ImageWithFallback';
 
 interface GalleryItem {
   id: number;
@@ -54,20 +54,48 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
   const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
 
+  // Service card images state - loaded from database
+  const [serviceImages, setServiceImages] = useState<Record<string, string>>({});
+  const [serviceImagesLoaded, setServiceImagesLoaded] = useState(false);
+  const [failedServiceImages, setFailedServiceImages] = useState<Set<string>>(new Set());
+
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
 
   // Service card data
   const serviceCards = [
-    { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Rhinoplasty', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
-    { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Browlift', 'Eyelid Surgery', 'Neck Lift', 'Otoplasty', 'Neck and Jawline Shaping with Liposuction'] },
-    { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Augmentation', 'Lift/Reduction', 'Lift/Augmentation', 'Lift/Auto-Augmentation', 'Revision', 'Fatgrafting'] },
-    { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
+    { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: '/images/services/nose.png', procedures: ['Rhinoplasty', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+    { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: '/images/services/face.png', procedures: ['Facelift', 'Browlift', 'Eyelid Surgery', 'Neck Lift', 'Otoplasty', 'Neck and Jawline Shaping with Liposuction'] },
+    { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: '/images/services/breast.png', procedures: ['Augmentation', 'Lift/Reduction', 'Lift/Augmentation', 'Lift/Auto-Augmentation', 'Revision', 'Fatgrafting'] },
+    { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: '/images/services/Body.jpeg', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
   ];
 
   // Load hero image positions from database
   useEffect(() => {
     loadHeroPositions();
+    loadServiceImages();
   }, []);
+
+  const loadServiceImages = async () => {
+    const imageUrls: Record<string, string> = {};
+    
+    for (const service of serviceCards) {
+      const contentKey = `service_card_${service.title.toLowerCase()}`;
+      try {
+        const response = await fetch(`${serverUrl}/content/${contentKey}`, {
+          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+        });
+        const data = await response.json();
+        if (data.content?.value) {
+          imageUrls[service.title] = data.content.value;
+        }
+      } catch (error) {
+        console.error(`Error loading ${service.title} service image:`, error);
+      }
+    }
+    
+    setServiceImages(imageUrls);
+    setServiceImagesLoaded(true);
+  };
 
   const loadHeroPositions = async () => {
     try {
@@ -341,35 +369,31 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="absolute inset-0">
             
             {/* Desktop images - landscape, high res - STATIC FROM PUBLIC FOLDER */}
-            <div className="hidden md:block absolute inset-0 w-full h-full z-0">
+            <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
                 src="/images/hero/desktop/hero-slide-1.jpg"
                 alt="Hanemann Plastic Surgery Hero"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroDesktopPosition }}
                 onError={(e) => {
-                  // Fallback to PNG if JPG doesn't exist
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
-                  if (img.src.endsWith('.jpg')) {
-                    img.src = '/images/hero/desktop/hero-slide-1.png';
-                  }
+                  img.style.display = 'none';
                 }}
               />
             </div>
             
             {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
-            <div className="md:hidden absolute inset-0 w-full h-full z-0">
+            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
                 src="/images/hero/mobile/hero-slide-1.jpg"
                 alt="Hanemann Plastic Surgery Hero Mobile"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
                 onError={(e) => {
-                  // Fallback to PNG if JPG doesn't exist
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
-                  if (img.src.endsWith('.jpg')) {
-                    img.src = '/images/hero/mobile/hero-slide-1.png';
-                  }
+                  img.style.display = 'none';
                 }}
               />
             </div>
@@ -473,27 +497,51 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {/* American Society of Plastic Surgeons */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/218aabe761e585471ac1d7f25a3d25bb829ffe91.png"
+                  src="/images/certifications/cert-logo-1.png"
                   alt="American Society of Plastic Surgeons"
                   className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-1.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-1.webp';
+                    }
+                  }}
                 />
               </div>
               
               {/* Second Certification Logo */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/c922b7d4c742a57bee525ee393afb97e26879481.png"
+                  src="/images/certifications/cert-logo-2.png"
                   alt="Medical Certification"
                   className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-2.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-2.webp';
+                    }
+                  }}
                 />
               </div>
               
               {/* Third Certification Logo */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/beac9881d63e031f02612832395e57a8cd0d3530.png"
+                  src="/images/certifications/cert-logo-3.png"
                   alt="Medical Certification"
                   className="h-14 md:h-16 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-3.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-3.webp';
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -540,21 +588,29 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 {/* Carousel Container */}
                 <div className="flex gap-4 overflow-x-auto lg:overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full touch-pan-x" ref={carouselRef}>
                   {/* Render three sets for seamless infinite loop */}
-                  {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => (
+                  {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
+                    const resolvedSrc = failedServiceImages.has(service.title) 
+                      ? undefined 
+                      : (serviceImages[service.title] || service.img);
+                    
+                    return (
                     <div
                       key={`${service.title}-${index}`}
                       className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full"
                     >
                       {/* Background Image */}
-                      <div className="absolute inset-0 overflow-hidden">
-                        <EditableImage
-                          contentKey={`service_card_${service.title.toLowerCase()}`}
-                          defaultSrc={service.img}
-                          alt={service.title}
-                          className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
-                          locationLabel={`${service.title} Service Card`}
-                          cropAspectRatio={0.65}
-                        />
+                      <div className="absolute inset-0 overflow-hidden bg-gray-400">
+                        {resolvedSrc && (
+                          <img
+                            src={resolvedSrc}
+                            alt={service.title}
+                            className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
+                            onError={() => {
+                              // Track failed images in state so ALL instances of this card are consistent
+                              setFailedServiceImages(prev => new Set([...prev, service.title]));
+                            }}
+                          />
+                        )}
                       </div>
 
                       {/* Clickable overlay for navigation */}
@@ -591,7 +647,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       {/* Bottom Accent Line */}
                       <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Navigation Arrows */}
@@ -692,12 +749,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-24 h-24 border-t-4 border-l-4 border-secondary"></div>
-            <EditableImage 
-              contentKey="intro_image" 
-              defaultSrc="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkb2N0b3J8ZW58MXx8fHwxNzYzNTE0NTg5fDA&ixlib=rb-4.1.0&q=80&w=1080" 
+            <ImageWithFallback 
+              src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkb2N0b3J8ZW58MXx8fHwxNzYzNTE0NTg5fDA&ixlib=rb-4.1.0&q=80&w=1080" 
               alt="Dr. Hanemann" 
-              className="rounded-lg shadow-2xl relative z-10"
-              locationLabel="Home - Introduction Section"
+              className="rounded-lg shadow-2xl relative z-10 w-full h-auto"
             />
             <div className="absolute -bottom-4 -right-4 w-24 h-24 border-b-4 border-r-4 border-secondary z-0"></div>
           </div>

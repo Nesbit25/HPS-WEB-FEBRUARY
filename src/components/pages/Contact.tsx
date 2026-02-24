@@ -82,46 +82,7 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
         { label: 'Contact' }
       ]} />
       {/* Page Hero */}
-      <section className="relative bg-gradient-to-br from-[#242938] to-[#1a1f2e] py-32 border-b border-[#2d3548] overflow-hidden">
-        {/* Ambient glow effects */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#c9b896]/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-[#b8976a]/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        
-        <div className="container mx-auto px-6 text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <EditableText
-              contentKey="contact_hero_heading"
-              defaultValue="Contact Us"
-              as="h1"
-              className="mb-6 text-[#faf9f7]"
-            />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <EditableText
-              contentKey="contact_hero_description"
-              defaultValue="Schedule your consultation or get in touch with our team in Baton Rouge. We look forward to hearing from you"
-              as="p"
-              className="text-gray-300 max-w-3xl mx-auto text-lg"
-            />
-          </motion.div>
-          
-          {/* Gold accent divider */}
-          <motion.div 
-            className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-8"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 96, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-          />
-        </div>
-      </section>
+      
 
       {/* Contact Form & Info Section */}
       <section className="py-24 bg-[#1a1f2e] relative overflow-hidden">
@@ -130,48 +91,6 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#b8976a]/5 rounded-full blur-3xl"></div>
         
         <div className="container mx-auto px-6 relative z-10">
-          {/* Office Photos Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto mb-24">
-            <motion.div 
-              className="aspect-[4/3] rounded-2xl relative shadow-2xl group"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              whileHover={{ scale: 1.02 }}
-            >
-              {/* Hover glow */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#c9b896]/20 to-[#b8976a]/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              
-              <EditableImage
-                contentKey="contact_office_exterior"
-                defaultSrc="https://images.unsplash.com/photo-1718741129015-48ef97da675c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwb2ZmaWNlJTIwZXh0ZXJpb3J8ZW58MXx8fHwxNzYzNDc5NjM0fDA&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Hanemann Plastic Surgery Office Exterior"
-                className="w-full h-full object-cover rounded-2xl relative z-10"
-                locationLabel="Contact Page - Office Exterior"
-              />
-            </motion.div>
-            <motion.div 
-              className="aspect-[4/3] rounded-2xl relative shadow-2xl group"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              whileHover={{ scale: 1.02 }}
-            >
-              {/* Hover glow */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#c9b896]/20 to-[#b8976a]/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              
-              <EditableImage
-                contentKey="contact_office_interior"
-                defaultSrc="https://images.unsplash.com/photo-1619975101918-6d27886e8c6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBtZWRpY2FsJTIwcmVjZXB0aW9ufGVufDF8fHx8MTc2MzU3ODM0Mnww&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Hanemann Plastic Surgery Reception Area"
-                className="w-full h-full object-cover rounded-2xl relative z-10"
-                locationLabel="Contact Page - Reception Interior"
-              />
-            </motion.div>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 max-w-6xl mx-auto">
             {/* Contact Form */}
             <motion.div
