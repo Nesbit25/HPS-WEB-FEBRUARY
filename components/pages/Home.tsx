@@ -56,6 +56,14 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
 
+  // Service card data
+  const serviceCards = [
+    { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: '/images/services/nose.png', procedures: ['Rhinoplasty', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
+    { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: '/images/services/face.png', procedures: ['Facelift', 'Browlift', 'Eyelid Surgery', 'Neck Lift', 'Otoplasty', 'Neck and Jawline Shaping with Liposuction'] },
+    { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: '/images/services/breast.png', procedures: ['Augmentation', 'Lift/Reduction', 'Lift/Augmentation', 'Lift/Auto-Augmentation', 'Revision', 'Fatgrafting'] },
+    { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: '/images/services/body.png', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
+  ];
+
   // Load hero image positions from database
   useEffect(() => {
     loadHeroPositions();
@@ -371,7 +379,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           </div>
           
           {/* Content Overlay - positioned over images */}
-          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[180px] pointer-events-none">
+          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[220px] md:pt-[240px] pointer-events-none">
             <div className="container mx-auto pointer-events-auto">
               <div className="max-w-3xl">
                 {/* Hero Content */}
@@ -380,7 +388,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     <EditableText contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
                   </h2>
                   <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText contentKey="home_hero_title_1" defaultValue="Revealing Beauty" />
+                    <EditableText contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
                   </h1>
                   <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
                     <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
@@ -415,6 +423,81 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               </button>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Trust Bar - Credentials */}
+      <section className="bg-[#1a1f2e] py-16 md:py-20 border-b border-[#2d3548] mt-12 md:mt-16">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+            {/* Board Certified */}
+            <div className="flex flex-col items-center text-center group">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Award className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              </div>
+              <h3 className="text-white text-sm md:text-base font-semibold mb-1">Double Board Certified</h3>
+              <p className="text-gray-400 text-xs md:text-sm leading-tight">American Board of Plastic Surgery & American Board of Otolaryngology</p>
+            </div>
+
+            {/* Years Experience */}
+            <div className="flex flex-col items-center text-center group">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Shield className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              </div>
+              <h3 className="text-white text-sm md:text-base font-semibold mb-1">15+ Years</h3>
+              <p className="text-gray-400 text-xs md:text-sm">Experience</p>
+            </div>
+
+            {/* Procedures */}
+            <div className="flex flex-col items-center text-center group">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Star className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              </div>
+              <h3 className="text-white text-sm md:text-base font-semibold mb-1">4,000+</h3>
+              <p className="text-gray-400 text-xs md:text-sm">Procedures</p>
+            </div>
+
+            {/* Patient Reviews */}
+            <div className="flex flex-col items-center text-center group">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Star className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896] fill-[#c9b896]" />
+              </div>
+              <h3 className="text-white text-sm md:text-base font-semibold mb-1">5 Star</h3>
+              <p className="text-gray-400 text-xs md:text-sm">Patient Reviews</p>
+            </div>
+          </div>
+          
+          {/* Certification Logos - Below Stats */}
+          <div className="mt-10 pt-8 border-t border-[#2d3548]">
+            <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
+              {/* American Society of Plastic Surgeons */}
+              <div className="flex items-center justify-center">
+                <img
+                  src="figma:asset/218aabe761e585471ac1d7f25a3d25bb829ffe91.png"
+                  alt="American Society of Plastic Surgeons"
+                  className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                />
+              </div>
+              
+              {/* Second Certification Logo */}
+              <div className="flex items-center justify-center">
+                <img
+                  src="figma:asset/c922b7d4c742a57bee525ee393afb97e26879481.png"
+                  alt="Medical Certification"
+                  className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                />
+              </div>
+              
+              {/* Third Certification Logo */}
+              <div className="flex items-center justify-center">
+                <img
+                  src="figma:asset/beac9881d63e031f02612832395e57a8cd0d3530.png"
+                  alt="Medical Certification"
+                  className="h-14 md:h-16 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -457,39 +540,17 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 {/* Carousel Container */}
                 <div className="flex gap-4 overflow-x-auto lg:overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full touch-pan-x" ref={carouselRef}>
                   {/* Render three sets for seamless infinite loop */}
-                  {[
-                    ...[
-                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
-                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
-                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
-                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
-                    ],
-                    ...[
-                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
-                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
-                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
-                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
-                    ],
-                    ...[
-                      { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: 'https://images.unsplash.com/photo-1758101512269-660feabf64fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwbWVkaWNhbCUyMG9mZmljZXxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
-                      { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: 'https://images.unsplash.com/photo-1598448056086-307e98ef5c4a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbGluaWMlMjBpbnRlcmlvcnxlbnwxfHx8fDE3NjM1MTQ1ODd8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
-                      { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: 'https://images.unsplash.com/photo-1763149191834-471c980404f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtZWRpY2FsJTIwZmFjaWxpdHl8ZW58MXx8fHwxNjM0MjMyOTR8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
-                      { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1758691461516-7e716e0ca135?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFsdGhjYXJlJTIwZW52aXJvbm1lbnR8ZW58MXx8fHwxNzYzNTE0NTg4fDA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
-                    ]
-                  ].map((service, index) => (
+                  {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => (
                     <div
                       key={`${service.title}-${index}`}
                       className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full"
                     >
                       {/* Background Image */}
                       <div className="absolute inset-0 overflow-hidden">
-                        <EditableImage
-                          contentKey={`service_card_${service.title.toLowerCase()}`}
-                          defaultSrc={service.img}
+                        <img
+                          src={service.img}
                           alt={service.title}
                           className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
-                          locationLabel={`${service.title} Service Card`}
-                          cropAspectRatio={0.65}
                         />
                       </div>
 
@@ -571,12 +632,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             `}</style>
 
             {/* Mobile: Expandable Accordion List - ONLY SHOWN ON MOBILE */}
-            <div className="lg:hidden space-y-4">{[
-              { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', procedures: ['Open Rhinoplasty', 'Closed Rhinoplasty', 'Nasal Reconstruction', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
-              { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', procedures: ['Facelift', 'Brow Lift', 'Facial Rejuvenation', 'Eyelid Surgery', 'Neck Lift'] },
-              { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', procedures: ['Breast Augmentation', 'Breast Lift', 'Breast Reconstruction', 'Breast Reduction', 'Breast Revision'] },
-              { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', procedures: ['Liposuction', 'Tummy Tuck', 'Body Contouring', 'Brazilian Butt Lift', 'Arm Lift'] },
-            ].map((service) => (
+            <div className="lg:hidden space-y-4">{serviceCards.map((service) => (
               <div key={service.title} className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
                 {/* Collapsible Header */}
                 <button
