@@ -473,27 +473,51 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {/* American Society of Plastic Surgeons */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/218aabe761e585471ac1d7f25a3d25bb829ffe91.png"
+                  src="/images/certifications/cert-logo-1.png"
                   alt="American Society of Plastic Surgeons"
                   className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-1.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-1.webp';
+                    }
+                  }}
                 />
               </div>
               
               {/* Second Certification Logo */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/c922b7d4c742a57bee525ee393afb97e26879481.png"
+                  src="/images/certifications/cert-logo-2.png"
                   alt="Medical Certification"
                   className="h-16 md:h-20 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-2.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-2.webp';
+                    }
+                  }}
                 />
               </div>
               
               {/* Third Certification Logo */}
               <div className="flex items-center justify-center">
                 <img
-                  src="figma:asset/beac9881d63e031f02612832395e57a8cd0d3530.png"
+                  src="/images/certifications/cert-logo-3.png"
                   alt="Medical Certification"
                   className="h-14 md:h-16 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.png')) {
+                      img.src = '/images/certifications/cert-logo-3.jpg';
+                    } else if (img.src.endsWith('.jpg')) {
+                      img.src = '/images/certifications/cert-logo-3.webp';
+                    }
+                  }}
                 />
               </div>
             </div>
