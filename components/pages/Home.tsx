@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { EditableText } from '../cms/EditableText';
-import { EditableImage } from '../cms/EditableImage';
 import { EditableServiceCard } from '../cms/EditableServiceCard';
 import { ArrowRight, Star, Shield, Award, Plus, Settings } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
@@ -13,6 +12,7 @@ import { SEOHead } from '../seo/SEOHead';
 import { ChevronDown } from 'lucide-react';
 import { ImagePositionPicker } from '../cms/ImagePositionPicker';
 import { HeroImageUploader } from '../cms/HeroImageUploader';
+import { ImageWithFallback } from '../figma/ImageWithFallback';
 
 interface GalleryItem {
   id: number;
@@ -713,12 +713,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-24 h-24 border-t-4 border-l-4 border-secondary"></div>
-            <EditableImage 
-              contentKey="intro_image" 
-              defaultSrc="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkb2N0b3J8ZW58MXx8fHwxNzYzNTE0NTg5fDA&ixlib=rb-4.1.0&q=80&w=1080" 
+            <ImageWithFallback 
+              src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkb2N0b3J8ZW58MXx8fHwxNzYzNTE0NTg5fDA&ixlib=rb-4.1.0&q=80&w=1080" 
               alt="Dr. Hanemann" 
-              className="rounded-lg shadow-2xl relative z-10"
-              locationLabel="Home - Introduction Section"
+              className="rounded-lg shadow-2xl relative z-10 w-full h-auto"
             />
             <div className="absolute -bottom-4 -right-4 w-24 h-24 border-b-4 border-r-4 border-secondary z-0"></div>
           </div>
