@@ -61,7 +61,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     { title: 'Nose', desc: 'Refining profile and function.', page: 'Nose', img: '/images/services/nose.png', procedures: ['Rhinoplasty', 'Revision Rhinoplasty', 'Ethnic Rhinoplasty'] },
     { title: 'Face', desc: 'Restoring youth and harmony.', page: 'Face', img: '/images/services/face.png', procedures: ['Facelift', 'Browlift', 'Eyelid Surgery', 'Neck Lift', 'Otoplasty', 'Neck and Jawline Shaping with Liposuction'] },
     { title: 'Breast', desc: 'Enhancing shape and volume.', page: 'Breast', img: '/images/services/breast.png', procedures: ['Augmentation', 'Lift/Reduction', 'Lift/Augmentation', 'Lift/Auto-Augmentation', 'Revision', 'Fatgrafting'] },
-    { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: '/images/services/body.png', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
+    { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: '/images/services/Body.jpeg', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
   ];
 
   // Load hero image positions from database
@@ -341,35 +341,31 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="absolute inset-0">
             
             {/* Desktop images - landscape, high res - STATIC FROM PUBLIC FOLDER */}
-            <div className="hidden md:block absolute inset-0 w-full h-full z-0">
+            <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
                 src="/images/hero/desktop/hero-slide-1.jpg"
                 alt="Hanemann Plastic Surgery Hero"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroDesktopPosition }}
                 onError={(e) => {
-                  // Fallback to PNG if JPG doesn't exist
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
-                  if (img.src.endsWith('.jpg')) {
-                    img.src = '/images/hero/desktop/hero-slide-1.png';
-                  }
+                  img.style.display = 'none';
                 }}
               />
             </div>
             
             {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
-            <div className="md:hidden absolute inset-0 w-full h-full z-0">
+            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
                 src="/images/hero/mobile/hero-slide-1.jpg"
                 alt="Hanemann Plastic Surgery Hero Mobile"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
                 onError={(e) => {
-                  // Fallback to PNG if JPG doesn't exist
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
-                  if (img.src.endsWith('.jpg')) {
-                    img.src = '/images/hero/mobile/hero-slide-1.png';
-                  }
+                  img.style.display = 'none';
                 }}
               />
             </div>
@@ -570,11 +566,16 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full"
                     >
                       {/* Background Image */}
-                      <div className="absolute inset-0 overflow-hidden">
+                      <div className="absolute inset-0 overflow-hidden bg-gray-400">
                         <img
                           src={service.img}
                           alt={service.title}
                           className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
+                          onError={(e) => {
+                            // Hide image on error, showing gray background
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                          }}
                         />
                       </div>
 
