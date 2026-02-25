@@ -78,8 +78,8 @@ export function About({ onNavigate }: AboutProps) {
                 alt="Dr. Hanemann Portrait"
                 className="w-full h-full object-cover"
                 locationLabel="About Page - Doctor Portrait"
-                cropOrientation="square"
-                cropAspectRatio={1}
+                cropOrientation="portrait"
+                cropAspectRatio={9/16}
               />
             </motion.div>
             
