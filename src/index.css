@@ -3521,6 +3521,10 @@
     color: oklab(78.8171% .00478247 .0497304 / .2);
   }
 
+  .text-\[\#c9b896\]\/80 {
+    color: oklab(78.8171% .00478247 .0497304 / .8);
+  }
+
   .text-\[\#faf9f7\] {
     color: #faf9f7;
   }
@@ -5615,6 +5619,13 @@
     .md\:text-sm {
       font-size: var(--text-sm);
       line-height: var(--tw-leading, var(--text-sm--line-height));
+    }
+  }
+
+  @media (width >= 48rem) {
+    .md\:text-xs {
+      font-size: var(--text-xs);
+      line-height: var(--tw-leading, var(--text-xs--line-height));
     }
   }
 
