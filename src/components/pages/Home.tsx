@@ -492,70 +492,46 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           </div>
           
           {/* Certification Logos - Below Stats */}
-          <div className="mt-10 pt-8 border-t border-[#2d3548]">
+          <div className="mt-12 pt-10 border-t border-[#2d3548]">
+            <p className="text-center text-[#c9b896]/60 text-xs uppercase tracking-[0.25em] mb-8">Certified & Accredited</p>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
               {/* American Society of Plastic Surgeons */}
-              <div className="flex items-center justify-center group">
-                <div className="h-16 md:h-20 flex items-center justify-center px-4 border border-[#c9b896]/20 rounded-lg bg-[#c9b896]/5 group-hover:bg-[#c9b896]/10 transition-colors">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-1.png"
                     alt="American Society of Plastic Surgeons"
-                    className="h-12 md:h-16 w-auto object-contain opacity-80 group-hover:opacity-100 transition-opacity"
-                    onError={(e) => {
-                      // Hide img and show text fallback
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                      const fallback = img.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
+                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
-                  <div className="hidden flex-col items-center justify-center text-center" style={{ display: 'none' }}>
-                    <Award className="w-6 h-6 text-[#c9b896] mb-1" />
-                    <span className="text-[#c9b896]/80 text-[10px] md:text-xs font-semibold uppercase tracking-wider leading-tight">ASPS<br/>Member</span>
-                  </div>
                 </div>
+                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ASPS</span>
               </div>
               
-              {/* Second Certification Logo */}
-              <div className="flex items-center justify-center group">
-                <div className="h-16 md:h-20 flex items-center justify-center px-4 border border-[#c9b896]/20 rounded-lg bg-[#c9b896]/5 group-hover:bg-[#c9b896]/10 transition-colors">
+              {/* American Board of Plastic Surgery */}
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-2.png"
                     alt="American Board of Plastic Surgery"
-                    className="h-12 md:h-16 w-auto object-contain opacity-80 group-hover:opacity-100 transition-opacity"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                      const fallback = img.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
+                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
-                  <div className="hidden flex-col items-center justify-center text-center" style={{ display: 'none' }}>
-                    <Shield className="w-6 h-6 text-[#c9b896] mb-1" />
-                    <span className="text-[#c9b896]/80 text-[10px] md:text-xs font-semibold uppercase tracking-wider leading-tight">ABPS<br/>Board Certified</span>
-                  </div>
                 </div>
+                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ABPS</span>
               </div>
               
-              {/* Third Certification Logo */}
-              <div className="flex items-center justify-center group">
-                <div className="h-16 md:h-20 flex items-center justify-center px-4 border border-[#c9b896]/20 rounded-lg bg-[#c9b896]/5 group-hover:bg-[#c9b896]/10 transition-colors">
+              {/* American Board of Otolaryngology */}
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-3.png"
                     alt="American Board of Otolaryngology"
-                    className="h-12 md:h-16 w-auto object-contain opacity-80 group-hover:opacity-100 transition-opacity"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                      const fallback = img.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
+                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
-                  <div className="hidden flex-col items-center justify-center text-center" style={{ display: 'none' }}>
-                    <Award className="w-6 h-6 text-[#c9b896] mb-1" />
-                    <span className="text-[#c9b896]/80 text-[10px] md:text-xs font-semibold uppercase tracking-wider leading-tight">ABOto<br/>Board Certified</span>
-                  </div>
                 </div>
+                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ABOto</span>
               </div>
             </div>
           </div>
