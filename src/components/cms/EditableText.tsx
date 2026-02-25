@@ -193,8 +193,12 @@ export function EditableText({
     return <Component className={className}>{content}</Component>;
   }
 
+  const isBlockElement = Component !== 'span';
+  const WrapperTag = isBlockElement ? 'div' : 'span';
+  const wrapperClass = isBlockElement ? 'relative group' : 'relative group inline';
+
   return (
-    <span className="relative group inline-block">
+    <WrapperTag className={wrapperClass}>
       <Component className={className}>{content}</Component>
       
       {isAdmin && isEditMode && (
@@ -324,6 +328,6 @@ export function EditableText({
           </Dialog>
         </>
       )}
-    </span>
+    </WrapperTag>
   );
 }

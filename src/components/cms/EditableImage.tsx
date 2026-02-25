@@ -250,11 +250,7 @@ export function EditableImage({
             alt={alt}
             className={className}
             style={{ objectPosition: `${focalPoint.x}% ${focalPoint.y}%` }}
-            onError={() => {
-              console.warn(`[EditableImage] Image load failed for ${contentKey}: ${displayUrl}`);
-              setImgError(true);
-            }}
-            loading="lazy"
+            onError={() => setImgError(true)}
           />
         ) : (
           <ImagePlaceholder
