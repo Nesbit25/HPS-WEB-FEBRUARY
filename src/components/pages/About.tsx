@@ -343,9 +343,6 @@ export function About({ onNavigate }: AboutProps) {
         {/* Gradient separator */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
         
-        {/* Ambient glows */}
-        <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-[#c9b896]/5 rounded-full blur-3xl"></div>
-        
         <div className="container mx-auto px-6 max-w-6xl relative z-10">
           <motion.div 
             className="text-center mb-16"
@@ -371,48 +368,6 @@ export function About({ onNavigate }: AboutProps) {
             {/* Gold accent divider */}
             <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
           </motion.div>
-          
-          {/* Facility Images */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            <motion.div 
-              className="aspect-[4/3] relative group"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              whileHover={{ scale: 1.02 }}
-            >
-              {/* Hover glow */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#c9b896]/20 to-[#b8976a]/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              
-              <EditableImage
-                contentKey="about_facility_operating_room"
-                defaultSrc="https://images.unsplash.com/photo-1669930605340-801a0be1f5a3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvcGVyYXRpbmclMjByb29tfGVufDF8fHx8MTc2MzU3ODM0M3ww&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="State-of-the-Art Operating Room"
-                className="w-full h-full object-cover rounded-2xl shadow-2xl relative z-10"
-                locationLabel="About Page - Operating Room"
-              />
-            </motion.div>
-            <motion.div 
-              className="aspect-[4/3] relative group"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              whileHover={{ scale: 1.02 }}
-            >
-              {/* Hover glow */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#c9b896]/20 to-[#b8976a]/20 rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              
-              <EditableImage
-                contentKey="about_facility_waiting_room"
-                defaultSrc="https://images.unsplash.com/photo-1732376800702-c555160a4f21?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZWRpY2FsJTIwd2FpdGluZyUyMHJvb218ZW58MXx8fHwxNzYzNTc4MzQzfDA&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Comfortable Waiting Room"
-                className="w-full h-full object-cover rounded-2xl shadow-2xl relative z-10"
-                locationLabel="About Page - Waiting Room"
-              />
-            </motion.div>
-          </div>
         </div>
       </section>
 
