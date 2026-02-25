@@ -493,7 +493,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           
           {/* Certification Logos - Below Stats */}
           <div className="mt-12 pt-10 border-t border-[#2d3548]">
-            <p className="text-center text-[#c9b896]/60 text-xs uppercase tracking-[0.25em] mb-8">Certified & Accredited</p>
+            <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Certified &amp; Accredited</p>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
               {/* American Society of Plastic Surgeons */}
               <div className="flex flex-col items-center group cursor-pointer">
@@ -505,7 +505,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ASPS</span>
+                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span>
               </div>
               
               {/* American Board of Plastic Surgery */}
@@ -518,7 +519,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ABPS</span>
+                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Board of Plastic Surgery</span>
               </div>
               
               {/* American Board of Otolaryngology */}
@@ -531,7 +533,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896]/50 uppercase tracking-wider group-hover:text-[#c9b896]/80 transition-colors duration-500">ABOto</span>
+                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABOto</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Board of Otolaryngology</span>
               </div>
             </div>
           </div>
