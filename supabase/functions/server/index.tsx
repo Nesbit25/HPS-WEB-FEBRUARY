@@ -1175,9 +1175,9 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    // Fetch files from GitHub
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
-    console.log('[Sync GitHub] Fetching from:', githubApiUrl);
+    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
+    console.log('[Sync GitHub] Fetching via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1189,10 +1189,10 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     console.log('[Sync GitHub] GitHub response status:', response.status);
 
     if (response.status === 404) {
-      console.log('[Sync GitHub] ⚠️  Gallery folder does not exist in GitHub yet');
+      console.log('[Sync GitHub] ⚠️  Repository or branch not found');
       return c.json({
         success: false,
-        error: 'Gallery folder not found in GitHub. Please upload images using the bulk uploader first.',
+        error: 'Repository or branch not found in GitHub. Please check configuration.',
         casesFound: 0,
         casesCreated: 0,
         casesSkipped: 0,
@@ -1206,13 +1206,19 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
     }
 
-    const files = await response.json();
-    
-    // Filter image files
-    const imageFiles = files.filter(file => 
-      file.type === 'file' && 
-      (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
-    );
+    const treeData = await response.json();
+    if (treeData.truncated) {
+      console.warn('[Sync GitHub] ⚠️  Git tree was truncated — some files may be missing');
+    }
+
+    // Filter tree for image files inside the gallery/ folder
+    const imageFiles = (treeData.tree || [])
+      .filter(item =>
+        item.type === 'blob' &&
+        item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+        (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
+      )
+      .map(item => ({ name: item.path.replace(`${GITHUB_FOLDER}/`, '') }));
 
     console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
 
@@ -1351,9 +1357,10 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
     
-    console.log('[GitHub Files] Fetching:', githubApiUrl);
+    console.log('[GitHub Files] Fetching via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1365,7 +1372,7 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
     console.log('[GitHub Files] Response status:', response.status);
     
     if (response.status === 404) {
-      console.log('[GitHub Files] Folder not found');
+      console.log('[GitHub Files] Repo/branch not found');
       return c.json({ files: [], exists: false }, 404);
     }
 
@@ -1375,17 +1382,36 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
       return c.json({ error: `GitHub API error: ${response.status}`, files: [] }, response.status);
     }
 
-    const files = await response.json();
-    console.log('[GitHub Files] Found', files.length, 'files');
+    const treeData = await response.json();
+    if (treeData.truncated) {
+      console.warn('[GitHub Files] Git tree was truncated — repo exceeds GitHub tree size limit');
+    }
+
+    // Filter tree for image files inside the gallery/ folder, map to consistent shape
+    const files = (treeData.tree || [])
+      .filter(item =>
+        item.type === 'blob' &&
+        item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+        (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
+      )
+      .map(item => ({
+        name: item.path.replace(`${GITHUB_FOLDER}/`, ''),
+        path: item.path,
+        type: 'file',
+        sha: item.sha,
+        size: item.size
+      }));
+
+    console.log('[GitHub Files] Found', files.length, 'image files in gallery/ folder');
     
     // Add cache headers for better performance (5 min cache)
     c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
     
-    // Return the raw file list - let client filter/process
     return c.json({ 
       files, 
       exists: true,
-      count: files.length 
+      count: files.length,
+      truncated: treeData.truncated || false
     });
 
   } catch (error) {
@@ -1407,9 +1433,10 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    // Use Git Trees API to avoid the 1000-file Contents API limit
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
     
-    console.log('[Check GitHub] Checking:', githubApiUrl);
+    console.log('[Check GitHub] Checking via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1424,7 +1451,7 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       return c.json({
         exists: false,
         status: 404,
-        message: 'Gallery folder does not exist in GitHub',
+        message: 'Repository or branch not found',
         url: githubApiUrl,
         suggestion: 'Upload images using the Bulk Gallery Uploader first'
       });
@@ -1440,20 +1467,24 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       });
     }
 
-    const files = await response.json();
-    const imageFiles = files.filter(f => 
-      f.type === 'file' && (f.name.endsWith('.png') || f.name.endsWith('.jpg') || f.name.endsWith('.jpeg'))
+    const treeData = await response.json();
+    const imageFiles = (treeData.tree || []).filter(item =>
+      item.type === 'blob' &&
+      item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+      (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
     );
+    const hasGalleryFolder = (treeData.tree || []).some(item => item.path.startsWith(`${GITHUB_FOLDER}/`));
 
     return c.json({
-      exists: true,
+      exists: hasGalleryFolder,
       status: 200,
-      totalFiles: files.length,
+      totalFiles: imageFiles.length,
       imageFiles: imageFiles.length,
-      fileNames: imageFiles.slice(0, 10).map(f => f.name),
+      truncated: treeData.truncated || false,
+      fileNames: imageFiles.slice(0, 10).map(f => f.path.replace(`${GITHUB_FOLDER}/`, '')),
       message: imageFiles.length > 0 
-        ? `Found ${imageFiles.length} images in GitHub` 
-        : 'Folder exists but contains no images',
+        ? `Found ${imageFiles.length} images in GitHub gallery/ folder` 
+        : 'gallery/ folder exists but contains no images',
       url: githubApiUrl
     });
 
