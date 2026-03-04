@@ -61,6 +61,10 @@ function clearGalleryCache() {
   console.log(`[CACHE] Cleared ${cleared} gallery cache entries`);
 }
 
+// Rate-limit for auto-sync — per cold-start instance, max once per hour
+let lastAutoSyncMs = 0;
+const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
 // Periodic cache cleanup (every 10 minutes)
 setInterval(() => {
   const now = Date.now();
@@ -1229,7 +1233,7 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
 
     // Filter tree — new nested structure: {root}/{category}/{case_slug}/{filename}
     const SYNC_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const SYNC_GALLERY_CATS  = ['Face', 'Breast', 'Body'];
+    const SYNC_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || [])
       .filter(item => {
@@ -1420,6 +1424,161 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
   }
 });
 
+// ─── Auto-sync from GitHub (UNPROTECTED) ─────────────────────────────────────
+// Called automatically by the gallery frontend on each fresh load.
+// Only creates MISSING KV case records — never wipes existing ones.
+// Rate-limited to once per hour per server instance to avoid hammering GitHub.
+app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
+  try {
+    const now = Date.now();
+    if (now - lastAutoSyncMs < AUTO_SYNC_COOLDOWN_MS) {
+      const waitSec = Math.round((AUTO_SYNC_COOLDOWN_MS - (now - lastAutoSyncMs)) / 1000);
+      console.log(`[Auto-Sync] ⏱ Skipping — last sync was ${Math.round((now - lastAutoSyncMs)/1000)}s ago (cooldown ${waitSec}s remaining)`);
+      return c.json({ success: true, skipped: true, cooldownRemainingSeconds: waitSec });
+    }
+
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[Auto-Sync] No GITHUB_TOKEN in environment');
+      return c.json({ success: false, error: 'GitHub token not configured' }, 500);
+    }
+
+    console.log('[Auto-Sync] Starting automatic sync from GitHub...');
+    lastAutoSyncMs = now; // Claim the slot immediately so parallel requests don't stack
+
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO  = 'HPS-WEB-FEBRUARY';
+
+    // Fetch full recursive tree via Git Trees API
+    const treeResp = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`,
+      { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' } }
+    );
+    if (!treeResp.ok) {
+      const txt = await treeResp.text();
+      console.error('[Auto-Sync] GitHub tree fetch failed:', treeResp.status, txt);
+      return c.json({ success: false, error: `GitHub API error: ${treeResp.status}` }, 500);
+    }
+
+    const treeData = await treeResp.json();
+    if (treeData.truncated) console.warn('[Auto-Sync] ⚠️  Git tree truncated');
+
+    // Filter to images in the nested gallery structure
+    const AS_ROOTS = ['public/gallery', 'gallery'];
+    const AS_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const imageFiles = (treeData.tree || [])
+      .filter((item: any) => {
+        if (item.type !== 'blob') return false;
+        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+        return AS_ROOTS.some(root => AS_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`)));
+      })
+      .map((item: any) => {
+        const root = AS_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
+        const afterRoot = item.path.slice(root.length + 1);
+        const parts = afterRoot.split('/');
+        return { name: parts[parts.length - 1], category: parts[0], fullPath: item.path };
+      });
+
+    console.log(`[Auto-Sync] Found ${imageFiles.length} image files across all categories`);
+
+    // Build slug → {category, files} map
+    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const caseSlugs      = new Set<string>();
+    const caseCategories = new Map<string, string>();
+    const caseOrientations = new Map<string, number>();
+    const caseFiles        = new Map<string, string[]>();
+
+    imageFiles.forEach((file: any) => {
+      const match = file.name.match(filenameRegex);
+      if (!match) return;
+      const caseSlug = match[1];
+      caseSlugs.add(caseSlug);
+      if (!caseCategories.has(caseSlug)) caseCategories.set(caseSlug, file.category || 'Face');
+      caseOrientations.set(caseSlug, (caseOrientations.get(caseSlug) || 0) + 1);
+      const slugFiles = caseFiles.get(caseSlug) || [];
+      slugFiles.push(file.fullPath);
+      caseFiles.set(caseSlug, slugFiles);
+    });
+
+    console.log(`[Auto-Sync] Parsed ${caseSlugs.size} unique cases`);
+
+    // Load existing KV cases
+    const existingCases = await kv.getByPrefix('gallery_case_');
+    const existingSlugs = new Set(existingCases.map((item: any) => item.value.slug));
+    const maxId = existingCases.reduce((max: number, item: any) => {
+      const m = item.key.match(/gallery_case_(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1])) : max;
+    }, 999);
+
+    let nextId = maxId + 1;
+    let casesCreated = 0;
+    let casesSkipped = 0;
+
+    const rawUrl = (fullPath: string) =>
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
+
+    for (const caseSlug of caseSlugs) {
+      if (existingSlugs.has(caseSlug)) {
+        casesSkipped++;
+        continue;
+      }
+
+      try {
+        const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
+        const parts = caseSlug.split('_');
+        const title = `Patient ${parts[1] || 'Case'}`;
+
+        const imageCount = caseOrientations.get(caseSlug) || 0;
+        const orientationCount = Math.ceil(imageCount / 2);
+        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+        const orientations = [];
+
+        for (let i = 1; i <= orientationCount; i++) {
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+          orientations.push({
+            name: `Position ${i}`,
+            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
+            afterImage:  afterFile  ? rawUrl(afterFile)  : null
+          });
+        }
+
+        await kv.set(`gallery_case_${nextId}`, {
+          id: nextId,
+          slug: caseSlug,
+          category: resolvedCategory,
+          title,
+          procedure: resolvedCategory,
+          journeyNote: '',
+          beforeImage: orientations[0]?.beforeImage || null,
+          afterImage:  orientations[0]?.afterImage  || null,
+          orientations,
+          createdAt: new Date().toISOString(),
+          syncedFromGitHub: true,
+          autoSynced: true
+        });
+
+        console.log(`[Auto-Sync] ✓ Created: ${caseSlug} (${resolvedCategory}) ID=${nextId}`);
+        casesCreated++;
+        nextId++;
+      } catch (err: any) {
+        console.error(`[Auto-Sync] ✗ Failed to create ${caseSlug}:`, err.message);
+      }
+    }
+
+    if (casesCreated > 0) clearGalleryCache();
+
+    console.log(`[Auto-Sync] Done. Created: ${casesCreated}, Skipped (already existed): ${casesSkipped}`);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ success: true, casesCreated, casesSkipped, totalCasesInGitHub: caseSlugs.size });
+
+  } catch (error: any) {
+    console.error('[Auto-Sync] Unexpected error:', error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 // Get GitHub gallery files (with authentication) - UNPROTECTED so gallery can load without login
 app.get("/make-server-fc862019/gallery/github-files", async (c) => {
   try {
@@ -1465,7 +1624,7 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
 
     // Filter tree — nested structure: {root}/{category}/{case_slug}/{filename}
     const FILES_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const FILES_GALLERY_CATS  = ['Face', 'Breast', 'Body'];
+    const FILES_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const files = (treeData.tree || [])
       .filter(item => {
@@ -1526,7 +1685,7 @@ app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
 
     const treeData = await resp.json();
     const DIAG_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const DIAG_GALLERY_CATS  = ['Face', 'Breast', 'Body'];
+    const DIAG_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || [])
       .filter(item => {
@@ -1612,7 +1771,7 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
 
     const treeData = await response.json();
     const CHECK_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const CHECK_GALLERY_CATS  = ['Face', 'Breast', 'Body'];
+    const CHECK_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || []).filter(item => {
       if (item.type !== 'blob') return false;
