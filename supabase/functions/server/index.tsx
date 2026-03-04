@@ -848,6 +848,7 @@ app.post("/make-server-fc862019/gallery/upload", async (c) => {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
     const { data: { user }, error } = await getUserWithRetry(accessToken);
     
+
     if (!user || error) {
       console.log('[Gallery Upload] Authorization error:', error);
       return c.json({ error: 'Unauthorized' }, 401);
