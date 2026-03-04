@@ -98,11 +98,26 @@ export function Gallery({ onNavigate }: GalleryProps) {
       if (cachedData && cachedTimestamp) {
         const age = Date.now() - parseInt(cachedTimestamp);
         if (age < CACHE_DURATION) {
-          console.log('[Gallery] 🚀 Loading from cache (age:', Math.round(age / 1000), 'seconds)');
           const cachedItems = JSON.parse(cachedData);
-          setGalleryItems(cachedItems);
-          setLoading(false);
-          return;
+          // Validate cache — if any item still has raw.githubusercontent.com URLs
+          // the cache pre-dates the private-repo URL fix; bust it and re-fetch.
+          const hasBadUrls = cachedItems.some((item: any) =>
+            [item.beforeImage, item.afterImage,
+              ...(item.orientations || []).flatMap((o: any) => [o.beforeImage, o.afterImage])]
+              .filter(Boolean)
+              .some((u: string) => u.includes('raw.githubusercontent.com'))
+          );
+          if (hasBadUrls) {
+            console.log('[Gallery] ⚠️  Cache has stale raw GitHub URLs — busting and re-fetching...');
+            localStorage.removeItem('gallery_items_cache');
+            localStorage.removeItem('gallery_items_cache_timestamp');
+            // fall through to fresh fetch below
+          } else {
+            console.log('[Gallery] 🚀 Loading from cache (age:', Math.round(age / 1000), 'seconds)');
+            setGalleryItems(cachedItems);
+            setLoading(false);
+            return;
+          }
         }
       }
       
@@ -1094,6 +1109,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 Bulk Upload
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  localStorage.removeItem('gallery_items_cache');
+                  localStorage.removeItem('gallery_items_cache_timestamp');
+                  setLoading(true);
+                  fetchAndUpdateGallery().then(() => console.log('[Gallery] Force refresh complete'));
+                }}
+                className="rounded-full border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
+              >
+                ♻️ Force Refresh Cache
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleClearAllCases}
@@ -1260,8 +1288,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                              style={{ 
-                                opacity: state.type === 'after' ? 0 : 1 
+                              style={{ opacity: state.type === 'after' ? 0 : 1 }}
+                              onError={(e) => {
+                                console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
+                                (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
                           )}
@@ -1273,8 +1303,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                              style={{ 
-                                opacity: state.type === 'after' ? 1 : 0 
+                              style={{ opacity: state.type === 'after' ? 1 : 0 }}
+                              onError={(e) => {
+                                console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
+                                (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
                           )}
