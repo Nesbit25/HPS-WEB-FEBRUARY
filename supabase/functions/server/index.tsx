@@ -1284,9 +1284,11 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       }
     });
 
-    // Helper: build raw GitHub URL from a full repo path (e.g. "public/gallery/foo.png")
+    // Helper: convert repo path → Vercel static URL
+    // Images are in public/gallery/ in the repo, served at /gallery/ by Vercel.
+    // raw.githubusercontent.com URLs 401 on private repos in the browser.
     const rawUrl = (fullPath: string) =>
-      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
+      '/' + fullPath.replace(/^public\//, '');
 
     console.log(`[Sync GitHub] Found ${caseSlugs.size} unique cases:`, Array.from(caseSlugs));
 
@@ -1516,7 +1518,7 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
     let casesSkipped = 0;
 
     const rawUrl = (fullPath: string) =>
-      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
+      '/' + fullPath.replace(/^public\//, '');
 
     for (const caseSlug of caseSlugs) {
       if (existingSlugs.has(caseSlug)) {
