@@ -106,9 +106,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
               ...(item.orientations || []).flatMap((o: any) => [o.beforeImage, o.afterImage])]
               .filter(Boolean)
               .some((u: string) =>
-                u.includes('raw.githubusercontent.com') ||
-                u.startsWith('gallery-img:') ||
-                (u.startsWith('/gallery/') && !u.includes('/gallery/img/'))
+                // Any URL that isn't already a raw GitHub URL is stale
+                u.startsWith('gallery-img:') ||          // KV markers
+                u.startsWith('/gallery/') ||              // old Vercel static paths
+                u.includes('/gallery/img/')               // old Supabase proxy URLs
               )
           );
           if (hasBadUrls) {
@@ -209,27 +210,31 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
   
-  // Resolve any image URL/marker to a full proxy URL.
+  // Resolve any image URL/marker to a raw.githubusercontent.com URL.
+  // The repo is public — raw GitHub URLs work directly in the browser, no proxy needed.
   // Handles all historical formats stored in KV or localStorage cache:
-  //   gallery-img:{rel}          ← current KV format (new syncs)
-  //   /gallery/{rel}             ← previous fix iteration (static Vercel path, 404s)
-  //   https://raw.githubusercontent.com/...  ← original format (401s on private repo)
+  //   raw.githubusercontent.com/...  ← current format (public repo, works directly)
+  //   gallery-img:{rel}              ← KV marker format
+  //   .../gallery/img/{rel}          ← old Supabase proxy URL
+  //   /gallery/{rel}                 ← previous Vercel static path (404d)
+  const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
+
   const normalizeImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
-    // Already a fully-resolved proxy URL
-    if (url.includes('/gallery/img/')) return url;
-    // Current KV marker format: "gallery-img:{rel}"
+    // Already a raw GitHub URL — good
+    if (url.includes('raw.githubusercontent.com')) return url;
+    // KV marker format: "gallery-img:{rel}"
     if (url.startsWith('gallery-img:')) {
-      return `${serverUrl}/gallery/img/${url.slice('gallery-img:'.length)}`;
+      return `${GITHUB_RAW}/gallery/${url.slice('gallery-img:'.length)}`;
     }
-    // Old raw GitHub URL
-    if (url.includes('raw.githubusercontent.com')) {
-      const match = url.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(?:public\/)?gallery\/(.+)$/);
-      if (match) return `${serverUrl}/gallery/img/${match[1]}`;
+    // Old Supabase proxy URL: .../gallery/img/{rel}
+    if (url.includes('/gallery/img/')) {
+      const match = url.match(/\/gallery\/img\/(.+)$/);
+      if (match) return `${GITHUB_RAW}/gallery/${match[1]}`;
     }
-    // /gallery/... Vercel static path (previous fix) — 404 for non-public/ images
+    // /gallery/... Vercel static path
     if (url.startsWith('/gallery/')) {
-      return `${serverUrl}/gallery/img/${url.slice('/gallery/'.length)}`;
+      return `${GITHUB_RAW}/gallery/${url.slice('/gallery/'.length)}`;
     }
     return url;
   };
@@ -312,14 +317,13 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // Determine type: odd = before, even = after
         const type = (index % 2 !== 0) ? 'before' : 'after';
         
-        // Route ALL gallery images through the Supabase proxy endpoint.
-        // Images live in the private GitHub repo (gallery/ or public/gallery/).
-        // Vercel only serves public/ so /gallery/... would 404 for root-level files.
-        // The proxy fetches with GITHUB_TOKEN and sets Cache-Control: 1 day.
         const galleryRelPath = (file as any).path
           ? (file as any).path.replace(/^(?:public\/)?gallery\//, '')
           : file.name;
-        const imageUrl = `${serverUrl}/gallery/img/${galleryRelPath}`;
+        const repoPath = (file as any).path || `gallery/${file.name}`;
+        // Repo is now public — build raw.githubusercontent.com URLs directly.
+        // No proxy, no Supabase involved. Browser fetches straight from GitHub CDN.
+        const imageUrl = `https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main/${repoPath}`;
         
         console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
         
