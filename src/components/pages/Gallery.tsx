@@ -50,7 +50,7 @@ interface GalleryItem {
 export function Gallery({ onNavigate }: GalleryProps) {
   const { isAdmin, accessToken } = useAuth();
   const { isEditMode } = useEditMode();
-  const categories = ['All', 'Nose', 'Face', 'Breast', 'Body'];
+  const categories = ['All', 'Face', 'Nose', 'Breast', 'Body'];
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
@@ -66,6 +66,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImages, setActiveImages] = useState<{ [key: number]: { orientationIndex: number; type: 'before' | 'after' } }>({});
+  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+  const [diagnoseData, setDiagnoseData] = useState<any>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
   
@@ -103,8 +106,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
         }
       }
       
-      // No valid cache, fetch fresh data from GitHub
+      // No valid cache — fetch fresh data from GitHub, then auto-sync KV in background
       await fetchAndUpdateGallery();
+      // Fire-and-forget: update KV store with any new GitHub cases (non-blocking)
+      triggerAutoSync();
       
     } catch (error) {
       console.error('[Gallery] Error loading images:', error);
@@ -181,13 +186,30 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
   
+  // Fire-and-forget: tells the server to create KV records for any new GitHub cases.
+  // Completely non-blocking — gallery renders from GitHub files regardless.
+  const triggerAutoSync = () => {
+    fetch(`${serverUrl}/gallery/auto-sync`, {
+      headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.skipped) {
+          console.log('[Gallery] Auto-sync skipped (cooldown active)');
+        } else {
+          console.log(`[Gallery] Auto-sync complete — created: ${data.casesCreated}, skipped: ${data.casesSkipped}`);
+        }
+      })
+      .catch(err => console.warn('[Gallery] Auto-sync failed (non-critical):', err));
+  };
+
   const fetchAndUpdateGallery = async () => {
     try {
       // 1. Fetch file list from GitHub via SERVER (authenticated)
       console.log('[Gallery] ========== START GALLERY LOAD ==========');
       console.log('[Gallery] Fetching file list from GitHub via server...');
       
-      const response = await fetch(`${serverUrl}/gallery/github-files`);
+      const response = await fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`);
       console.log('[Gallery] Server response status:', response.status);
       
       const data = await response.json();
@@ -242,8 +264,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // Determine type: odd = before, even = after
         const type = (index % 2 !== 0) ? 'before' : 'after';
         
-        // Construct raw GitHub URL
-        const imageUrl = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${GITHUB_FOLDER}/${file.name}`;
+        // Construct raw GitHub URL — prefer file.path (full repo path) so both
+        // public/gallery/ and gallery/ locations work correctly
+        const imageUrl = (file as any).path
+          ? `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${(file as any).path}`
+          : `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${GITHUB_FOLDER}/${file.name}`;
         
         console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
         
@@ -255,11 +280,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
           
+          // Category comes from the directory structure (Face|Breast|Body) — not a default guess
+          const category = (file as any).category || 'Face';
+
           casesMap.set(caseSlug, {
             slug: caseSlug,
-            title: title,
-            category: 'Face', // Default, can be changed by admin
-            procedure: '',
+            title,
+            category,
+            procedure: category,
             journeyNote: '',
             orientations: [],
             createdAt: new Date().toISOString()
@@ -328,7 +356,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
           galleryItems.forEach(item => {
             const dbCase = dbCases.find(c => c.slug === item.slug);
             if (dbCase) {
-              item.category = dbCase.category || item.category;
+              item.category = dbCase.category || item.category || 'Face';
               item.procedure = dbCase.procedure || item.procedure;
               item.journeyNote = dbCase.journeyNote || item.journeyNote;
               item.featuredOnHome = dbCase.featuredOnHome || false;
@@ -642,64 +670,20 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
-  const handleDebugGitHub = async () => {
+  const handleDiagnoseFilenames = async () => {
+    setDiagnosing(true);
+    setDiagnoseOpen(true);
+    setDiagnoseData(null);
     try {
-      console.log('[Debug GitHub] Checking GitHub folder status via server...');
-      
-      const checkResponse = await fetch(`${serverUrl}/gallery/check-github`);
-      const checkData = await checkResponse.json();
-      
-      console.log('[Debug GitHub] Server check result:', checkData);
-      
-      if (!checkData.exists) {
-        alert(`❌ GitHub Folder Not Found!\n\nStatus: ${checkData.status}\nMessage: ${checkData.message || checkData.error}\n\n${checkData.suggestion || 'Please upload images using Bulk Upload first'}`);
-        return;
-      }
-      
-      // Fallback to direct GitHub API call for detailed file listing
-      console.log('[Debug GitHub] Fetching detailed file list from GitHub...');
-      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
-      
-      const response = await fetch(githubApiUrl);
-      
-      if (!response.ok) {
-        alert(`❌ GitHub API Error: ${response.status} ${response.statusText}\n\nFolder exists according to server, but direct fetch failed`);
-        return;
-      }
-      
-      const files = await response.json();
-      
-      const imageFiles = files.filter(file => 
-        file.type === 'file' && 
-        (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
-      );
-      
-      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-      
-      let debugInfo = `📊 GitHub Gallery Folder Contents:\n\n`;
-      debugInfo += `Total files: ${files.length}\n`;
-      debugInfo += `Image files: ${imageFiles.length}\n\n`;
-      debugInfo += `Files:\n`;
-      
-      imageFiles.forEach(file => {
-        const match = file.name.match(filenameRegex);
-        if (match) {
-          const [, caseSlug, page, index] = match;
-          const position = Math.ceil(parseInt(index) / 2);
-          const type = (parseInt(index) % 2 !== 0) ? 'before' : 'after';
-          debugInfo += `✅ ${file.name}\n  → case: ${caseSlug}, position: ${position}, type: ${type}\n\n`;
-        } else {
-          debugInfo += `❌ ${file.name}\n  → INVALID FORMAT (doesn't match pattern)\n\n`;
-        }
-      });
-      
-      debugInfo += `\nExpected filename pattern:\n{case_slug}_p{page}_img{index}.{ext}\n\nExample: pt_1003_nose_p1_img1.png`;
-      
-      console.log(debugInfo);
-      alert(debugInfo);
+      const resp = await fetch(`${serverUrl}/gallery/diagnose-filenames?t=${Date.now()}`);
+      const data = await resp.json();
+      console.log('[Diagnose] Result:', data);
+      setDiagnoseData(data);
     } catch (error) {
-      console.error('[Debug GitHub] Error:', error);
-      alert(`Error debugging GitHub: ${error.message}`);
+      console.error('[Diagnose] Error:', error);
+      setDiagnoseData({ error: error.message });
+    } finally {
+      setDiagnosing(false);
     }
   };
 
@@ -756,6 +740,58 @@ export function Gallery({ onNavigate }: GalleryProps) {
     } catch (error) {
       console.error('[Sync GitHub] Error:', error);
       alert(`Error syncing from GitHub: ${error.message}`);
+    }
+  };
+
+  // Nuke all KV cases then rebuild fresh from GitHub
+  const handleRebuildAllFromGitHub = async () => {
+    if (!confirm(
+      '🔥 REBUILD ALL CASES FROM GITHUB\n\n' +
+      'This will:\n' +
+      '  1. DELETE every gallery case in the database\n' +
+      '  2. Re-scan GitHub for all photos\n' +
+      '  3. Create fresh case records from the filenames\n\n' +
+      'This is the right move when photos exist in GitHub but cases are blank.\n\n' +
+      'Continue?'
+    )) return;
+
+    try {
+      setLoading(true);
+      console.log('[Rebuild] Clearing KV + syncing from GitHub...');
+
+      const response = await fetch(`${serverUrl}/gallery/sync-from-github`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ clearFirst: true })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Rebuild failed');
+      }
+
+      const result = await response.json();
+      console.log('[Rebuild] Result:', result);
+
+      let msg = '✅ Rebuild Complete!\n\n';
+      msg += `📁 Images found in GitHub: ${result.imagesFound ?? '?'}\n`;
+      msg += `📦 Cases found: ${result.casesFound ?? '?'}\n`;
+      msg += `✅ Cases created: ${result.casesCreated}\n`;
+      if (result.failedCases?.length) msg += `⚠️  Failed: ${result.failedCases.length}\n`;
+
+      alert(msg);
+
+      // Clear cache and reload
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      await fetchAndUpdateGallery();
+    } catch (error) {
+      console.error('[Rebuild] Error:', error);
+      alert(`Rebuild error: ${error.message}`);
+      setLoading(false);
     }
   };
 
@@ -963,11 +999,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
       
 
       {/* Gallery Filters */}
-      <section className="py-16 bg-[#1a1f2e] border-b border-[#2d3548]">
+      <section className="pt-48 pb-16 bg-[#1a1f2e] border-b border-[#2d3548]">
         <div className="container mx-auto px-6">
           {/* Debug button for admins */}
           {isAdmin && isEditMode && (
-            <div className="mb-6 text-center space-x-2">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-wrap justify-center gap-2 bg-[#1a1f2e]/95 backdrop-blur-sm border border-[#2d3548] rounded-2xl px-4 py-3 shadow-2xl">
               <Button
                 variant="default"
                 size="sm"
@@ -984,6 +1020,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 className="rounded-full bg-green-600 text-white hover:bg-green-700 shadow-lg"
               >
                 🔄 Sync from GitHub
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleRebuildAllFromGitHub}
+                className="rounded-full bg-red-700 text-white hover:bg-red-800 shadow-lg font-bold"
+              >
+                🔥 Rebuild All Cases
               </Button>
               <Button
                 variant="outline"
@@ -1020,10 +1064,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleDebugGitHub}
-                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+                onClick={handleDiagnoseFilenames}
+                className="rounded-full border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-[#1a1f2e]"
               >
-                🐙 Debug GitHub Files
+                🔬 Diagnose Filenames
               </Button>
               <Button
                 variant="outline"
@@ -1049,12 +1093,16 @@ export function Gallery({ onNavigate }: GalleryProps) {
           <Tabs defaultValue="All" className="w-full">
             <TabsList className="w-full justify-center bg-[#242938]/50 p-1 rounded-full max-w-2xl mx-auto border border-[#2d3548]">
               {categories.map((category, index) => {
-                const count = category === 'All' 
-                  ? galleryItems.filter(item => item.beforeImage || item.afterImage).length
-                  : galleryItems.filter(item => 
-                      item.category === category && 
-                      (item.beforeImage || item.afterImage)
-                    ).length;
+                const count = category === 'All'
+                  ? (isAdmin && isEditMode
+                      ? galleryItems.length
+                      : galleryItems.filter(item => item.beforeImage || item.afterImage).length)
+                  : (isAdmin && isEditMode
+                      ? galleryItems.filter(item => item.category === category).length
+                      : galleryItems.filter(item =>
+                          item.category === category &&
+                          (item.beforeImage || item.afterImage)
+                        ).length);
                 
                 return (
                   <motion.div
@@ -1552,6 +1600,61 @@ export function Gallery({ onNavigate }: GalleryProps) {
           onSaved={loadGalleryImages}
           accessToken={accessToken}
         />
+      )}
+
+      {/* Filename Diagnose Modal */}
+      {diagnoseOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" onClick={() => setDiagnoseOpen(false)}>
+          <div className="bg-[#1a1f2e] border border-[#2d3548] rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2d3548]">
+              <h3 className="text-[#c9b896] font-semibold text-lg">🔬 Filename Pattern Diagnosis</h3>
+              <button onClick={() => setDiagnoseOpen(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="overflow-y-auto p-6 font-mono text-sm text-gray-300 space-y-4">
+              {diagnosing && <p className="text-yellow-400 animate-pulse">Fetching filenames from GitHub…</p>}
+              {diagnoseData?.error && <p className="text-red-400">❌ Error: {diagnoseData.error}</p>}
+              {diagnoseData && !diagnoseData.error && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-center mb-4">
+                    <div className="bg-[#242938] rounded-lg p-3">
+                      <div className="text-2xl font-bold text-white">{diagnoseData.totalImages}</div>
+                      <div className="text-xs text-gray-400">Total images</div>
+                    </div>
+                    <div className="bg-[#242938] rounded-lg p-3">
+                      <div className={`text-2xl font-bold ${diagnoseData.notMatchingStdPattern > 0 ? 'text-red-400' : 'text-green-400'}`}>{diagnoseData.notMatchingStdPattern}</div>
+                      <div className="text-xs text-gray-400">Not matching standard pattern</div>
+                    </div>
+                  </div>
+                  {diagnoseData.notMatchingStdPattern > 0 && (
+                    <div>
+                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'{{slug}}_p{{n}}_img{{n}}.ext'}</code>:</p>
+                      {(diagnoseData.sampleNonMatching || []).map((f, i) => (
+                        <div key={i} className="text-red-300 pl-2">{f}</div>
+                      ))}
+                    </div>
+                  )}
+                  {diagnoseData.matchingStdPattern > 0 && (
+                    <div>
+                      <p className="text-green-400 font-bold mb-2">✅ Sample files matching standard pattern ({diagnoseData.matchingStdPattern} total):</p>
+                      {(diagnoseData.sampleMatching || []).map((f, i) => (
+                        <div key={i} className="text-green-300 pl-2">{f}</div>
+                      ))}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[#c9b896] font-bold mb-2">📋 First 50 filenames (all):</p>
+                    {(diagnoseData.allFirst50 || []).map((f, i) => (
+                      <div key={i} className="text-gray-300 pl-2">{f}</div>
+                    ))}
+                  </div>
+                  {diagnoseData.truncated && (
+                    <p className="text-yellow-400 mt-4">⚠️ Git tree was truncated — some files may be missing from this list.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

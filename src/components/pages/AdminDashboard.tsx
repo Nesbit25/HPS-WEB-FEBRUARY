@@ -463,8 +463,8 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                   <p className="text-center text-muted-foreground py-8">No inquiries yet</p>
                 ) : (
                   <div className="space-y-4">
-                    {inquiries.map((inquiry) => (
-                      <Card key={inquiry.id} className="border-border rounded-xl overflow-hidden">
+                    {inquiries.map((inquiry, idx) => (
+                      <Card key={inquiry.id ?? `inq-${idx}`} className="border-border rounded-xl overflow-hidden">
                         <div className="p-4 bg-muted/30 border-b border-border flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -545,8 +545,8 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                       <p className="text-center text-muted-foreground py-8">No appointments scheduled</p>
                     ) : (
                       <div className="space-y-3">
-                        {schedule.map((event) => (
-                          <Card key={event.id} className="border-border rounded-xl p-4">
+                        {schedule.map((event, idx) => (
+                          <Card key={event.id ?? `evt-${idx}`} className="border-border rounded-xl p-4">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
@@ -730,8 +730,8 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                         <p className="text-center text-muted-foreground py-8">No photos uploaded yet</p>
                       ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                          {photos.map((photo) => (
-                            <Card key={photo.id} className="border-border rounded-xl overflow-hidden group">
+                          {photos.map((photo, idx) => (
+                            <Card key={photo.id ?? `photo-${idx}`} className="border-border rounded-xl overflow-hidden group">
                               <div className="aspect-square bg-muted relative">
                                 <img 
                                   src={photo.publicUrl} 

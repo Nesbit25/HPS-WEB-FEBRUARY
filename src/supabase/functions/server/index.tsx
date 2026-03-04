@@ -61,6 +61,10 @@ function clearGalleryCache() {
   console.log(`[CACHE] Cleared ${cleared} gallery cache entries`);
 }
 
+// Rate-limit for auto-sync — per cold-start instance, max once per hour
+let lastAutoSyncMs = 0;
+const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
 // Periodic cache cleanup (every 10 minutes)
 setInterval(() => {
   const now = Date.now();
@@ -446,7 +450,7 @@ app.put("/make-server-fc862019/patient-forms/:id", async (c) => {
 app.get("/make-server-fc862019/patient-forms/:id/pdf", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -498,7 +502,7 @@ app.get("/make-server-fc862019/patient-forms/:id/pdf", async (c) => {
 app.get("/make-server-fc862019/inquiries", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -518,7 +522,7 @@ app.get("/make-server-fc862019/inquiries", async (c) => {
 app.put("/make-server-fc862019/inquiries/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -546,7 +550,7 @@ app.put("/make-server-fc862019/inquiries/:id", async (c) => {
 app.get("/make-server-fc862019/schedule", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -564,7 +568,7 @@ app.get("/make-server-fc862019/schedule", async (c) => {
 app.post("/make-server-fc862019/schedule", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -585,7 +589,7 @@ app.post("/make-server-fc862019/schedule", async (c) => {
 app.delete("/make-server-fc862019/schedule/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -606,7 +610,7 @@ app.delete("/make-server-fc862019/schedule/:id", async (c) => {
 app.get("/make-server-fc862019/analytics", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -782,7 +786,7 @@ app.post("/make-server-fc862019/storage/fix-permissions", async (c) => {
 app.get("/make-server-fc862019/gallery/debug", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -807,7 +811,7 @@ app.get("/make-server-fc862019/gallery/debug", async (c) => {
 app.delete("/make-server-fc862019/gallery/wipe-all", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Wipe] Authorization error:', error);
@@ -842,7 +846,7 @@ app.delete("/make-server-fc862019/gallery/wipe-all", async (c) => {
 app.post("/make-server-fc862019/gallery/upload", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Upload] Authorization error:', error);
@@ -895,7 +899,7 @@ app.post("/make-server-fc862019/gallery/upload", async (c) => {
 app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[GitHub Upload] Authorization error:', error);
@@ -928,7 +932,7 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
     
     // Generate filename: {case_slug}_p1_img{index}.{ext}
     const filename = `${caseSlug}_p1_img${imageIndex}.${fileExtension || 'png'}`;
-    const githubPath = `gallery/${filename}`;
+    const githubPath = `public/gallery/${filename}`;
     
     console.log(`[GitHub Upload] Uploading ${filename} to GitHub...`);
     
@@ -1023,7 +1027,7 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
 app.post("/make-server-fc862019/gallery/create-folder", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Create Folder] Authorization error:', error);
@@ -1099,7 +1103,7 @@ app.post("/make-server-fc862019/gallery/create-folder", async (c) => {
 app.post("/make-server-fc862019/gallery/create", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Create] Authorization error:', error);
@@ -1155,11 +1159,27 @@ app.post("/make-server-fc862019/gallery/create", async (c) => {
 app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Sync GitHub] Authorization error:', error);
       return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Check for clearFirst flag — wipes all existing KV cases before re-sync
+    let syncBody: any = {};
+    try { syncBody = await c.req.json(); } catch { /* no body is fine */ }
+    const clearFirst = syncBody?.clearFirst === true;
+
+    if (clearFirst) {
+      console.log('[Sync GitHub] clearFirst=true — deleting all existing gallery cases...');
+      const allCases = await kv.getByPrefix('gallery_case_');
+      let deleted = 0;
+      for (const entry of allCases) {
+        await kv.del(entry.key);
+        deleted++;
+      }
+      console.log(`[Sync GitHub] Deleted ${deleted} existing gallery cases.`);
     }
 
     console.log('[Sync GitHub] Starting sync from GitHub...');
@@ -1175,9 +1195,9 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    // Fetch files from GitHub
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
-    console.log('[Sync GitHub] Fetching from:', githubApiUrl);
+    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
+    console.log('[Sync GitHub] Fetching via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1189,10 +1209,10 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     console.log('[Sync GitHub] GitHub response status:', response.status);
 
     if (response.status === 404) {
-      console.log('[Sync GitHub] ⚠️  Gallery folder does not exist in GitHub yet');
+      console.log('[Sync GitHub] ⚠️  Repository or branch not found');
       return c.json({
         success: false,
-        error: 'Gallery folder not found in GitHub. Please upload images using the bulk uploader first.',
+        error: 'Repository or branch not found in GitHub. Please check configuration.',
         casesFound: 0,
         casesCreated: 0,
         casesSkipped: 0,
@@ -1206,33 +1226,67 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
     }
 
-    const files = await response.json();
-    
-    // Filter image files
-    const imageFiles = files.filter(file => 
-      file.type === 'file' && 
-      (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
-    );
+    const treeData = await response.json();
+    if (treeData.truncated) {
+      console.warn('[Sync GitHub] ⚠️  Git tree was truncated — some files may be missing');
+    }
+
+    // Filter tree — new nested structure: {root}/{category}/{case_slug}/{filename}
+    const SYNC_GALLERY_ROOTS = ['public/gallery', 'gallery'];
+    const SYNC_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const imageFiles = (treeData.tree || [])
+      .filter(item => {
+        if (item.type !== 'blob') return false;
+        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+        return SYNC_GALLERY_ROOTS.some(root =>
+          SYNC_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
+        );
+      })
+      .map(item => {
+        const root = SYNC_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
+        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
+        const parts = afterRoot.split('/');
+        return {
+          name:     parts[parts.length - 1], // just filename for regex
+          category: parts[0],                // Face | Breast | Body  (from directory path)
+          fullPath: item.path                // full repo path for raw URL
+        };
+      });
 
     console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
 
     // Extract unique case slugs from filenames
     // Expected format: {case_slug}_p{page}_img{index}.{ext}
     const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-    const caseSlugs = new Set();
-    const caseOrientations = new Map(); // Track how many images per case
+    const caseSlugs      = new Set<string>();
+    const caseOrientations = new Map<string, number>();  // slug → image count
+    const caseFiles        = new Map<string, string[]>(); // slug → full repo paths
+    const caseCategories   = new Map<string, string>();   // slug → Face|Breast|Body (from directory)
 
     imageFiles.forEach(file => {
       const match = file.name.match(filenameRegex);
       if (match) {
         const caseSlug = match[1];
         caseSlugs.add(caseSlug);
-        
-        // Count images per case
+
+        // Category is authoritative from the directory path
+        if (!caseCategories.has(caseSlug)) {
+          caseCategories.set(caseSlug, file.category || 'Face');
+        }
+
         const count = caseOrientations.get(caseSlug) || 0;
         caseOrientations.set(caseSlug, count + 1);
+
+        const slugFiles = caseFiles.get(caseSlug) || [];
+        slugFiles.push(file.fullPath);
+        caseFiles.set(caseSlug, slugFiles);
       }
     });
+
+    // Helper: build raw GitHub URL from a full repo path (e.g. "public/gallery/foo.png")
+    const rawUrl = (fullPath: string) =>
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
 
     console.log(`[Sync GitHub] Found ${caseSlugs.size} unique cases:`, Array.from(caseSlugs));
 
@@ -1261,32 +1315,64 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     const failedCases = [];
     for (const caseSlug of caseSlugs) {
       if (existingSlugs.has(caseSlug)) {
+        // If existing case is missing image URLs (older sync), patch them in
+        const existingEntry = existingCases.find(item => item.value.slug === caseSlug);
+        if (existingEntry && !existingEntry.value.beforeImage) {
+          const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+          const beforeFile = slugFileList.find(f => f.match(/_p\d+_img1\.(png|jpg|jpeg)$/));
+          const afterFile  = slugFileList.find(f => f.match(/_p\d+_img2\.(png|jpg|jpeg)$/));
+          if (beforeFile || afterFile) {
+            const updated = {
+              ...existingEntry.value,
+              // Use directory-sourced category to fix any old 'Face' defaults
+              category:    caseCategories.get(caseSlug) || existingEntry.value.category,
+              beforeImage: beforeFile ? rawUrl(beforeFile) : existingEntry.value.beforeImage,
+              afterImage:  afterFile  ? rawUrl(afterFile)  : existingEntry.value.afterImage
+            };
+            await kv.set(existingEntry.key, updated);
+            console.log(`[Sync GitHub] ✓ Patched missing images for existing case: ${caseSlug}`);
+          }
+        }
         console.log(`[Sync GitHub] Case already exists, skipping: ${caseSlug}`);
         casesSkipped++;
         continue;
       }
 
       try {
-        // Extract category from slug (assumes format: pt_XXXX_category or similar)
+        // Category comes from the directory path (authoritative), not the slug
+        const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
         const parts = caseSlug.split('_');
-        const category = parts.length > 2 ? parts.slice(2).join('_') : parts[parts.length - 1];
         const title = `Patient ${parts[1] || 'Case'}`;
 
         // Calculate number of orientations (2 images per orientation)
         const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.floor(imageCount / 2);
+        const orientationCount = Math.ceil(imageCount / 2);
+        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
         const orientations = [];
         for (let i = 1; i <= orientationCount; i++) {
-          orientations.push(`Position ${i}`);
+          // Find actual files for this orientation position
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+          orientations.push({
+            name: `Position ${i}`,
+            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
+            afterImage:  afterFile  ? rawUrl(afterFile)  : null
+          });
         }
+
+        // Convenience top-level images from first orientation
+        const firstBefore = orientations[0]?.beforeImage || null;
+        const firstAfter  = orientations[0]?.afterImage  || null;
 
         const caseData = {
           id: nextId,
           slug: caseSlug,
-          category: category.charAt(0).toUpperCase() + category.slice(1),
+          category: resolvedCategory,
           title,
-          procedure: category.charAt(0).toUpperCase() + category.slice(1),
+          procedure: resolvedCategory,
           journeyNote: '',
+          beforeImage: firstBefore,
+          afterImage: firstAfter,
           orientations,
           createdBy: user.id,
           createdAt: new Date().toISOString(),
@@ -1338,6 +1424,161 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
   }
 });
 
+// ─── Auto-sync from GitHub (UNPROTECTED) ─────────────────────────────────────
+// Called automatically by the gallery frontend on each fresh load.
+// Only creates MISSING KV case records — never wipes existing ones.
+// Rate-limited to once per hour per server instance to avoid hammering GitHub.
+app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
+  try {
+    const now = Date.now();
+    if (now - lastAutoSyncMs < AUTO_SYNC_COOLDOWN_MS) {
+      const waitSec = Math.round((AUTO_SYNC_COOLDOWN_MS - (now - lastAutoSyncMs)) / 1000);
+      console.log(`[Auto-Sync] ⏱ Skipping — last sync was ${Math.round((now - lastAutoSyncMs)/1000)}s ago (cooldown ${waitSec}s remaining)`);
+      return c.json({ success: true, skipped: true, cooldownRemainingSeconds: waitSec });
+    }
+
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) {
+      console.error('[Auto-Sync] No GITHUB_TOKEN in environment');
+      return c.json({ success: false, error: 'GitHub token not configured' }, 500);
+    }
+
+    console.log('[Auto-Sync] Starting automatic sync from GitHub...');
+    lastAutoSyncMs = now; // Claim the slot immediately so parallel requests don't stack
+
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO  = 'HPS-WEB-FEBRUARY';
+
+    // Fetch full recursive tree via Git Trees API
+    const treeResp = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`,
+      { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' } }
+    );
+    if (!treeResp.ok) {
+      const txt = await treeResp.text();
+      console.error('[Auto-Sync] GitHub tree fetch failed:', treeResp.status, txt);
+      return c.json({ success: false, error: `GitHub API error: ${treeResp.status}` }, 500);
+    }
+
+    const treeData = await treeResp.json();
+    if (treeData.truncated) console.warn('[Auto-Sync] ⚠️  Git tree truncated');
+
+    // Filter to images in the nested gallery structure
+    const AS_ROOTS = ['public/gallery', 'gallery'];
+    const AS_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const imageFiles = (treeData.tree || [])
+      .filter((item: any) => {
+        if (item.type !== 'blob') return false;
+        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+        return AS_ROOTS.some(root => AS_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`)));
+      })
+      .map((item: any) => {
+        const root = AS_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
+        const afterRoot = item.path.slice(root.length + 1);
+        const parts = afterRoot.split('/');
+        return { name: parts[parts.length - 1], category: parts[0], fullPath: item.path };
+      });
+
+    console.log(`[Auto-Sync] Found ${imageFiles.length} image files across all categories`);
+
+    // Build slug → {category, files} map
+    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const caseSlugs      = new Set<string>();
+    const caseCategories = new Map<string, string>();
+    const caseOrientations = new Map<string, number>();
+    const caseFiles        = new Map<string, string[]>();
+
+    imageFiles.forEach((file: any) => {
+      const match = file.name.match(filenameRegex);
+      if (!match) return;
+      const caseSlug = match[1];
+      caseSlugs.add(caseSlug);
+      if (!caseCategories.has(caseSlug)) caseCategories.set(caseSlug, file.category || 'Face');
+      caseOrientations.set(caseSlug, (caseOrientations.get(caseSlug) || 0) + 1);
+      const slugFiles = caseFiles.get(caseSlug) || [];
+      slugFiles.push(file.fullPath);
+      caseFiles.set(caseSlug, slugFiles);
+    });
+
+    console.log(`[Auto-Sync] Parsed ${caseSlugs.size} unique cases`);
+
+    // Load existing KV cases
+    const existingCases = await kv.getByPrefix('gallery_case_');
+    const existingSlugs = new Set(existingCases.map((item: any) => item.value.slug));
+    const maxId = existingCases.reduce((max: number, item: any) => {
+      const m = item.key.match(/gallery_case_(\d+)$/);
+      return m ? Math.max(max, parseInt(m[1])) : max;
+    }, 999);
+
+    let nextId = maxId + 1;
+    let casesCreated = 0;
+    let casesSkipped = 0;
+
+    const rawUrl = (fullPath: string) =>
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
+
+    for (const caseSlug of caseSlugs) {
+      if (existingSlugs.has(caseSlug)) {
+        casesSkipped++;
+        continue;
+      }
+
+      try {
+        const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
+        const parts = caseSlug.split('_');
+        const title = `Patient ${parts[1] || 'Case'}`;
+
+        const imageCount = caseOrientations.get(caseSlug) || 0;
+        const orientationCount = Math.ceil(imageCount / 2);
+        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+        const orientations = [];
+
+        for (let i = 1; i <= orientationCount; i++) {
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+          orientations.push({
+            name: `Position ${i}`,
+            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
+            afterImage:  afterFile  ? rawUrl(afterFile)  : null
+          });
+        }
+
+        await kv.set(`gallery_case_${nextId}`, {
+          id: nextId,
+          slug: caseSlug,
+          category: resolvedCategory,
+          title,
+          procedure: resolvedCategory,
+          journeyNote: '',
+          beforeImage: orientations[0]?.beforeImage || null,
+          afterImage:  orientations[0]?.afterImage  || null,
+          orientations,
+          createdAt: new Date().toISOString(),
+          syncedFromGitHub: true,
+          autoSynced: true
+        });
+
+        console.log(`[Auto-Sync] ✓ Created: ${caseSlug} (${resolvedCategory}) ID=${nextId}`);
+        casesCreated++;
+        nextId++;
+      } catch (err: any) {
+        console.error(`[Auto-Sync] ✗ Failed to create ${caseSlug}:`, err.message);
+      }
+    }
+
+    if (casesCreated > 0) clearGalleryCache();
+
+    console.log(`[Auto-Sync] Done. Created: ${casesCreated}, Skipped (already existed): ${casesSkipped}`);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ success: true, casesCreated, casesSkipped, totalCasesInGitHub: caseSlugs.size });
+
+  } catch (error: any) {
+    console.error('[Auto-Sync] Unexpected error:', error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
 // Get GitHub gallery files (with authentication) - UNPROTECTED so gallery can load without login
 app.get("/make-server-fc862019/gallery/github-files", async (c) => {
   try {
@@ -1351,9 +1592,10 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
     
-    console.log('[GitHub Files] Fetching:', githubApiUrl);
+    console.log('[GitHub Files] Fetching via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1365,7 +1607,7 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
     console.log('[GitHub Files] Response status:', response.status);
     
     if (response.status === 404) {
-      console.log('[GitHub Files] Folder not found');
+      console.log('[GitHub Files] Repo/branch not found');
       return c.json({ files: [], exists: false }, 404);
     }
 
@@ -1375,22 +1617,108 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
       return c.json({ error: `GitHub API error: ${response.status}`, files: [] }, response.status);
     }
 
-    const files = await response.json();
-    console.log('[GitHub Files] Found', files.length, 'files');
+    const treeData = await response.json();
+    if (treeData.truncated) {
+      console.warn('[GitHub Files] Git tree was truncated — repo exceeds GitHub tree size limit');
+    }
+
+    // Filter tree — nested structure: {root}/{category}/{case_slug}/{filename}
+    const FILES_GALLERY_ROOTS = ['public/gallery', 'gallery'];
+    const FILES_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const files = (treeData.tree || [])
+      .filter(item => {
+        if (item.type !== 'blob') return false;
+        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+        return FILES_GALLERY_ROOTS.some(root =>
+          FILES_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
+        );
+      })
+      .map(item => {
+        const root = FILES_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
+        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
+        const parts = afterRoot.split('/');
+        return {
+          name:     parts[parts.length - 1], // just filename — for regex parsing in frontend
+          category: parts[0],                // Face | Breast | Body
+          caseDir:  parts[1],                // case slug directory
+          path:     item.path,               // full repo path — for raw URL construction
+          type: 'file',
+          sha:  item.sha,
+          size: item.size
+        };
+      });
+
+    console.log('[GitHub Files] Found', files.length, 'image files in gallery/ folder');
     
-    // Add cache headers for better performance (5 min cache)
-    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    // No CDN caching — always serve fresh file list so new uploads appear immediately
+    c.header('Cache-Control', 'no-store');
     
-    // Return the raw file list - let client filter/process
     return c.json({ 
       files, 
       exists: true,
-      count: files.length 
+      count: files.length,
+      truncated: treeData.truncated || false
     });
 
   } catch (error) {
     console.error('[GitHub Files] Error:', error);
     return c.json({ error: error.message, files: [] }, 500);
+  }
+});
+
+// Diagnose filename patterns in gallery folder - UNPROTECTED for admin debugging
+app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
+  try {
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) return c.json({ error: 'GitHub token not configured' }, 500);
+
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_FOLDER = 'gallery';
+
+    const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
+    const resp = await fetch(apiUrl, {
+      headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!resp.ok) return c.json({ error: `GitHub API error: ${resp.status}` }, resp.status);
+
+    const treeData = await resp.json();
+    const DIAG_GALLERY_ROOTS = ['public/gallery', 'gallery'];
+    const DIAG_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const imageFiles = (treeData.tree || [])
+      .filter(item => {
+        if (item.type !== 'blob') return false;
+        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+        return DIAG_GALLERY_ROOTS.some(root =>
+          DIAG_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
+        );
+      })
+      .map(item => {
+        // Return just the filename so the regex check below works correctly
+        const root = DIAG_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
+        const afterRoot = item.path.slice(root.length + 1);
+        const parts = afterRoot.split('/');
+        return parts[parts.length - 1]; // filename only
+      });
+
+    const stdRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const matching    = imageFiles.filter(n => stdRegex.test(n));
+    const nonMatching = imageFiles.filter(n => !stdRegex.test(n));
+
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      totalImages: imageFiles.length,
+      matchingStdPattern: matching.length,
+      notMatchingStdPattern: nonMatching.length,
+      truncated: treeData.truncated || false,
+      sampleMatching:    matching.slice(0, 20),
+      sampleNonMatching: nonMatching.slice(0, 30),
+      allFirst50: imageFiles.slice(0, 50)
+    });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
   }
 });
 
@@ -1407,9 +1735,10 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
     const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
     const GITHUB_FOLDER = 'gallery';
 
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+    // Use Git Trees API to avoid the 1000-file Contents API limit
+    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
     
-    console.log('[Check GitHub] Checking:', githubApiUrl);
+    console.log('[Check GitHub] Checking via Git Trees API:', githubApiUrl);
     
     const response = await fetch(githubApiUrl, {
       headers: {
@@ -1424,7 +1753,7 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       return c.json({
         exists: false,
         status: 404,
-        message: 'Gallery folder does not exist in GitHub',
+        message: 'Repository or branch not found',
         url: githubApiUrl,
         suggestion: 'Upload images using the Bulk Gallery Uploader first'
       });
@@ -1440,20 +1769,46 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       });
     }
 
-    const files = await response.json();
-    const imageFiles = files.filter(f => 
-      f.type === 'file' && (f.name.endsWith('.png') || f.name.endsWith('.jpg') || f.name.endsWith('.jpeg'))
-    );
+    const treeData = await response.json();
+    const CHECK_GALLERY_ROOTS = ['public/gallery', 'gallery'];
+    const CHECK_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
+
+    const imageFiles = (treeData.tree || []).filter(item => {
+      if (item.type !== 'blob') return false;
+      if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
+      return CHECK_GALLERY_ROOTS.some(root =>
+        CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
+      );
+    });
+    const hasGalleryFolder = imageFiles.length > 0 ||
+      (treeData.tree || []).some(item =>
+        CHECK_GALLERY_ROOTS.some(root =>
+          CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
+        )
+      );
+
+    // Build a per-category breakdown for debugging
+    const byCategory: Record<string, number> = {};
+    imageFiles.forEach(f => {
+      const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
+      const cat  = f.path.slice(root.length + 1).split('/')[0];
+      byCategory[cat] = (byCategory[cat] || 0) + 1;
+    });
 
     return c.json({
-      exists: true,
+      exists: hasGalleryFolder,
       status: 200,
-      totalFiles: files.length,
+      totalFiles: imageFiles.length,
       imageFiles: imageFiles.length,
-      fileNames: imageFiles.slice(0, 10).map(f => f.name),
+      byCategory,
+      truncated: treeData.truncated || false,
+      fileNames: imageFiles.slice(0, 10).map(f => {
+        const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
+        return f.path.slice(root.length + 1); // "Face/pt_1086_nose/pt_1086_nose_p1_img1.png"
+      }),
       message: imageFiles.length > 0 
-        ? `Found ${imageFiles.length} images in GitHub` 
-        : 'Folder exists but contains no images',
+        ? `Found ${imageFiles.length} images in GitHub gallery folder` 
+        : 'gallery folder exists but contains no images',
       url: githubApiUrl
     });
 
@@ -1467,7 +1822,7 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
 app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Add Orientation] Authorization error:', error);
@@ -1540,7 +1895,7 @@ app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
 app.delete("/make-server-fc862019/gallery/cases/all", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Clear All] Authorization error:', error);
@@ -1594,8 +1949,8 @@ app.get("/make-server-fc862019/gallery/cases", async (c) => {
       key: item.key
     }));
 
-    // Add cache headers for better performance
-    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    // No CDN caching — always serve fresh case list
+    c.header('Cache-Control', 'no-store');
     
     return c.json({ cases: formattedCases });
   } catch (error) {
@@ -1608,7 +1963,7 @@ app.get("/make-server-fc862019/gallery/cases", async (c) => {
 app.delete("/make-server-fc862019/gallery/case/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Delete] Authorization error:', error);
@@ -1657,7 +2012,7 @@ app.delete("/make-server-fc862019/gallery/case/:id", async (c) => {
 app.patch("/make-server-fc862019/gallery/case/:id/toggle", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Toggle] Authorization error:', error);
@@ -1724,7 +2079,7 @@ app.patch("/make-server-fc862019/gallery/case/:id/toggle", async (c) => {
 app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Gallery Update Category] Authorization error:', error);
@@ -1777,7 +2132,7 @@ app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
 app.post("/make-server-fc862019/gallery/fix-case-id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -1856,7 +2211,7 @@ app.post("/make-server-fc862019/photos/upload", async (c) => {
       return c.json({ code: 401, message: 'No authorization token provided' }, 401);
     }
     
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (error) {
       console.log('Authorization error during upload:', error.message);
@@ -2021,7 +2376,7 @@ app.get("/make-server-fc862019/photos/:id", async (c) => {
 app.get("/make-server-fc862019/photos", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2046,7 +2401,7 @@ app.get("/make-server-fc862019/photos", async (c) => {
 app.delete("/make-server-fc862019/photos/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       console.log('[Photo Delete] Unauthorized:', error);
@@ -2099,7 +2454,7 @@ app.delete("/make-server-fc862019/photos/:id", async (c) => {
 app.delete("/make-server-fc862019/admin/clear-service-cards", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2133,7 +2488,7 @@ app.delete("/make-server-fc862019/admin/clear-service-cards", async (c) => {
 app.put("/make-server-fc862019/photos/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2298,7 +2653,7 @@ app.get('/make-server-fc862019/content/:key', async (c) => {
 app.get('/make-server-fc862019/content/:key/history', async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
     
     if (authError || !user?.id) {
       console.error('[GET HISTORY] Unauthorized access attempt');
@@ -2335,7 +2690,7 @@ app.get('/make-server-fc862019/content/:key/history', async (c) => {
 app.put('/make-server-fc862019/content/:key', async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
     
     if (authError || !user?.id) {
       console.error('[PUT] Unauthorized access attempt:', authError?.message);
@@ -2384,7 +2739,7 @@ app.put('/make-server-fc862019/content/:key', async (c) => {
 app.get('/make-server-fc862019/content-debug/list', async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
     
     if (authError || !user?.id) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2412,7 +2767,7 @@ app.get('/make-server-fc862019/content-debug/list', async (c) => {
 app.post('/make-server-fc862019/content-debug/clear-images', async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
     
     if (authError || !user?.id) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2484,7 +2839,7 @@ app.post('/make-server-fc862019/content-debug/clear-images', async (c) => {
 app.post('/make-server-fc862019/content-debug/hard-reset-heroes', async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
     
     if (authError || !user?.id) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2552,8 +2907,12 @@ app.get("/make-server-fc862019/blog-posts", async (c) => {
     
     // Check if user is admin
     if (accessToken) {
-      const { data: { user }, error } = await supabase.auth.getUser(accessToken);
-      isAdmin = !!user && !error;
+      try {
+        const { data: { user }, error } = await getUserWithRetry(accessToken);
+        isAdmin = !!user && !error;
+      } catch (e) {
+        console.log('[Blog List] Auth check failed, treating as non-admin:', e?.message);
+      }
     }
     
     // Get all blog posts
@@ -2591,8 +2950,12 @@ app.get("/make-server-fc862019/blog-posts/:slug", async (c) => {
     let isAdmin = false;
     
     if (accessToken) {
-      const { data: { user }, error } = await supabase.auth.getUser(accessToken);
-      isAdmin = !!user && !error;
+      try {
+        const { data: { user }, error } = await getUserWithRetry(accessToken);
+        isAdmin = !!user && !error;
+      } catch (e) {
+        console.log('[Blog Get] Auth check failed, treating as non-admin:', e?.message);
+      }
     }
     
     if (post.status !== 'published' && !isAdmin) {
@@ -2610,7 +2973,7 @@ app.get("/make-server-fc862019/blog-posts/:slug", async (c) => {
 app.post("/make-server-fc862019/blog-posts", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2649,7 +3012,7 @@ app.post("/make-server-fc862019/blog-posts", async (c) => {
 app.put("/make-server-fc862019/blog-posts/:slug", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2684,7 +3047,7 @@ app.put("/make-server-fc862019/blog-posts/:slug", async (c) => {
 app.delete("/make-server-fc862019/blog-posts/:slug", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2761,7 +3124,7 @@ app.get("/make-server-fc862019/pdf-resources", async (c) => {
 app.post("/make-server-fc862019/pdf-resources", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2832,7 +3195,7 @@ app.post("/make-server-fc862019/pdf-resources", async (c) => {
 app.delete("/make-server-fc862019/pdf-resources/:id", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2918,7 +3281,7 @@ app.post("/make-server-fc862019/patient/signup", async (c) => {
 app.put("/make-server-fc862019/patient/profile", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -2946,7 +3309,7 @@ app.put("/make-server-fc862019/patient/profile", async (c) => {
 app.get("/make-server-fc862019/patient/my-forms", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -3047,7 +3410,7 @@ app.post("/make-server-fc862019/analytics/event", async (c) => {
 app.get("/make-server-fc862019/analytics/sessions", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -3072,7 +3435,7 @@ app.get("/make-server-fc862019/analytics/sessions", async (c) => {
 app.get("/make-server-fc862019/analytics/events", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);
@@ -3097,7 +3460,7 @@ app.get("/make-server-fc862019/analytics/events", async (c) => {
 app.get("/make-server-fc862019/analytics/summary", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
     
     if (!user || error) {
       return c.json({ error: 'Unauthorized' }, 401);

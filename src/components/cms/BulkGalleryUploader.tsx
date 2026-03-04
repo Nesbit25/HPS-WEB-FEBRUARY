@@ -449,15 +449,18 @@ export function BulkGalleryUploader({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-full w-full h-[96vh] max-h-[96vh] overflow-hidden flex flex-col p-0 gap-0">
+        {/* Always-present accessible title/description (visually hidden when photos loaded) */}
+        <DialogTitle className="sr-only">Bulk Gallery Upload</DialogTitle>
+        <DialogDescription className="sr-only">Upload multiple photos at once, then organize them in the table below</DialogDescription>
         <div className="flex flex-col h-full bg-[#1a1f2e]">
           
           {/* Conditional Header - Only show when no photos */}
           {photos.length === 0 && (
             <div className="bg-gradient-to-r from-[#1a1f2e] to-[#242938] p-8 border-b border-[#2d3548]">
-              <DialogTitle className="text-3xl text-[#c9b896] mb-2">Bulk Gallery Upload</DialogTitle>
-              <DialogDescription className="text-lg text-gray-300">
+              <p className="text-3xl text-[#c9b896] mb-2 font-semibold">Bulk Gallery Upload</p>
+              <p className="text-lg text-gray-300">
                 Upload multiple photos at once, then organize them in the table below
-              </DialogDescription>
+              </p>
             </div>
           )}
 
