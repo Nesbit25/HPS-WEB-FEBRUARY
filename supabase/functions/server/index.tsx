@@ -928,7 +928,7 @@ app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
     
     // Generate filename: {case_slug}_p1_img{index}.{ext}
     const filename = `${caseSlug}_p1_img${imageIndex}.${fileExtension || 'png'}`;
-    const githubPath = `gallery/${filename}`;
+    const githubPath = `public/gallery/${filename}`;
     
     console.log(`[GitHub Upload] Uploading ${filename} to GitHub...`);
     
@@ -1211,22 +1211,27 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       console.warn('[Sync GitHub] ⚠️  Git tree was truncated — some files may be missing');
     }
 
-    // Filter tree for image files inside the gallery/ folder
+    // Filter tree for image files inside gallery/ OR public/gallery/ folders
+    const SYNC_GALLERY_PREFIXES = ['public/gallery', 'gallery'];
     const imageFiles = (treeData.tree || [])
       .filter(item =>
         item.type === 'blob' &&
-        item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+        SYNC_GALLERY_PREFIXES.some(p => item.path.startsWith(`${p}/`)) &&
         (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
       )
-      .map(item => ({ name: item.path.replace(`${GITHUB_FOLDER}/`, '') }));
+      .map(item => {
+        const prefix = SYNC_GALLERY_PREFIXES.find(p => item.path.startsWith(`${p}/`)) || 'gallery';
+        return { name: item.path.slice(prefix.length + 1), fullPath: item.path };
+      });
 
     console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
 
     // Extract unique case slugs from filenames
     // Expected format: {case_slug}_p{page}_img{index}.{ext}
     const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-    const caseSlugs = new Set();
-    const caseOrientations = new Map(); // Track how many images per case
+    const caseSlugs = new Set<string>();
+    const caseOrientations = new Map<string, number>(); // Track how many images per case
+    const caseFiles = new Map<string, string[]>(); // Track full repo paths per case
 
     imageFiles.forEach(file => {
       const match = file.name.match(filenameRegex);
@@ -1237,8 +1242,17 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
         // Count images per case
         const count = caseOrientations.get(caseSlug) || 0;
         caseOrientations.set(caseSlug, count + 1);
+
+        // Track full repo paths for URL construction
+        const slugFiles = caseFiles.get(caseSlug) || [];
+        slugFiles.push(file.fullPath);
+        caseFiles.set(caseSlug, slugFiles);
       }
     });
+
+    // Helper: build raw GitHub URL from a full repo path (e.g. "public/gallery/foo.png")
+    const rawUrl = (fullPath: string) =>
+      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
 
     console.log(`[Sync GitHub] Found ${caseSlugs.size} unique cases:`, Array.from(caseSlugs));
 
@@ -1267,6 +1281,22 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     const failedCases = [];
     for (const caseSlug of caseSlugs) {
       if (existingSlugs.has(caseSlug)) {
+        // If existing case is missing image URLs (older sync), patch them in
+        const existingEntry = existingCases.find(item => item.value.slug === caseSlug);
+        if (existingEntry && !existingEntry.value.beforeImage) {
+          const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+          const beforeFile = slugFileList.find(f => f.match(/_p\d+_img1\.(png|jpg|jpeg)$/));
+          const afterFile  = slugFileList.find(f => f.match(/_p\d+_img2\.(png|jpg|jpeg)$/));
+          if (beforeFile || afterFile) {
+            const updated = {
+              ...existingEntry.value,
+              beforeImage: beforeFile ? rawUrl(beforeFile) : existingEntry.value.beforeImage,
+              afterImage:  afterFile  ? rawUrl(afterFile)  : existingEntry.value.afterImage
+            };
+            await kv.set(existingEntry.key, updated);
+            console.log(`[Sync GitHub] ✓ Patched missing images for existing case: ${caseSlug}`);
+          }
+        }
         console.log(`[Sync GitHub] Case already exists, skipping: ${caseSlug}`);
         casesSkipped++;
         continue;
@@ -1280,11 +1310,23 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
 
         // Calculate number of orientations (2 images per orientation)
         const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.floor(imageCount / 2);
+        const orientationCount = Math.ceil(imageCount / 2);
+        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
         const orientations = [];
         for (let i = 1; i <= orientationCount; i++) {
-          orientations.push(`Position ${i}`);
+          // Find actual files for this orientation position
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+          orientations.push({
+            name: `Position ${i}`,
+            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
+            afterImage:  afterFile  ? rawUrl(afterFile)  : null
+          });
         }
+
+        // Convenience top-level images from first orientation
+        const firstBefore = orientations[0]?.beforeImage || null;
+        const firstAfter  = orientations[0]?.afterImage  || null;
 
         const caseData = {
           id: nextId,
@@ -1293,6 +1335,8 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
           title,
           procedure: category.charAt(0).toUpperCase() + category.slice(1),
           journeyNote: '',
+          beforeImage: firstBefore,
+          afterImage: firstAfter,
           orientations,
           createdBy: user.id,
           createdAt: new Date().toISOString(),
@@ -1387,25 +1431,29 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
       console.warn('[GitHub Files] Git tree was truncated — repo exceeds GitHub tree size limit');
     }
 
-    // Filter tree for image files inside the gallery/ folder, map to consistent shape
+    // Filter tree for image files inside gallery/ OR public/gallery/ folders
+    const FILES_GALLERY_PREFIXES = ['public/gallery', 'gallery'];
     const files = (treeData.tree || [])
       .filter(item =>
         item.type === 'blob' &&
-        item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+        FILES_GALLERY_PREFIXES.some(p => item.path.startsWith(`${p}/`)) &&
         (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
       )
-      .map(item => ({
-        name: item.path.replace(`${GITHUB_FOLDER}/`, ''),
-        path: item.path,
-        type: 'file',
-        sha: item.sha,
-        size: item.size
-      }));
+      .map(item => {
+        const prefix = FILES_GALLERY_PREFIXES.find(p => item.path.startsWith(`${p}/`)) || 'gallery';
+        return {
+          name: item.path.slice(prefix.length + 1),
+          path: item.path,
+          type: 'file',
+          sha: item.sha,
+          size: item.size
+        };
+      });
 
     console.log('[GitHub Files] Found', files.length, 'image files in gallery/ folder');
     
-    // Add cache headers for better performance (5 min cache)
-    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    // No CDN caching — always serve fresh file list so new uploads appear immediately
+    c.header('Cache-Control', 'no-store');
     
     return c.json({ 
       files, 
@@ -1417,6 +1465,54 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
   } catch (error) {
     console.error('[GitHub Files] Error:', error);
     return c.json({ error: error.message, files: [] }, 500);
+  }
+});
+
+// Diagnose filename patterns in gallery folder - UNPROTECTED for admin debugging
+app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
+  try {
+    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+    if (!GITHUB_TOKEN) return c.json({ error: 'GitHub token not configured' }, 500);
+
+    const GITHUB_OWNER = 'Nesbit25';
+    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+    const GITHUB_FOLDER = 'gallery';
+
+    const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
+    const resp = await fetch(apiUrl, {
+      headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!resp.ok) return c.json({ error: `GitHub API error: ${resp.status}` }, resp.status);
+
+    const treeData = await resp.json();
+    const DIAG_GALLERY_PREFIXES = ['public/gallery', 'gallery'];
+    const imageFiles = (treeData.tree || [])
+      .filter(item =>
+        item.type === 'blob' &&
+        DIAG_GALLERY_PREFIXES.some(p => item.path.startsWith(`${p}/`)) &&
+        (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
+      )
+      .map(item => {
+        const prefix = DIAG_GALLERY_PREFIXES.find(p => item.path.startsWith(`${p}/`)) || 'gallery';
+        return item.path.slice(prefix.length + 1);
+      });
+
+    const stdRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const matching    = imageFiles.filter(n => stdRegex.test(n));
+    const nonMatching = imageFiles.filter(n => !stdRegex.test(n));
+
+    c.header('Cache-Control', 'no-store');
+    return c.json({
+      totalImages: imageFiles.length,
+      matchingStdPattern: matching.length,
+      notMatchingStdPattern: nonMatching.length,
+      truncated: treeData.truncated || false,
+      sampleMatching:    matching.slice(0, 20),
+      sampleNonMatching: nonMatching.slice(0, 30),
+      allFirst50: imageFiles.slice(0, 50)
+    });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
   }
 });
 
@@ -1468,12 +1564,14 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
     }
 
     const treeData = await response.json();
+    const CHECK_GALLERY_PREFIXES = ['public/gallery', 'gallery'];
     const imageFiles = (treeData.tree || []).filter(item =>
       item.type === 'blob' &&
-      item.path.startsWith(`${GITHUB_FOLDER}/`) &&
+      CHECK_GALLERY_PREFIXES.some(p => item.path.startsWith(`${p}/`)) &&
       (item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))
     );
-    const hasGalleryFolder = (treeData.tree || []).some(item => item.path.startsWith(`${GITHUB_FOLDER}/`));
+    const hasGalleryFolder = imageFiles.length > 0 ||
+      (treeData.tree || []).some(item => CHECK_GALLERY_PREFIXES.some(p => item.path.startsWith(`${p}/`)));
 
     return c.json({
       exists: hasGalleryFolder,
@@ -1481,10 +1579,13 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       totalFiles: imageFiles.length,
       imageFiles: imageFiles.length,
       truncated: treeData.truncated || false,
-      fileNames: imageFiles.slice(0, 10).map(f => f.path.replace(`${GITHUB_FOLDER}/`, '')),
+      fileNames: imageFiles.slice(0, 10).map(f => {
+        const prefix = CHECK_GALLERY_PREFIXES.find(p => f.path.startsWith(`${p}/`)) || 'gallery';
+        return f.path.slice(prefix.length + 1);
+      }),
       message: imageFiles.length > 0 
-        ? `Found ${imageFiles.length} images in GitHub gallery/ folder` 
-        : 'gallery/ folder exists but contains no images',
+        ? `Found ${imageFiles.length} images in GitHub gallery folder` 
+        : 'gallery folder exists but contains no images',
       url: githubApiUrl
     });
 
@@ -1625,8 +1726,8 @@ app.get("/make-server-fc862019/gallery/cases", async (c) => {
       key: item.key
     }));
 
-    // Add cache headers for better performance
-    c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    // No CDN caching — always serve fresh case list
+    c.header('Cache-Control', 'no-store');
     
     return c.json({ cases: formattedCases });
   } catch (error) {
