@@ -1,3544 +1,1729 @@
-import * as kv from './kv_store.tsx';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { Hono } from 'npm:hono@4.6.14';
-import { cors } from 'npm:hono/cors';
-import { logger } from 'npm:hono/logger';
-import { generateFormPDF } from './pdf-generator.tsx';
+import React, { useState, useEffect } from 'react';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { GalleryLightbox } from '../GalleryLightbox';
+import { GeometricPattern, CircleAccent, AccentLine } from '../DecorativeElements';
+import { EditableText } from '../cms/EditableText';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEditMode } from '../../contexts/EditModeContext';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { SimpleGalleryEditor } from '../cms/SimpleGalleryEditor';
+import { NewGalleryCaseEditor } from '../cms/NewGalleryCaseEditor';
+import { BulkGalleryUploader } from '../cms/BulkGalleryUploader';
+import { GalleryOrientationManager } from '../cms/GalleryOrientationManager';
+import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon } from 'lucide-react';
+import { SEOHead } from '../seo/SEOHead';
+import { motion } from 'framer-motion';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { getOptimizedSupabaseUrl } from '../../hooks/useImagePreload';
 
-const app = new Hono();
-
-// ===== IN-MEMORY CACHE TO REDUCE DATABASE CALLS =====
-interface CacheEntry {
-  value: any;
-  timestamp: number;
+interface GalleryProps {
+  onNavigate: (page: string) => void;
 }
 
-const contentCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache (increased from 5)
-
-// Cached KV get wrapper
-async function getCachedContent(key: string): Promise<any> {
-  // Check cache first
-  const cached = contentCache.get(key);
-  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-    console.log(`[CACHE HIT] Returning cached content for key: ${key}`);
-    return cached.value;
-  }
-  
-  console.log(`[CACHE MISS] Fetching from database for key: ${key}`);
-  
-  // Wrap kv.get with retry logic
-  const value = await retryOperation(
-    async () => await kv.get(key),
-    5,  // Max 5 retries
-    500 // Start with 500ms delay
-  );
-  
-  // Store in cache
-  contentCache.set(key, {
-    value,
-    timestamp: Date.now()
-  });
-  
-  return value;
+interface GalleryOrientation {
+  name: string;
+  beforeImage?: string;
+  afterImage?: string;
 }
 
-// Clear cache entry
-function clearCacheEntry(key: string) {
-  contentCache.delete(key);
-  console.log(`[CACHE] Cleared cache for key: ${key}`);
+interface GalleryItem {
+  id: number;
+  slug?: string; // Case slug from filename (e.g., "pt_1_rhino")
+  category: string;
+  title: string;
+  procedure: string;
+  journeyNote: string;
+  beforeImage?: string;
+  afterImage?: string;
+  orientations?: GalleryOrientation[]; // New: support multiple orientations
+  createdBy?: string; // Only exists on custom cases from database
+  createdAt?: string;
+  featuredOnHome?: boolean;
+  showOnNose?: boolean;
+  showOnBreast?: boolean;
+  showOnBody?: boolean;
+  showOnFace?: boolean;
 }
 
-// Clear all gallery cache entries
-function clearGalleryCache() {
-  let cleared = 0;
-  for (const [key] of contentCache.entries()) {
-    if (key.startsWith('gallery_')) {
-      contentCache.delete(key);
-      cleared++;
-    }
-  }
-  console.log(`[CACHE] Cleared ${cleared} gallery cache entries`);
-}
+export function Gallery({ onNavigate }: GalleryProps) {
+  const { isAdmin, accessToken } = useAuth();
+  const { isEditMode } = useEditMode();
+  const categories = ['All', 'Face', 'Nose', 'Breast', 'Body'];
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ id: number; type: 'before' | 'after'; orientationIndex?: number } | null>(null);
+  const [newCaseEditorOpen, setNewCaseEditorOpen] = useState(false);
+  const [bulkUploaderOpen, setBulkUploaderOpen] = useState(false);
+  const [orientationManagerOpen, setOrientationManagerOpen] = useState(false);
+  const [orientationManagerCaseId, setOrientationManagerCaseId] = useState<number | null>(null);
+  const [orientationManagerCaseTitle, setOrientationManagerCaseTitle] = useState<string>('');
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeImages, setActiveImages] = useState<{ [key: number]: { orientationIndex: number; type: 'before' | 'after' } }>({});
+  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+  const [diagnoseData, setDiagnoseData] = useState<any>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
 
-// Rate-limit for auto-sync — per cold-start instance, max once per hour
-let lastAutoSyncMs = 0;
-const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
-
-// Periodic cache cleanup (every 10 minutes)
-setInterval(() => {
-  const now = Date.now();
-  let cleared = 0;
-  for (const [key, entry] of contentCache.entries()) {
-    if (now - entry.timestamp >= CACHE_TTL_MS) {
-      contentCache.delete(key);
-      cleared++;
-    }
-  }
-  if (cleared > 0) {
-    console.log(`[CACHE] Cleaned up ${cleared} expired entries`);
-  }
-}, 10 * 60 * 1000);
-// ===== END CACHE =====
-
-// Retry utility for handling connection resets
-async function retryOperation<T>(
-  operation: () => Promise<T>,
-  maxRetries = 5,
-  delayMs = 500
-): Promise<T> {
-  let lastError;
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
   
-  for (let i = 0; i < maxRetries; i++) {
+  // GitHub configuration
+  const GITHUB_USERNAME = 'Nesbit25';
+  const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
+  const GITHUB_FOLDER = 'gallery';
+
+  // Load images from GitHub on mount
+  useEffect(() => {
+    loadGalleryImages();
+  }, []);
+
+  const loadGalleryImages = async () => {
+    setLoading(true);
     try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      const errorMessage = error?.message || String(error);
+      console.log('[Gallery] Loading gallery images from GitHub...');
       
-      // Only retry on connection errors (including DNS failures)
-      if (errorMessage.includes('connection reset') || 
-          errorMessage.includes('connection error') ||
-          errorMessage.includes('ECONNRESET') ||
-          errorMessage.includes('dns error') ||
-          errorMessage.includes('lookup') ||
-          errorMessage.includes('name resolution') ||
-          errorMessage.includes('temporary failure') ||
-          errorMessage.includes('timeout') ||
-          errorMessage.includes('network')) {
-        console.log(`[RETRY] Attempt ${i + 1}/${maxRetries} failed, retrying in ${delayMs}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        delayMs = Math.min(delayMs * 1.5, 5000); // Exponential backoff with cap at 5s
-        continue;
+      // Check localStorage cache first
+      const cacheKey = 'gallery_items_cache';
+      const cacheTimestampKey = 'gallery_items_cache_timestamp';
+      const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+      
+      const cachedData = localStorage.getItem(cacheKey);
+      const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
+      
+      if (cachedData && cachedTimestamp) {
+        const age = Date.now() - parseInt(cachedTimestamp);
+        if (age < CACHE_DURATION) {
+          const cachedItems = JSON.parse(cachedData);
+          // Validate cache — if any item still has raw.githubusercontent.com URLs
+          // the cache pre-dates the private-repo URL fix; bust it and re-fetch.
+          const hasBadUrls = cachedItems.some((item: any) =>
+            [item.beforeImage, item.afterImage,
+              ...(item.orientations || []).flatMap((o: any) => [o.beforeImage, o.afterImage])]
+              .filter(Boolean)
+              .some((u: string) =>
+                u.includes('raw.githubusercontent.com') ||
+                u.startsWith('gallery-img:') ||
+                (u.startsWith('/gallery/') && !u.includes('/gallery/img/'))
+              )
+          );
+          if (hasBadUrls) {
+            console.log('[Gallery] ⚠️  Cache has stale raw GitHub URLs — busting and re-fetching...');
+            localStorage.removeItem('gallery_items_cache');
+            localStorage.removeItem('gallery_items_cache_timestamp');
+            // fall through to fresh fetch below
+          } else {
+            console.log('[Gallery] 🚀 Loading from cache (age:', Math.round(age / 1000), 'seconds)');
+            setGalleryItems(cachedItems);
+            setLoading(false);
+            return;
+          }
+        }
       }
       
-      // Don't retry other types of errors
+      // No valid cache — fetch fresh data from GitHub, then auto-sync KV in background
+      await fetchAndUpdateGallery();
+      // Fire-and-forget: update KV store with any new GitHub cases (non-blocking)
+      triggerAutoSync();
+      
+    } catch (error) {
+      console.error('[Gallery] Error loading images:', error);
+      setLoading(false);
+    }
+  };
+  
+  // Helper: Generate numeric ID from string
+  const stringToId = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Helper: Load cases from database only (fallback when GitHub fails)
+  const loadCasesFromDatabaseOnly = async () => {
+    try {
+      console.log('[Gallery] Loading cases from database only...');
+      
+      const response = await fetch(`${serverUrl}/gallery/cases`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Database fetch failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const dbCases = data.cases || [];
+      
+      console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
+      
+      // Convert database cases to gallery items format
+      const galleryItems = dbCases.map(dbCase => ({
+        id: dbCase.id,
+        slug: dbCase.slug,
+        title: dbCase.title || dbCase.slug,
+        category: dbCase.category || 'Face',
+        procedure: dbCase.procedure || '',
+        journeyNote: dbCase.journeyNote || '',
+        beforeImage: normalizeImageUrl(dbCase.beforeImage),
+        afterImage: normalizeImageUrl(dbCase.afterImage),
+        orientations: (dbCase.orientations || []).map((o: any) => ({
+          ...o,
+          beforeImage: normalizeImageUrl(o.beforeImage),
+          afterImage: normalizeImageUrl(o.afterImage),
+        })),
+        featuredOnHome: dbCase.featuredOnHome || false,
+        showOnNose: dbCase.showOnNose || false,
+        showOnFace: dbCase.showOnFace || false,
+        showOnBreast: dbCase.showOnBreast || false,
+        showOnBody: dbCase.showOnBody || false,
+        createdBy: dbCase.createdBy,
+        createdAt: dbCase.createdAt
+      }));
+      
+      console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
+      console.log('[Gallery] Sample case images:', galleryItems[0]?.beforeImage, galleryItems[0]?.afterImage);
+      console.log('[Gallery] Sample orientations:', galleryItems[0]?.orientations);
+      
+      setGalleryItems(galleryItems);
+      setLoading(false);
+      
+      // Cache the results
+      localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
+      localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+      
+    } catch (error) {
+      console.error('[Gallery] Error loading from database:', error);
+      setGalleryItems([]);
+      setLoading(false);
+    }
+  };
+  
+  // Resolve any image URL/marker to a full proxy URL.
+  // Handles all historical formats stored in KV or localStorage cache:
+  //   gallery-img:{rel}          ← current KV format (new syncs)
+  //   /gallery/{rel}             ← previous fix iteration (static Vercel path, 404s)
+  //   https://raw.githubusercontent.com/...  ← original format (401s on private repo)
+  const normalizeImageUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    // Already a fully-resolved proxy URL
+    if (url.includes('/gallery/img/')) return url;
+    // Current KV marker format: "gallery-img:{rel}"
+    if (url.startsWith('gallery-img:')) {
+      return `${serverUrl}/gallery/img/${url.slice('gallery-img:'.length)}`;
+    }
+    // Old raw GitHub URL
+    if (url.includes('raw.githubusercontent.com')) {
+      const match = url.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(?:public\/)?gallery\/(.+)$/);
+      if (match) return `${serverUrl}/gallery/img/${match[1]}`;
+    }
+    // /gallery/... Vercel static path (previous fix) — 404 for non-public/ images
+    if (url.startsWith('/gallery/')) {
+      return `${serverUrl}/gallery/img/${url.slice('/gallery/'.length)}`;
+    }
+    return url;
+  };
+
+  // Fire-and-forget: tells the server to create KV records for any new GitHub cases.
+  // Completely non-blocking — gallery renders from GitHub files regardless.
+  const triggerAutoSync = () => {
+    fetch(`${serverUrl}/gallery/auto-sync`, {
+      headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.skipped) {
+          console.log('[Gallery] Auto-sync skipped (cooldown active)');
+        } else {
+          console.log(`[Gallery] Auto-sync complete — created: ${data.casesCreated}, skipped: ${data.casesSkipped}`);
+        }
+      })
+      .catch(err => console.warn('[Gallery] Auto-sync failed (non-critical):', err));
+  };
+
+  const fetchAndUpdateGallery = async () => {
+    try {
+      // 1. Fetch file list from GitHub via SERVER (authenticated)
+      console.log('[Gallery] ========== START GALLERY LOAD ==========');
+      console.log('[Gallery] Fetching file list from GitHub via server...');
+      
+      const response = await fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`);
+      console.log('[Gallery] Server response status:', response.status);
+      
+      const data = await response.json();
+      
+      // Handle 404 - folder doesn't exist yet (no images uploaded)
+      if (response.status === 404 || !data.exists) {
+        console.log('[Gallery] ❌ Gallery folder not found in GitHub');
+        console.log('[Gallery] Falling back to database-only load...');
+        await loadCasesFromDatabaseOnly();
+        return;
+      }
+      
+      if (!response.ok || !data.files) {
+        console.error('[Gallery] ❌ Server error:', data.error);
+        console.log('[Gallery] Falling back to database-only load...');
+        await loadCasesFromDatabaseOnly();
+        return;
+      }
+      
+      const files = data.files;
+      console.log('[Gallery] ✅ Found', files.length, 'files in GitHub repo');
+      
+      // 2. Filter to only image files
+      const imageFiles = files.filter(file => 
+        file.type === 'file' && 
+        (file.name.endsWith('.png') || file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+      );
+      
+      console.log('[Gallery] Filtered to', imageFiles.length, 'image files');
+      
+      // 3. Parse filenames and build gallery structure
+      // Regex: ^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$
+      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+      
+      const casesMap = new Map();
+      
+      imageFiles.forEach(file => {
+        const match = file.name.match(filenameRegex);
+        
+        if (!match) {
+          console.warn('[Gallery] Skipping file with invalid format:', file.name);
+          return;
+        }
+        
+        const [, caseSlug, pageStr, indexStr, extension] = match;
+        const page = parseInt(pageStr);
+        const index = parseInt(indexStr);
+        
+        // Calculate position: Math.ceil(index / 2)
+        const position = Math.ceil(index / 2);
+        
+        // Determine type: odd = before, even = after
+        const type = (index % 2 !== 0) ? 'before' : 'after';
+        
+        // Route ALL gallery images through the Supabase proxy endpoint.
+        // Images live in the private GitHub repo (gallery/ or public/gallery/).
+        // Vercel only serves public/ so /gallery/... would 404 for root-level files.
+        // The proxy fetches with GITHUB_TOKEN and sets Cache-Control: 1 day.
+        const galleryRelPath = (file as any).path
+          ? (file as any).path.replace(/^(?:public\/)?gallery\//, '')
+          : file.name;
+        const imageUrl = `${serverUrl}/gallery/img/${galleryRelPath}`;
+        
+        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
+        
+        // Get or create case
+        if (!casesMap.has(caseSlug)) {
+          // Generate readable title from slug
+          const title = caseSlug
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          // Category comes from the directory structure (Face|Breast|Body) — not a default guess
+          const category = (file as any).category || 'Face';
+
+          casesMap.set(caseSlug, {
+            slug: caseSlug,
+            title,
+            category,
+            procedure: category,
+            journeyNote: '',
+            orientations: [],
+            createdAt: new Date().toISOString()
+          });
+        }
+        
+        const caseData = casesMap.get(caseSlug);
+        
+        // Find or create orientation for this position
+        let orientation = caseData.orientations.find(o => o.name === position.toString());
+        if (!orientation) {
+          orientation = {
+            name: position.toString(),
+            beforeImage: null,
+            afterImage: null
+          };
+          caseData.orientations.push(orientation);
+        }
+        
+        // Set the image
+        if (type === 'before') {
+          orientation.beforeImage = imageUrl;
+        } else {
+          orientation.afterImage = imageUrl;
+        }
+      });
+      
+      // 4. Convert map to array and sort orientations
+      const galleryItems = Array.from(casesMap.values()).map(caseData => {
+        // Sort orientations by position number
+        caseData.orientations.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+        
+        // Set base before/after images from first orientation
+        const firstOrientation = caseData.orientations[0] || {};
+        caseData.beforeImage = firstOrientation.beforeImage || null;
+        caseData.afterImage = firstOrientation.afterImage || null;
+        
+        // Convert slug to numeric ID for compatibility
+        caseData.id = stringToId(caseData.slug);
+        
+        return caseData;
+      });
+      
+      console.log('[Gallery] Built', galleryItems.length, 'cases from GitHub');
+      console.log('[Gallery] Gallery items sample:', galleryItems.slice(0, 3));
+      
+      // 5. Fetch case metadata from database (category, featured flags)
+      try {
+        console.log('[Gallery] Fetching case metadata from database...');
+        const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`
+          }
+        });
+        
+        console.log('[Gallery] Database response status:', casesResponse.status);
+        
+        if (casesResponse.ok) {
+          const casesData = await casesResponse.json();
+          const dbCases = casesData.cases || [];
+          
+          console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
+          console.log('[Gallery] Database cases sample:', dbCases.slice(0, 3).map(c => ({ id: c.id, slug: c.slug, title: c.title })));
+          
+          // Merge database metadata with GitHub images
+          galleryItems.forEach(item => {
+            const dbCase = dbCases.find(c => c.slug === item.slug);
+            if (dbCase) {
+              item.category = dbCase.category || item.category || 'Face';
+              item.procedure = dbCase.procedure || item.procedure;
+              item.journeyNote = dbCase.journeyNote || item.journeyNote;
+              item.featuredOnHome = dbCase.featuredOnHome || false;
+              item.showOnNose = dbCase.showOnNose || false;
+              item.showOnFace = dbCase.showOnFace || false;
+              item.showOnBreast = dbCase.showOnBreast || false;
+              item.showOnBody = dbCase.showOnBody || false;
+              item.createdBy = dbCase.createdBy;
+              item.createdAt = dbCase.createdAt;
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('[Gallery] Could not fetch case metadata from database:', error);
+      }
+      
+      // 6. Cache the results
+      localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
+      localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+      
+      console.log('[Gallery] ✅ Setting state with', galleryItems.length, 'items');
+      setGalleryItems(galleryItems);
+      setLoading(false);
+      console.log('[Gallery] ========== END GALLERY LOAD ==========');
+    } catch (error) {
+      console.error('[Gallery] ❌ ERROR in fetchAndUpdateGallery:', error);
+      console.error('[Gallery] Error stack:', error.stack);
+      setLoading(false);
       throw error;
     }
-  }
-  
-  throw lastError;
-}
+  };
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-);
+  const filteredItems = selectedCategory === 'All' 
+    ? galleryItems.filter(item => {
+        // Admins in edit mode can see all items, including those without images
+        if (isAdmin && isEditMode) {
+          return true;
+        }
+        // Public users only see items with images
+        return item.beforeImage || item.afterImage;
+      })
+    : galleryItems.filter(item => {
+        // Category filter
+        if (item.category !== selectedCategory) {
+          return false;
+        }
+        // Admins in edit mode can see all items, including those without images
+        if (isAdmin && isEditMode) {
+          return true;
+        }
+        // Public users only see items with images
+        return item.beforeImage || item.afterImage;
+      });
 
-// Helper function to get user with retry logic for connection resets
-async function getUserWithRetry(accessToken: string | undefined) {
-  if (!accessToken) {
-    return { data: { user: null }, error: { message: 'No access token provided' } };
-  }
-  
-  return await retryOperation(
-    async () => await supabase.auth.getUser(accessToken),
-    5,  // Max 5 retries
-    500 // Start with 500ms delay
+  // Preload first 6 images for faster initial load
+  useEffect(() => {
+    if (filteredItems.length > 0) {
+      const priorityImages = filteredItems
+        .slice(0, 6)
+        .flatMap(item => [
+          item.beforeImage ? getOptimizedSupabaseUrl(item.beforeImage, { width: 800, quality: 80, format: 'webp' }) : null,
+          item.afterImage ? getOptimizedSupabaseUrl(item.afterImage, { width: 800, quality: 80, format: 'webp' }) : null
+        ])
+        .filter(Boolean);
+      
+      // Preload priority images using link rel="preload"
+      const links: HTMLLinkElement[] = [];
+      
+      priorityImages.forEach(url => {
+        if (!url) return;
+        
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = url;
+        
+        // Add CORS for cross-origin images
+        if (url.includes('supabase.co') || url.includes('githubusercontent.com')) {
+          link.crossOrigin = 'anonymous';
+        }
+        
+        document.head.appendChild(link);
+        links.push(link);
+      });
+      
+      // Cleanup
+      return () => {
+        links.forEach(link => {
+          if (link.parentNode) {
+            link.parentNode.removeChild(link);
+          }
+        });
+      };
+    }
+  }, [filteredItems]);
+
+  // Auto-cycle between before/after images AND orientations
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveImages(prev => {
+        const newState = { ...prev };
+        filteredItems.forEach(item => {
+          const currentState = prev[item.id] || { orientationIndex: 0, type: 'before' };
+          const orientationCount = item.orientations?.length || 1;
+          
+          // Toggle between before and after first
+          if (currentState.type === 'before') {
+            newState[item.id] = { ...currentState, type: 'after' };
+          } else {
+            // After switching to "after", move to next orientation
+            const nextOrientationIndex = (currentState.orientationIndex + 1) % orientationCount;
+            newState[item.id] = { 
+              orientationIndex: nextOrientationIndex, 
+              type: 'before' 
+            };
+          }
+        });
+        return newState;
+      });
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [filteredItems]);
+
+  const handleOpenLightbox = (index: number) => {
+    setCurrentLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const handleNextImage = () => {
+    setCurrentLightboxIndex((prev) => (prev + 1) % filteredItems.length);
+  };
+
+  const handlePreviousImage = () => {
+    setCurrentLightboxIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
+  };
+
+  const handleOpenEditor = (id: number, type: 'before' | 'after', orientationIndex?: number) => {
+    setEditingItem({ id, type, orientationIndex });
+    setEditorOpen(true);
+  };
+
+  const handleImageSaved = () => {
+    // Clear the cache so fresh data is fetched
+    localStorage.removeItem('gallery_items_cache');
+    localStorage.removeItem('gallery_items_cache_timestamp');
+    
+    // Reload gallery images
+    loadGalleryImages();
+    setEditorOpen(false);
+    setEditingItem(null);
+  };
+
+  const handleBulkUploadComplete = () => {
+    // Clear the cache so fresh data is fetched
+    localStorage.removeItem('gallery_items_cache');
+    localStorage.removeItem('gallery_items_cache_timestamp');
+    
+    // Reload gallery images
+    loadGalleryImages();
+  };
+
+  const handleDebugGallery = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/gallery/cases`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      });
+      const data = await response.json();
+      
+      const cases = data.cases || [];
+      
+      const message = cases.length === 0 
+        ? '❌ No gallery cases found in database!\n\nThe gallery_case_ keys are empty.'
+        : `📊 Gallery Cases in Database:\n\n${cases.map(c => {
+            return `ID: ${c.id}\nSlug: ${c.slug}\nCategory: ${c.category}\nTitle: ${c.title}\nOrientations: ${c.orientations?.length || 0}`;
+          }).join('\n\n---\n\n')}\n\nTotal: ${cases.length} cases`;
+      
+      alert(message);
+      console.log('Full debug data:', data);
+    } catch (error) {
+      alert(`Error loading debug info: ${error.message}`);
+    }
+  };
+
+  const handleDebugDisplayed = () => {
+    const message = galleryItems.length === 0 
+      ? '❌ No gallery items currently displayed!\n\ngalleryItems array is empty.'
+      : `📊 Currently Displayed Cases:\n\n${galleryItems.map(item => {
+          return `ID: ${item.id}\nSlug: ${item.slug}\nCategory: ${item.category}\nTitle: ${item.title}\nBefore: ${item.beforeImage ? '✅' : '❌'}\nAfter: ${item.afterImage ? '✅' : '❌'}\nOrientations: ${item.orientations?.length || 0}`;
+        }).join('\n\n---\n\n')}\n\nTotal displayed: ${galleryItems.length} cases`;
+    
+    alert(message);
+    console.log('Current galleryItems:', galleryItems);
+  };
+
+  const handleFixCaseId = async () => {
+    const correctId = prompt('Enter the CORRECT case ID (the one in gallery_case_XXXX):');
+    const wrongId = prompt('Enter the WRONG ID (the one used in image keys like gallery_XXXX_before):');
+    
+    if (!correctId || !wrongId) {
+      alert('Both IDs are required!');
+      return;
+    }
+
+    if (!confirm(`This will migrate all images from case ${wrongId} to case ${correctId}.\n\nContinue?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/gallery/fix-case-id`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          correctCaseId: parseInt(correctId),
+          wrongCaseId: parseInt(wrongId)
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ ${data.message}\n\nMigrated keys:\n${data.migratedKeys.map(k => `${k.from} → ${k.to}`).join('\n')}`);
+        
+        // Clear cache and reload
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
+        loadGalleryImages();
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`Error fixing case ID: ${error.message}`);
+    }
+  };
+
+  const handleTestImageLoad = async () => {
+    try {
+      // Test loading gallery_1_before
+      const response = await fetch(`${serverUrl}/content/gallery_1_before`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken || 'none'}`
+        }
+      });
+      const data = await response.json();
+      
+      console.log('Test fetch result:', data);
+      
+      const imageUrl = data.content?.value;
+      const message = `📷 Testing Image Load:\n\nKey: gallery_1_before\nFull Response: ${JSON.stringify(data, null, 2)}\n\nExtracted URL: ${imageUrl}\n\nURL Type: ${typeof imageUrl}`;
+      
+      alert(message);
+      
+      // Try to load the image
+      if (imageUrl && typeof imageUrl === 'string') {
+        const img = new Image();
+        img.onload = () => alert('✅ Image loaded successfully!');
+        img.onerror = (e) => alert(`❌ Image failed to load: ${e}`);
+        img.src = imageUrl;
+      }
+    } catch (error) {
+      alert(`Error testing image: ${error.message}`);
+    }
+  };
+
+  const handleCreateNewCase = async () => {
+    try {
+      // First, check if gallery folder exists
+      console.log('[Create Case] Checking if gallery folder exists...');
+      const githubApiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+      
+      const response = await fetch(githubApiUrl);
+      
+      // If folder doesn't exist (404), create it
+      if (response.status === 404) {
+        console.log('[Create Case] Gallery folder does not exist, creating it...');
+        
+        if (!confirm('The gallery folder does not exist in GitHub yet.\n\nWould you like to create it now?\n\n(This will create an empty .gitkeep file to initialize the folder)')) {
+          return;
+        }
+        
+        // Create .gitkeep file to initialize the folder
+        const createResponse = await fetch(`${serverUrl}/gallery/create-folder`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || 'Failed to create gallery folder');
+        }
+        
+        alert('✅ Gallery folder created successfully!\n\nYou can now create cases and upload images.');
+        
+        // Reload gallery to clear the error state
+        loadGalleryImages();
+      }
+      
+      // Open the case editor
+      setNewCaseEditorOpen(true);
+    } catch (error) {
+      console.error('[Create Case] Error:', error);
+      alert(`Error: ${error.message}\n\nPlease try again or contact support.`);
+    }
+  };
+
+  const handleDiagnoseFilenames = async () => {
+    setDiagnosing(true);
+    setDiagnoseOpen(true);
+    setDiagnoseData(null);
+    try {
+      const resp = await fetch(`${serverUrl}/gallery/diagnose-filenames?t=${Date.now()}`);
+      const data = await resp.json();
+      console.log('[Diagnose] Result:', data);
+      setDiagnoseData(data);
+    } catch (error) {
+      console.error('[Diagnose] Error:', error);
+      setDiagnoseData({ error: error.message });
+    } finally {
+      setDiagnosing(false);
+    }
+  };
+
+  const handleSyncFromGitHub = async () => {
+    try {
+      if (!confirm('🔄 Sync Cases from GitHub?\n\nThis will scan the GitHub gallery folder and create missing case records in the database.\n\nExisting cases will NOT be modified or duplicated.\n\nContinue?')) {
+        return;
+      }
+
+      console.log('[Sync GitHub] Starting sync...');
+      
+      const response = await fetch(`${serverUrl}/gallery/sync-from-github`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync from GitHub');
+      }
+      
+      const result = await response.json();
+      
+      console.log('[Sync GitHub] Result:', result);
+      
+      let message = '✅ Sync Complete!\n\n';
+      message += `Cases found in GitHub: ${result.casesFound}\n`;
+      message += `New cases created: ${result.casesCreated}\n`;
+      message += `Existing cases skipped: ${result.casesSkipped}\n\n`;
+      
+      if (result.createdCases && result.createdCases.length > 0) {
+        message += 'New cases:\n';
+        result.createdCases.forEach(c => {
+          message += `  • ${c}\n`;
+        });
+      }
+      
+      message += '\n📋 The gallery will now reload...';
+      
+      alert(message);
+      
+      // Clear client-side cache
+      console.log('[Sync GitHub] Clearing client-side cache...');
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      
+      // Force reload the gallery by calling fetchAndUpdateGallery directly (bypasses cache check)
+      console.log('[Sync GitHub] Reloading gallery...');
+      setLoading(true);
+      await fetchAndUpdateGallery();
+    } catch (error) {
+      console.error('[Sync GitHub] Error:', error);
+      alert(`Error syncing from GitHub: ${error.message}`);
+    }
+  };
+
+  // Nuke all KV cases then rebuild fresh from GitHub
+  const handleRebuildAllFromGitHub = async () => {
+    if (!confirm(
+      '🔥 REBUILD ALL CASES FROM GITHUB\n\n' +
+      'This will:\n' +
+      '  1. DELETE every gallery case in the database\n' +
+      '  2. Re-scan GitHub for all photos\n' +
+      '  3. Create fresh case records from the filenames\n\n' +
+      'This is the right move when photos exist in GitHub but cases are blank.\n\n' +
+      'Continue?'
+    )) return;
+
+    try {
+      setLoading(true);
+      console.log('[Rebuild] Clearing KV + syncing from GitHub...');
+
+      const response = await fetch(`${serverUrl}/gallery/sync-from-github`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ clearFirst: true })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Rebuild failed');
+      }
+
+      const result = await response.json();
+      console.log('[Rebuild] Result:', result);
+
+      let msg = '✅ Rebuild Complete!\n\n';
+      msg += `📁 Images found in GitHub: ${result.imagesFound ?? '?'}\n`;
+      msg += `📦 Cases found: ${result.casesFound ?? '?'}\n`;
+      msg += `✅ Cases created: ${result.casesCreated}\n`;
+      if (result.failedCases?.length) msg += `⚠️  Failed: ${result.failedCases.length}\n`;
+
+      alert(msg);
+
+      // Clear cache and reload
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      await fetchAndUpdateGallery();
+    } catch (error) {
+      console.error('[Rebuild] Error:', error);
+      alert(`Rebuild error: ${error.message}`);
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCase = async (id: number) => {
+    try {
+      const response = await fetch(`${serverUrl}/gallery/case/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Case deleted successfully!');
+        
+        // Clear the cache so fresh data is fetched
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
+        
+        loadGalleryImages();
+      } else {
+        alert(`Failed to delete case: ${data.message}`);
+      }
+    } catch (error) {
+      alert(`Error deleting case: ${error.message}`);
+    }
+  };
+
+  const handleToggleFlag = async (id: number, flagName: string, currentValue: boolean) => {
+    try {
+      // Check if we have a valid access token
+      if (!accessToken) {
+        alert('Error: You must be logged in to toggle flags. Please log in and try again.');
+        console.error('[Gallery Toggle] No access token available');
+        return;
+      }
+      
+      // If we're turning ON a flag, check limits
+      if (!currentValue) {
+        const limits = {
+          'featuredOnHome': 9,
+          'showOnNose': 3,
+          'showOnFace': 3,
+          'showOnBreast': 3,
+          'showOnBody': 3
+        };
+        
+        const currentCount = galleryItems.filter(item => item[flagName]).length;
+        const limit = limits[flagName];
+        
+        if (currentCount >= limit) {
+          const pageName = flagName === 'featuredOnHome' ? 'Home page' : 
+                          flagName === 'showOnNose' ? 'Nose page' :
+                          flagName === 'showOnFace' ? 'Face page' :
+                          flagName === 'showOnBreast' ? 'Breast page' : 'Body page';
+          alert(`Limit reached: You can only feature ${limit} cases on the ${pageName}. Please uncheck another case first.`);
+          return;
+        }
+      }
+      
+      console.log(`[Gallery Toggle] Toggling flag ${flagName} for case ${id}, current value: ${currentValue}`);
+      console.log(`[Gallery Toggle] Making request to: ${serverUrl}/gallery/case/${id}/toggle`);
+      console.log(`[Gallery Toggle] Request body:`, { flag: flagName, value: !currentValue });
+      console.log(`[Gallery Toggle] Access token available: ${accessToken ? 'Yes' : 'No'}`);
+      
+      const response = await fetch(`${serverUrl}/gallery/case/${id}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ flag: flagName, value: !currentValue })
+      });
+      
+      console.log(`[Gallery Toggle] Response status: ${response.status} ${response.statusText}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Gallery Toggle] Server error response:', errorText);
+        
+        // Handle 401 Unauthorized specifically
+        if (response.status === 401) {
+          alert('Your session has expired. Please log out and log back in to continue.\n\nClick OK to return to the admin login page.');
+          // Optionally redirect to login
+          window.location.reload();
+          return;
+        }
+        
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('[Gallery Toggle] Server response:', data);
+      
+      if (data.success) {
+        loadGalleryImages();
+      } else {
+        alert(`Failed to toggle flag: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('[Gallery Toggle] Error:', error);
+      console.error('[Gallery Toggle] Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      
+      // Provide more helpful error messages
+      let errorMessage = error.message || 'Unknown error';
+      if (error.message === 'Failed to fetch') {
+        errorMessage = 'Network error: Unable to reach the server. Please check your internet connection and try again.';
+      }
+      
+      alert(`Error toggling flag: ${errorMessage}\n\nCheck the browser console for more details.`);
+    }
+  };
+
+  const handleWipeAllGallery = async () => {
+    if (!confirm('⚠️ WARNING: This will DELETE ALL gallery cases and images from the database.\n\nThis action cannot be undone.\n\nAre you absolutely sure you want to wipe the entire gallery?')) {
+      return;
+    }
+
+    if (!confirm('This is your FINAL confirmation.\n\nClick OK to permanently delete all gallery data, or Cancel to abort.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/gallery/wipe-all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to wipe gallery');
+      }
+
+      const data = await response.json();
+      
+      alert(`✅ Gallery wiped successfully!\n\nDeleted ${data.deletedKeys?.length || 0} items:\n${data.deletedKeys?.join('\n') || 'No items'}\n\nThe gallery is now empty and ready for your new photos.`);
+      
+      // Clear cache and reload
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      loadGalleryImages();
+    } catch (error) {
+      console.error('[Gallery Wipe] Error:', error);
+      alert(`Error wiping gallery: ${error.message}`);
+    }
+  };
+
+  const handleClearAllCases = async () => {
+    if (!confirm('⚠️ WARNING: This will DELETE ALL gallery cases and images from the database.\n\nThis action cannot be undone.\n\nAre you absolutely sure you want to clear all cases?')) {
+      return;
+    }
+
+    if (!confirm('This is your FINAL confirmation.\n\nClick OK to permanently delete all gallery data, or Cancel to abort.')) {
+      return;
+    }
+
+    setClearing(true);
+
+    try {
+      const response = await fetch(`${serverUrl}/gallery/cases/all`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to clear gallery');
+      }
+
+      const data = await response.json();
+      
+      alert(`✅ Gallery cleared successfully!\n\nDeleted ${data.deletedCases || 0} cases and ${data.deletedImages || 0} images.\n\nThe gallery is now empty and ready for your new photos.`);
+      
+      // Clear cache and reload
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      loadGalleryImages();
+    } catch (error) {
+      console.error('[Gallery Clear] Error:', error);
+      alert(`Error clearing gallery: ${error.message}`);
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  return (
+    <div>
+      <SEOHead
+        title="Before & After Gallery | Real Patient Transformations"
+        description="View real before and after photos of plastic surgery results by Dr. Hanemann. Browse transformations across rhinoplasty, facelifts, breast augmentation, body contouring, and more."
+        keywords="before after photos, plastic surgery results, rhinoplasty before after, facelift results, breast augmentation photos, liposuction results, Dr. Hanemann gallery"
+        canonical="/gallery"
+      />
+      {/* Page Hero */}
+      
+
+      {/* Gallery Filters */}
+      <section className="pt-48 pb-16 bg-[#1a1f2e] border-b border-[#2d3548]">
+        <div className="container mx-auto px-6">
+          {/* Debug button for admins */}
+          {isAdmin && isEditMode && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-wrap justify-center gap-2 bg-[#1a1f2e]/95 backdrop-blur-sm border border-[#2d3548] rounded-2xl px-4 py-3 shadow-2xl">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleCreateNewCase}
+                className="rounded-full bg-[#c9b896] text-[#1a1f2e] hover:bg-[#b8976a] shadow-lg"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Case
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSyncFromGitHub}
+                className="rounded-full bg-green-600 text-white hover:bg-green-700 shadow-lg"
+              >
+                🔄 Sync from GitHub
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleRebuildAllFromGitHub}
+                className="rounded-full bg-red-700 text-white hover:bg-red-800 shadow-lg font-bold"
+              >
+                🔥 Rebuild All Cases
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDebugGallery}
+                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              >
+                🔍 Debug Database
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDebugDisplayed}
+                className="rounded-full border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white"
+              >
+                👁️ Debug Displayed
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFixCaseId}
+                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              >
+                🛠️ Fix Case ID
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestImageLoad}
+                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              >
+                📸 Test Image Load
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDiagnoseFilenames}
+                className="rounded-full border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-[#1a1f2e]"
+              >
+                🔬 Diagnose Filenames
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkUploaderOpen(true)}
+                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              >
+                <UploadIcon className="w-4 h-4 mr-2" />
+                Bulk Upload
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  localStorage.removeItem('gallery_items_cache');
+                  localStorage.removeItem('gallery_items_cache_timestamp');
+                  setLoading(true);
+                  fetchAndUpdateGallery().then(() => console.log('[Gallery] Force refresh complete'));
+                }}
+                className="rounded-full border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
+              >
+                ♻️ Force Refresh Cache
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleClearAllCases}
+                disabled={clearing}
+                className="rounded-full shadow-lg"
+              >
+                {clearing ? 'Clearing...' : '🗑️ Clear All Cases'}
+              </Button>
+            </div>
+          )}
+          
+          <Tabs defaultValue="All" className="w-full">
+            <TabsList className="w-full justify-center bg-[#242938]/50 p-1 rounded-full max-w-2xl mx-auto border border-[#2d3548]">
+              {categories.map((category, index) => {
+                const count = category === 'All'
+                  ? (isAdmin && isEditMode
+                      ? galleryItems.length
+                      : galleryItems.filter(item => item.beforeImage || item.afterImage).length)
+                  : (isAdmin && isEditMode
+                      ? galleryItems.filter(item => item.category === category).length
+                      : galleryItems.filter(item =>
+                          item.category === category &&
+                          (item.beforeImage || item.afterImage)
+                        ).length);
+                
+                return (
+                  <motion.div
+                    key={category}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                  >
+                    <TabsTrigger
+                      value={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className="rounded-full data-[state=active]:bg-[#c9b896] data-[state=active]:text-[#1a1f2e] data-[state=active]:shadow-lg text-gray-300"
+                    >
+                      {category} <span className="ml-1 text-xs opacity-60">({count})</span>
+                    </TabsTrigger>
+                  </motion.div>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+        </div>
+      </section>
+
+      {/* Gallery Grid */}
+      <section className="py-24 bg-[#1a1f2e] relative overflow-hidden">
+        {/* Ambient background elements */}
+        <div className="absolute top-1/2 left-0 w-64 h-64 bg-[#c9b896]/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-[#b8976a]/5 rounded-full blur-3xl"></div>
+        
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {filteredItems.map((item, index) => (
+              <motion.div
+                key={item.id}
+                className="relative"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: index * 0.05 }}
+                whileHover={{ y: -8 }}
+              >
+                {/* Edit buttons (only visible to admins in edit mode) - ALWAYS VISIBLE FOR NOW */}
+                {isAdmin && isEditMode && (
+                  <div className="absolute top-2 left-2 z-50 flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      className="rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-2xl border-2 border-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditor(item.id, 'before');
+                      }}
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Before
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-2xl border-2 border-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditor(item.id, 'after');
+                      }}
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      After
+                    </Button>
+                    {/* Add Orientations button */}
+                    <Button
+                      size="sm"
+                      className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e] shadow-2xl border-2 border-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOrientationManagerCaseId(item.id);
+                        setOrientationManagerCaseTitle(item.title);
+                        setOrientationManagerOpen(true);
+                      }}
+                    >
+                      <ImageIcon className="w-3 h-3 mr-1" />
+                      Add Views
+                    </Button>
+                    {/* Only show delete for custom cases (those with createdBy field) */}
+                    {item.createdBy && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="rounded-full shadow-2xl border-2 border-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCase(item.id);
+                        }}
+                      >
+                        🗑️
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <Card 
+                  className="border-[#2d3548] bg-[#242938]/50 backdrop-blur rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 cursor-pointer group"
+                  onClick={() => handleOpenLightbox(index)}
+                >
+                  <div className="aspect-square bg-gradient-to-br from-muted to-secondary/20 flex items-center justify-center relative overflow-hidden">
+                    {/* Gold accent corner */}
+                    <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
+                      <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-secondary/30 to-transparent"></div>
+                    </div>
+                    
+                    {/* Dissolving Before/After Images */}
+                    {item.beforeImage || item.afterImage ? (() => {
+                      const state = activeImages[item.id] || { orientationIndex: 0, type: 'before' };
+                      const currentOrientation = item.orientations?.[state.orientationIndex] || { beforeImage: item.beforeImage, afterImage: item.afterImage };
+                      const displayBeforeImage = currentOrientation.beforeImage || item.beforeImage;
+                      const displayAfterImage = currentOrientation.afterImage || item.afterImage;
+                      
+                      // Helper function to optimize Supabase URLs
+                      const getOptimizedUrl = (url: string) => {
+                        if (!url) return url;
+                        
+                        // Check if it's a Supabase storage URL
+                        if (url.includes('supabase.co/storage/v1/object/public/')) {
+                          // Add optimization parameters for faster loading
+                          return `${url}?width=800&quality=80&format=webp`;
+                        }
+                        
+                        // Return original URL for non-Supabase URLs (like GitHub)
+                        return url;
+                      };
+                      
+                      // Prioritize first 6 images (above the fold on desktop)
+                      const isPriority = index < 6;
+                      
+                      return (
+                        <div className="w-full h-full relative">
+                          {/* Before Image */}
+                          {displayBeforeImage && (
+                            <img 
+                              src={getOptimizedUrl(displayBeforeImage)} 
+                              alt="Before" 
+                              loading={isPriority ? 'eager' : 'lazy'}
+                              fetchpriority={isPriority ? 'high' : 'auto'}
+                              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                              style={{ opacity: state.type === 'after' ? 0 : 1 }}
+                              onError={(e) => {
+                                console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          {/* After Image */}
+                          {displayAfterImage && (
+                            <img 
+                              src={getOptimizedUrl(displayAfterImage)} 
+                              alt="After" 
+                              loading={isPriority ? 'eager' : 'lazy'}
+                              fetchpriority={isPriority ? 'high' : 'auto'}
+                              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                              style={{ opacity: state.type === 'after' ? 1 : 0 }}
+                              onError={(e) => {
+                                console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          
+                          {/* Label overlay */}
+                          <div className="absolute bottom-4 right-4 z-20">
+                            <div className="bg-card/90 backdrop-blur-sm px-3 py-1 rounded-full border border-secondary/20">
+                              <span className="text-xs text-secondary">
+                                {state.type === 'after' ? 'After' : 'Before'}
+                                {item.orientations && item.orientations.length > 1 && (
+                                  <span className="ml-1 opacity-60">
+                                    · View {state.orientationIndex + 1}/{item.orientations.length}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <span className="text-muted-foreground">{item.title}</span>
+                    )}
+                    
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  </div>
+                  <div className="p-4 bg-card relative">
+                    <div className="flex items-center justify-between">
+                      {/* Category display/editor for admins */}
+                      {isAdmin && isEditMode ? (
+                        <Select
+                          value={item.category}
+                          onValueChange={async (newCategory) => {
+                            try {
+                              console.log(`Changing category for case ${item.id} from ${item.category} to ${newCategory}`);
+                              
+                              const response = await fetch(`${serverUrl}/gallery/case/${item.id}/category`, {
+                                method: 'PATCH',
+                                headers: {
+                                  'Authorization': `Bearer ${accessToken}`,
+                                  'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ category: newCategory })
+                              });
+                              
+                              if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.error || 'Failed to update category');
+                              }
+                              
+                              console.log('Category updated successfully');
+                              
+                              // Immediately update local state for instant feedback
+                              setGalleryItems(prevItems => 
+                                prevItems.map(i => 
+                                  i.id === item.id ? { ...i, category: newCategory } : i
+                                )
+                              );
+                              
+                              // Clear cache and reload in background
+                              localStorage.removeItem('gallery_items_cache');
+                              localStorage.removeItem('gallery_items_cache_timestamp');
+                              loadGalleryImages();
+                            } catch (error) {
+                              console.error('Error updating category:', error);
+                              alert(`Error updating category: ${error.message}`);
+                            }
+                          }}
+                        >
+                          <SelectTrigger 
+                            className="h-7 w-auto text-sm border-none bg-transparent text-secondary hover:bg-secondary/10 focus:ring-1 focus:ring-secondary px-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent onClick={(e) => e.stopPropagation()}>
+                            <SelectItem value="Nose">Nose</SelectItem>
+                            <SelectItem value="Face">Face</SelectItem>
+                            <SelectItem value="Breast">Breast</SelectItem>
+                            <SelectItem value="Body">Body</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-secondary text-sm">{item.category}</span>
+                      )}
+                      <span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">View Details →</span>
+                    </div>
+                    <AccentLine className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    
+                    {/* Feature toggles for admins */}
+                    {isAdmin && isEditMode && (
+                      <div className="mt-3 pt-3 border-t border-border" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-xs text-muted-foreground mb-2">Show on:</p>
+                        <div className="flex flex-wrap gap-1">
+                          <Button
+                            size="sm"
+                            variant={item.featuredOnHome ? "default" : "outline"}
+                            className="text-xs h-6 px-2 rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFlag(item.id, 'featuredOnHome', item.featuredOnHome || false);
+                            }}
+                          >
+                            {item.featuredOnHome ? '✓' : ''} Home
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.showOnNose ? "default" : "outline"}
+                            className="text-xs h-6 px-2 rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFlag(item.id, 'showOnNose', item.showOnNose || false);
+                            }}
+                          >
+                            {item.showOnNose ? '✓' : ''} Nose
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.showOnFace ? "default" : "outline"}
+                            className="text-xs h-6 px-2 rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFlag(item.id, 'showOnFace', item.showOnFace || false);
+                            }}
+                          >
+                            {item.showOnFace ? '✓' : ''} Face
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.showOnBreast ? "default" : "outline"}
+                            className="text-xs h-6 px-2 rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFlag(item.id, 'showOnBreast', item.showOnBreast || false);
+                            }}
+                          >
+                            {item.showOnBreast ? '✓' : ''} Breast
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={item.showOnBody ? "default" : "outline"}
+                            className="text-xs h-6 px-2 rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleFlag(item.id, 'showOnBody', item.showOnBody || false);
+                            }}
+                          >
+                            {item.showOnBody ? '✓' : ''} Body
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+            
+            {/* Add New Case Card (only for admins in edit mode) */}
+            {isAdmin && isEditMode && (
+              <div className="relative">
+                <Card 
+                  className="border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary"
+                  onClick={() => setNewCaseEditorOpen(true)}
+                >
+                  <div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden">
+                    {/* Gold accent corner */}
+                    <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
+                      <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
+                      <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-secondary/30 to-transparent"></div>
+                    </div>
+                    
+                    {/* Plus Icon */}
+                    <div className="flex flex-col items-center justify-center">
+                      <Plus className="w-24 h-24 text-secondary/40 group-hover:text-secondary transition-colors duration-300 group-hover:scale-110" />
+                    </div>
+                    
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  </div>
+                  <div className="p-4 bg-card relative">
+                    <div className="flex items-center justify-between">
+                      <span className="text-secondary">Add New Case</span>
+                      <span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span>
+                    </div>
+                    <AccentLine className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  </div>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {filteredItems.length === 0 && (
+            <div className="text-center py-16">
+              <CircleAccent size="sm" className="mx-auto mb-4" />
+              <p className="text-muted-foreground">No results found for this category.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Patient Privacy Notice */}
+      <section className="py-16 bg-gradient-to-b from-[#1a1f2e] to-[#242938] border-t border-[#2d3548]">
+        <div className="container mx-auto px-6 max-w-4xl text-center">
+          <EditableText
+            contentKey="gallery_privacy_notice"
+            defaultValue="All images are published with patient consent. Individual results may vary. During your consultation, Dr. Hanemann will discuss realistic expectations for your specific case."
+            as="p"
+            className="text-gray-300"
+            multiline
+          />
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-32 bg-gradient-to-br from-[#242938] to-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
+        {/* Ambient glow effects */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#c9b896]/5 rounded-full blur-3xl"></div>
+        
+        <div className="container mx-auto px-6 text-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <EditableText
+              contentKey="gallery_cta_heading"
+              defaultValue="Envision Your Transformation"
+              as="h2"
+              className="mb-6 text-[#faf9f7]"
+            />
+          </motion.div>
+          <motion.p 
+            className="text-gray-300 mb-10 max-w-2xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <EditableText
+              contentKey="gallery_cta_description"
+              defaultValue="Schedule a consultation to discuss how we can help you achieve results you'll love"
+              as="span"
+            />
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }}
+          >
+            <Button 
+              size="lg" 
+              className="rounded-full px-12 bg-[#c9b896] text-[#1a1f2e] hover:bg-[#b8976a] shadow-lg hover:shadow-[#c9b896]/20 transition-all duration-300"
+              onClick={() => onNavigate('Contact')}
+            >
+              Schedule a Consultation
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Lightbox */}
+      <GalleryLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        currentItem={filteredItems[currentLightboxIndex]}
+        currentIndex={currentLightboxIndex}
+        totalImages={filteredItems.length}
+        onNext={handleNextImage}
+        onPrevious={handlePreviousImage}
+        onEditImage={(caseId, imageType, orientationIndex) => {
+          // Close lightbox and open editor
+          setLightboxOpen(false);
+          setEditingItem({ id: caseId, type: imageType, orientationIndex });
+          setEditorOpen(true);
+        }}
+      />
+
+      {/* Image Editor */}
+      {editingItem && accessToken && (
+        <SimpleGalleryEditor
+          isOpen={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          imageType={editingItem.type}
+          galleryItemId={editingItem.id}
+          currentImageUrl={(() => {
+            const item = galleryItems.find(i => i.id === editingItem.id);
+            if (!item) return undefined;
+            
+            // If orientationIndex is specified, use that orientation's image
+            if (editingItem.orientationIndex !== undefined && item.orientations) {
+              const orientation = item.orientations[editingItem.orientationIndex];
+              return editingItem.type === 'before' 
+                ? orientation?.beforeImage 
+                : orientation?.afterImage;
+            }
+            
+            // Otherwise use the base before/after image (position 1)
+            return editingItem.type === 'before'
+              ? item.beforeImage
+              : item.afterImage;
+          })()}
+          onSaved={handleImageSaved}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* New Case Editor */}
+      {newCaseEditorOpen && accessToken && (
+        <NewGalleryCaseEditor
+          isOpen={newCaseEditorOpen}
+          onClose={() => setNewCaseEditorOpen(false)}
+          onSaved={loadGalleryImages}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* Bulk Gallery Uploader */}
+      {bulkUploaderOpen && accessToken && (
+        <BulkGalleryUploader
+          isOpen={bulkUploaderOpen}
+          onClose={() => setBulkUploaderOpen(false)}
+          onSaved={handleBulkUploadComplete}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* Gallery Orientation Manager */}
+      {orientationManagerOpen && accessToken && (
+        <GalleryOrientationManager
+          isOpen={orientationManagerOpen}
+          onClose={() => setOrientationManagerOpen(false)}
+          caseId={orientationManagerCaseId}
+          caseTitle={orientationManagerCaseTitle}
+          onSaved={loadGalleryImages}
+          accessToken={accessToken}
+        />
+      )}
+
+      {/* Filename Diagnose Modal */}
+      {diagnoseOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" onClick={() => setDiagnoseOpen(false)}>
+          <div className="bg-[#1a1f2e] border border-[#2d3548] rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2d3548]">
+              <h3 className="text-[#c9b896] font-semibold text-lg">🔬 Filename Pattern Diagnosis</h3>
+              <button onClick={() => setDiagnoseOpen(false)} className="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="overflow-y-auto p-6 font-mono text-sm text-gray-300 space-y-4">
+              {diagnosing && <p className="text-yellow-400 animate-pulse">Fetching filenames from GitHub…</p>}
+              {diagnoseData?.error && <p className="text-red-400">❌ Error: {diagnoseData.error}</p>}
+              {diagnoseData && !diagnoseData.error && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-center mb-4">
+                    <div className="bg-[#242938] rounded-lg p-3">
+                      <div className="text-2xl font-bold text-white">{diagnoseData.totalImages}</div>
+                      <div className="text-xs text-gray-400">Total images</div>
+                    </div>
+                    <div className="bg-[#242938] rounded-lg p-3">
+                      <div className={`text-2xl font-bold ${diagnoseData.notMatchingStdPattern > 0 ? 'text-red-400' : 'text-green-400'}`}>{diagnoseData.notMatchingStdPattern}</div>
+                      <div className="text-xs text-gray-400">Not matching standard pattern</div>
+                    </div>
+                  </div>
+                  {diagnoseData.notMatchingStdPattern > 0 && (
+                    <div>
+                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'{{slug}}_p{{n}}_img{{n}}.ext'}</code>:</p>
+                      {(diagnoseData.sampleNonMatching || []).map((f, i) => (
+                        <div key={i} className="text-red-300 pl-2">{f}</div>
+                      ))}
+                    </div>
+                  )}
+                  {diagnoseData.matchingStdPattern > 0 && (
+                    <div>
+                      <p className="text-green-400 font-bold mb-2">✅ Sample files matching standard pattern ({diagnoseData.matchingStdPattern} total):</p>
+                      {(diagnoseData.sampleMatching || []).map((f, i) => (
+                        <div key={i} className="text-green-300 pl-2">{f}</div>
+                      ))}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[#c9b896] font-bold mb-2">📋 First 50 filenames (all):</p>
+                    {(diagnoseData.allFirst50 || []).map((f, i) => (
+                      <div key={i} className="text-gray-300 pl-2">{f}</div>
+                    ))}
+                  </div>
+                  {diagnoseData.truncated && (
+                    <p className="text-yellow-400 mt-4">⚠️ Git tree was truncated — some files may be missing from this list.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
-
-// Initialize test user on startup
-const initTestUser = async () => {
-  try {
-    console.log('Checking for test user...');
-    
-    // Wrap in retry operation to handle connection resets
-    await retryOperation(async () => {
-      // Try to create the test user
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: 'test@hanemannplasticsurgery.com',
-        password: 'Password',
-        user_metadata: { 
-          name: 'Test',
-          role: 'admin',
-          username: 'Test'
-        },
-        email_confirm: true
-      });
-
-      if (error) {
-        // User might already exist
-        if (error.message.includes('already registered')) {
-          console.log('Test user already exists - Username: Test, Password: Password');
-          return; // Success case - don't retry
-        } else {
-          // Check if it's a connection error that should be retried
-          if (error.message.includes('connection reset') || 
-              error.message.includes('connection error') ||
-              error.message.includes('network')) {
-            throw error; // Will be caught by retryOperation
-          }
-          console.log('Error creating test user:', error.message);
-          return; // Non-connection error - don't retry
-        }
-      } else {
-        console.log('Test user created successfully - Username: Test, Password: Password');
-        console.log('User ID:', data?.user?.id);
-      }
-    }, 3, 2000); // Max 3 retries with 2 second initial delay
-    
-  } catch (error) {
-    console.log('Error initializing test user after retries:', error?.message || error);
-    console.log('Server will continue without test user initialization');
-  }
-};
-
-// Run initialization in background (don't block server startup)
-initTestUser().catch(err => console.log('Init error:', err));
-
-// Enable logger
-app.use('*', logger(console.log));
-
-// Enable CORS for all routes and methods
-app.use(
-  "/*",
-  cors({
-    origin: "*",
-    allowHeaders: ["Content-Type", "Authorization", "apikey"],
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
-    maxAge: 600,
-  }),
-);
-
-// Health check endpoint
-app.get("/make-server-fc862019/health", (c) => {
-  return c.json({ status: "ok" });
-});
-
-// ==================== AUTH ROUTES ====================
-
-// Sign up route for creating admin users
-app.post("/make-server-fc862019/signup", async (c) => {
-  try {
-    const { email, password, name } = await c.req.json();
-
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: { name, role: 'admin' },
-      // Automatically confirm the user's email since an email server hasn't been configured.
-      email_confirm: true
-    });
-
-    if (error) {
-      console.log('Signup error:', error);
-      return c.json({ error: error.message }, 400);
-    }
-
-    return c.json({ success: true, user: data.user });
-  } catch (error) {
-    console.log('Signup exception:', error);
-    return c.json({ error: 'Signup failed' }, 500);
-  }
-});
-
-// ==================== INQUIRY ROUTES ====================
-
-// Submit contact inquiry
-app.post("/make-server-fc862019/inquiries", async (c) => {
-  try {
-    const inquiry = await c.req.json();
-    const timestamp = new Date().toISOString();
-    const inquiryId = `inquiry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    await kv.set(inquiryId, {
-      ...inquiry,
-      id: inquiryId,
-      timestamp,
-      status: 'new'
-    });
-
-    return c.json({ success: true, id: inquiryId });
-  } catch (error) {
-    console.log('Error saving inquiry:', error);
-    return c.json({ error: 'Failed to save inquiry' }, 500);
-  }
-});
-
-// ==================== PATIENT FORMS ROUTES ====================
-
-// Submit patient form
-app.post("/make-server-fc862019/patient-forms", async (c) => {
-  try {
-    const formData = await c.req.json();
-    const timestamp = new Date().toISOString();
-    
-    // Extract patient name from form data
-    let patientName = 'Unknown Patient';
-    if (formData.firstName && formData.lastName) {
-      patientName = `${formData.lastName}, ${formData.firstName}`;
-    } else if (formData.patientName) {
-      patientName = formData.patientName;
-    }
-    
-    // Create a normalized patient key for grouping
-    const normalizedName = patientName.toLowerCase().replace(/[^a-z]/g, '');
-    const formId = `patientform_${normalizedName}_${formData.formType}_${Date.now()}`;
-    
-    const completeFormData = {
-      ...formData,
-      id: formId,
-      patientName,
-      normalizedName,
-      timestamp,
-      status: 'new'
-    };
-    
-    // Generate PDF for record keeping
-    let pdfUrl = null;
-    try {
-      const pdfHtml = generateFormPDF(completeFormData);
-      const pdfFileName = `${formId}.html`;
-      
-      // Store PDF as HTML in storage bucket (can be printed to PDF by browser)
-      const bucketName = 'make-fc862019-patient-forms';
-      
-      // Ensure bucket exists
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-      if (!bucketExists) {
-        await supabase.storage.createBucket(bucketName, {
-          public: false,
-          fileSizeLimit: 10485760 // 10MB
-        });
-      }
-      
-      // Upload PDF HTML
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(pdfFileName, new Blob([pdfHtml], { type: 'text/html' }), {
-          contentType: 'text/html',
-          upsert: true
-        });
-      
-      if (!uploadError && uploadData) {
-        // Generate signed URL valid for 1 year
-        const { data: signedUrlData } = await supabase.storage
-          .from(bucketName)
-          .createSignedUrl(pdfFileName, 31536000); // 1 year
-        
-        pdfUrl = signedUrlData?.signedUrl || null;
-      }
-    } catch (pdfError) {
-      console.log('Error generating PDF:', pdfError);
-      // Continue even if PDF generation fails
-    }
-    
-    // Save form data with PDF URL
-    await kv.set(formId, {
-      ...completeFormData,
-      pdfUrl
-    });
-
-    return c.json({ success: true, id: formId, pdfUrl });
-  } catch (error) {
-    console.log('Error saving patient form:', error);
-    return c.json({ error: 'Failed to save patient form' }, 500);
-  }
-});
-
-// Get all patient forms (protected)
-app.get("/make-server-fc862019/patient-forms", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const formsData = await kv.getByPrefix('patientform_');
-    
-    // Extract values from the KV store result (getByPrefix returns [{key, value}])
-    const forms = formsData.map((item: any) => item.value);
-    
-    // Group forms by patient name
-    const patientGroups: Record<string, any> = {};
-    
-    forms.forEach((form: any) => {
-      const name = form.patientName || 'Unknown Patient';
-      if (!patientGroups[name]) {
-        patientGroups[name] = {
-          patientName: name,
-          forms: [],
-          lastSubmission: form.timestamp
-        };
-      }
-      patientGroups[name].forms.push(form);
-      
-      // Update last submission if this one is newer
-      if (new Date(form.timestamp) > new Date(patientGroups[name].lastSubmission)) {
-        patientGroups[name].lastSubmission = form.timestamp;
-      }
-    });
-    
-    // Convert to array and sort by last submission
-    const groupedForms = Object.values(patientGroups).sort((a: any, b: any) => 
-      new Date(b.lastSubmission).getTime() - new Date(a.lastSubmission).getTime()
-    );
-    
-    return c.json({ 
-      forms: forms.sort((a: any, b: any) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      ),
-      groupedByPatient: groupedForms
-    });
-  } catch (error) {
-    console.log('Error fetching patient forms:', error);
-    return c.json({ error: 'Failed to fetch patient forms' }, 500);
-  }
-});
-
-// Get patient forms by patient name (protected)
-app.get("/make-server-fc862019/patient-forms/patient/:name", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const patientName = decodeURIComponent(c.req.param('name'));
-    const allFormsData = await kv.getByPrefix('patientform_');
-    
-    // Extract values from the KV store result
-    const allForms = allFormsData.map((item: any) => item.value);
-    
-    const patientForms = allForms.filter((form: any) => 
-      form.patientName === patientName
-    ).sort((a: any, b: any) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    
-    return c.json({ forms: patientForms });
-  } catch (error) {
-    console.log('Error fetching patient forms:', error);
-    return c.json({ error: 'Failed to fetch patient forms' }, 500);
-  }
-});
-
-// Update patient form status (protected)
-app.put("/make-server-fc862019/patient-forms/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const { status, notes } = await c.req.json();
-    
-    const existing = await kv.get(id);
-    if (!existing) {
-      return c.json({ error: 'Form not found' }, 404);
-    }
-
-    await kv.set(id, { ...existing, status, notes });
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating patient form:', error);
-    return c.json({ error: 'Failed to update patient form' }, 500);
-  }
-});
-
-// Get patient form PDF (protected - admin or patient owner)
-app.get("/make-server-fc862019/patient-forms/:id/pdf", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const form = await kv.get(id);
-    
-    if (!form) {
-      return c.json({ error: 'Form not found' }, 404);
-    }
-    
-    // Check authorization: either admin or the patient who submitted
-    const isAdmin = user.user_metadata?.userType !== 'patient';
-    const isPatientOwner = form.userId && form.userId === user.id;
-    
-    if (!isAdmin && !isPatientOwner) {
-      return c.json({ error: 'Unauthorized to view this form' }, 403);
-    }
-    
-    if (!form.pdfUrl) {
-      // Generate PDF on the fly if it doesn't exist
-      const pdfHtml = generateFormPDF(form);
-      return new Response(pdfHtml, {
-        headers: {
-          'Content-Type': 'text/html',
-          'Content-Disposition': `inline; filename="${form.id}.html"`
-        }
-      });
-    }
-    
-    // Fetch the HTML from storage and return it
-    const pdfResponse = await fetch(form.pdfUrl);
-    const pdfHtml = await pdfResponse.text();
-    
-    return new Response(pdfHtml, {
-      headers: {
-        'Content-Type': 'text/html',
-        'Content-Disposition': `inline; filename=\"${form.id}.html\"`
-      }
-    });
-  } catch (error) {
-    console.log('Error fetching form PDF:', error);
-    return c.json({ error: 'Failed to fetch PDF' }, 500);
-  }
-});
-
-// Get all inquiries (protected)
-app.get("/make-server-fc862019/inquiries", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const inquiries = await kv.getByPrefix('inquiry_');
-    return c.json({ inquiries: inquiries.sort((a: any, b: any) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    ) });
-  } catch (error) {
-    console.log('Error fetching inquiries:', error);
-    return c.json({ error: 'Failed to fetch inquiries' }, 500);
-  }
-});
-
-// Update inquiry status (protected)
-app.put("/make-server-fc862019/inquiries/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const { status, notes } = await c.req.json();
-    
-    const existing = await kv.get(id);
-    if (!existing) {
-      return c.json({ error: 'Inquiry not found' }, 404);
-    }
-
-    await kv.set(id, { ...existing, status, notes });
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating inquiry:', error);
-    return c.json({ error: 'Failed to update inquiry' }, 500);
-  }
-});
-
-// ==================== SCHEDULE ROUTES ====================
-
-// Get schedule events (protected)
-app.get("/make-server-fc862019/schedule", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const events = await kv.getByPrefix('event_');
-    return c.json({ events });
-  } catch (error) {
-    console.log('Error fetching schedule:', error);
-    return c.json({ error: 'Failed to fetch schedule' }, 500);
-  }
-});
-
-// Create schedule event (protected)
-app.post("/make-server-fc862019/schedule", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const event = await c.req.json();
-    const eventId = `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    await kv.set(eventId, { ...event, id: eventId });
-    return c.json({ success: true, id: eventId });
-  } catch (error) {
-    console.log('Error creating event:', error);
-    return c.json({ error: 'Failed to create event' }, 500);
-  }
-});
-
-// Delete schedule event (protected)
-app.delete("/make-server-fc862019/schedule/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    await kv.del(id);
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error deleting event:', error);
-    return c.json({ error: 'Failed to delete event' }, 500);
-  }
-});
-
-// ==================== ANALYTICS ROUTES ====================
-
-// Get analytics (protected)
-app.get("/make-server-fc862019/analytics", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const inquiries = await kv.getByPrefix('inquiry_');
-    const pageViews = await kv.get('page_views') || {};
-    
-    // Calculate analytics
-    const totalInquiries = inquiries.length;
-    const newInquiries = inquiries.filter((i: any) => i.status === 'new').length;
-    const contactedInquiries = inquiries.filter((i: any) => i.status === 'contacted').length;
-    
-    // Get inquiries by procedure
-    const inquiriesByProcedure: Record<string, number> = {};
-    inquiries.forEach((inq: any) => {
-      const proc = inq.interestedIn || 'General Inquiry';
-      inquiriesByProcedure[proc] = (inquiriesByProcedure[proc] || 0) + 1;
-    });
-
-    return c.json({
-      totalInquiries,
-      newInquiries,
-      contactedInquiries,
-      inquiriesByProcedure,
-      pageViews
-    });
-  } catch (error) {
-    console.log('Error fetching analytics:', error);
-    return c.json({ error: 'Failed to fetch analytics' }, 500);
-  }
-});
-
-// Track page view
-app.post("/make-server-fc862019/analytics/pageview", async (c) => {
-  try {
-    const { page } = await c.req.json();
-    const pageViews = await kv.get('page_views') || {};
-    
-    pageViews[page] = (pageViews[page] || 0) + 1;
-    await kv.set('page_views', pageViews);
-    
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error tracking page view:', error);
-    return c.json({ error: 'Failed to track page view' }, 500);
-  }
-});
-
-// ==================== PHOTO UPLOAD ROUTES ====================
-
-// Initialize storage bucket
-const bucketName = 'make-fc862019-gallery';
-
-// Create bucket on startup
-const initBucket = async () => {
-  try {
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-    
-    if (!bucketExists) {
-      await supabase.storage.createBucket(bucketName, {
-        public: true,
-        fileSizeLimit: 10485760 // 10MB
-      });
-      console.log('Created storage bucket:', bucketName);
-    } else {
-      // Bucket exists - ensure it's public
-      console.log('Storage bucket already exists:', bucketName);
-      
-      // Update bucket to ensure it's public
-      try {
-        await supabase.storage.updateBucket(bucketName, {
-          public: true,
-          fileSizeLimit: 10485760
-        });
-        console.log('✅ Updated bucket to public:', bucketName);
-      } catch (updateError) {
-        console.log('Note: Could not update bucket settings (this is normal if settings are already correct)');
-      }
-    }
-  } catch (error) {
-    console.log('Error initializing bucket:', error);
-  }
-};
-
-initBucket();
-
-// Health check endpoint for storage bucket
-app.get("/make-server-fc862019/storage/health", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    // Check bucket exists and is public
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucket = buckets?.find(b => b.name === bucketName);
-    
-    if (!bucket) {
-      return c.json({ 
-        status: 'error',
-        message: 'Bucket does not exist',
-        bucketName 
-      });
-    }
-
-    // List some files to verify access
-    const { data: files, error: listError } = await supabase.storage
-      .from(bucketName)
-      .list('', { limit: 10 });
-
-    return c.json({
-      status: 'ok',
-      bucket: {
-        name: bucket.name,
-        public: bucket.public,
-        fileCount: files?.length || 0,
-        sampleFiles: files?.slice(0, 3).map(f => f.name) || []
-      }
-    });
-  } catch (error) {
-    console.log('[Storage Health] Error:', error);
-    return c.json({ 
-      status: 'error',
-      error: String(error)
-    }, 500);
-  }
-});
-
-// Fix bucket permissions endpoint
-app.post("/make-server-fc862019/storage/fix-permissions", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    // Update bucket to be public
-    const { data, error: updateError } = await supabase.storage.updateBucket(bucketName, {
-      public: true,
-      fileSizeLimit: 10485760
-    });
-
-    if (updateError) {
-      console.error('[Fix Permissions] Error:', updateError);
-      return c.json({ 
-        success: false,
-        error: updateError.message 
-      }, 500);
-    }
-
-    return c.json({
-      success: true,
-      message: 'Bucket permissions updated to public',
-      bucketName
-    });
-  } catch (error) {
-    console.log('[Fix Permissions] Error:', error);
-    return c.json({ 
-      success: false,
-      error: String(error)
-    }, 500);
-  }
-});
-
-// Debug endpoint to list all gallery keys
-app.get("/make-server-fc862019/gallery/debug", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    // Get all keys that start with "gallery_"
-    const galleryKeys = await kv.getByPrefix('gallery_');
-    
-    return c.json({ 
-      keys: galleryKeys.map(item => ({
-        key: item.key,
-        value: item.value
-      }))
-    });
-  } catch (error) {
-    console.log('[Gallery Debug] Error:', error);
-    return c.json({ error: 'Failed to fetch gallery keys' }, 500);
-  }
-});
-
-// Wipe all gallery data (protected) - removes all cases and images
-app.delete("/make-server-fc862019/gallery/wipe-all", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Wipe] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    console.log('[Gallery Wipe] Starting gallery wipe...');
-    
-    // Get all gallery-related keys
-    const allGalleryKeys = await kv.getByPrefix('gallery_');
-    
-    console.log(`[Gallery Wipe] Found ${allGalleryKeys.length} gallery keys to delete`);
-    
-    // Delete all keys
-    const deletePromises = allGalleryKeys.map(item => kv.del(item.key));
-    await Promise.all(deletePromises);
-    
-    console.log('[Gallery Wipe] Successfully deleted all gallery data');
-    
-    return c.json({ 
-      success: true, 
-      message: `Wiped ${allGalleryKeys.length} gallery items`,
-      deletedKeys: allGalleryKeys.map(item => item.key)
-    });
-  } catch (error) {
-    console.log('[Gallery Wipe] Error:', error);
-    return c.json({ error: 'Failed to wipe gallery data' }, 500);
-  }
-});
-
-// Upload gallery image (protected) - uses service role to bypass RLS
-app.post("/make-server-fc862019/gallery/upload", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Upload] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const body = await c.req.json();
-    const { fileName, fileData, galleryItemId, imageType } = body;
-    
-    if (!fileName || !fileData) {
-      console.log('[Gallery Upload] Missing required fields');
-      return c.json({ error: 'Missing fileName or fileData' }, 400);
-    }
-    
-    console.log(`[Gallery Upload] Uploading ${imageType} image for gallery item ${galleryItemId}`);
-    
-    // Decode base64
-    const fileBuffer = Uint8Array.from(atob(fileData), c => c.charCodeAt(0));
-    
-    // Upload to storage using service role (bypasses RLS)
-    const filePath = `gallery/${fileName}`;
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, fileBuffer, {
-        contentType: 'image/jpeg',
-        upsert: true
-      });
-
-    if (uploadError) {
-      console.log('[Gallery Upload] Upload error:', uploadError);
-      return c.json({ error: uploadError.message }, 400);
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(filePath);
-
-    console.log('[Gallery Upload] Success:', publicUrl);
-
-    return c.json({ success: true, publicUrl });
-  } catch (error) {
-    console.log('[Gallery Upload] Error:', error);
-    return c.json({ error: 'Failed to upload image' }, 500);
-  }
-});
-
-// Upload image directly to GitHub (protected)
-app.post("/make-server-fc862019/gallery/upload-to-github", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[GitHub Upload] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const body = await c.req.json();
-    const { caseSlug, position, imageType, fileData, fileExtension } = body;
-    
-    if (!caseSlug || !position || !imageType || !fileData) {
-      return c.json({ error: 'Missing required fields' }, 400);
-    }
-    
-    // GitHub configuration - read token from environment
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[GitHub Upload] No GITHUB_TOKEN found in environment');
-      return c.json({ error: 'GitHub token not configured' }, 500);
-    }
-    
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_BRANCH = 'main';
-    
-    // Calculate image index from position and type
-    // Position 1: before=img1, after=img2
-    // Position 2: before=img3, after=img4
-    // Position 3: before=img5, after=img6
-    const imageIndex = (position * 2) - (imageType === 'before' ? 1 : 0);
-    
-    // Generate filename: {case_slug}_p1_img{index}.{ext}
-    const filename = `${caseSlug}_p1_img${imageIndex}.${fileExtension || 'png'}`;
-    const githubPath = `public/gallery/${filename}`;
-    
-    console.log(`[GitHub Upload] Uploading ${filename} to GitHub...`);
-    
-    // Retry logic for SHA conflicts (409 errors)
-    let uploadSuccess = false;
-    let retryCount = 0;
-    const maxRetries = 3;
-    let result = null;
-    
-    while (!uploadSuccess && retryCount < maxRetries) {
-      try {
-        // Check if file exists (to determine if we need to update or create)
-        const checkUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
-        const checkResponse = await fetch(checkUrl, {
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-        
-        let sha = null;
-        if (checkResponse.ok) {
-          const existingFile = await checkResponse.json();
-          sha = existingFile.sha;
-          console.log(`[GitHub Upload] File exists, will update (SHA: ${sha})`);
-        }
-        
-        // Upload to GitHub
-        const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
-        const uploadPayload = {
-          message: `Upload ${imageType} image for ${caseSlug} position ${position}`,
-          content: fileData, // Already base64
-          branch: GITHUB_BRANCH,
-          ...(sha && { sha }) // Include SHA if updating existing file
-        };
-        
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(uploadPayload)
-        });
-        
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          
-          // If we get a 409 conflict (SHA mismatch), retry with fresh SHA
-          if (uploadResponse.status === 409 && retryCount < maxRetries - 1) {
-            retryCount++;
-            console.log(`[GitHub Upload] SHA conflict detected, retrying (attempt ${retryCount}/${maxRetries})...`);
-            await new Promise(resolve => setTimeout(resolve, 200 * retryCount)); // Exponential backoff
-            continue; // Retry the loop
-          }
-          
-          console.error('[GitHub Upload] Error:', errorData);
-          throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
-        }
-        
-        result = await uploadResponse.json();
-        uploadSuccess = true;
-        
-      } catch (loopError) {
-        if (retryCount >= maxRetries - 1) {
-          throw loopError; // Re-throw if we've exhausted retries
-        }
-        retryCount++;
-        console.log(`[GitHub Upload] Error on attempt ${retryCount}, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 200 * retryCount));
-      }
-    }
-    
-    const publicUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${githubPath}`;
-    
-    console.log(`[GitHub Upload] Successfully uploaded to GitHub: ${publicUrl}`);
-    
-    return c.json({ 
-      success: true, 
-      publicUrl,
-      filename,
-      path: githubPath
-    });
-  } catch (error) {
-    console.error('[GitHub Upload] Error:', error);
-    return c.json({ error: `Failed to upload to GitHub: ${error.message}` }, 500);
-  }
-});
-
-// Create gallery folder in GitHub (protected)
-app.post("/make-server-fc862019/gallery/create-folder", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Create Folder] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    // GitHub configuration - read token from environment
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[Create Folder] No GITHUB_TOKEN found in environment');
-      return c.json({ error: 'GitHub token not configured' }, 500);
-    }
-    
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_BRANCH = 'main';
-    
-    console.log('[Create Folder] Creating gallery folder in GitHub...');
-    
-    // Create .gitkeep file to initialize the gallery folder
-    const githubPath = 'gallery/.gitkeep';
-    const uploadUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${githubPath}`;
-    
-    // Check if file already exists
-    const checkResponse = await fetch(uploadUrl, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-    
-    if (checkResponse.ok) {
-      console.log('[Create Folder] Gallery folder already exists');
-      return c.json({ success: true, message: 'Gallery folder already exists' });
-    }
-    
-    // Create the .gitkeep file
-    const uploadPayload = {
-      message: 'Initialize gallery folder',
-      content: '', // Empty file
-      branch: GITHUB_BRANCH
-    };
-    
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(uploadPayload)
-    });
-    
-    if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.json();
-      console.error('[Create Folder] Error:', errorData);
-      throw new Error(`GitHub API error: ${uploadResponse.status} - ${errorData.message}`);
-    }
-    
-    console.log('[Create Folder] Successfully created gallery folder');
-    
-    return c.json({ 
-      success: true, 
-      message: 'Gallery folder created successfully'
-    });
-  } catch (error) {
-    console.error('[Create Folder] Error:', error);
-    return c.json({ error: `Failed to create gallery folder: ${error.message}` }, 500);
-  }
-});
-
-// Create new gallery case (protected)
-app.post("/make-server-fc862019/gallery/create", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Create] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const body = await c.req.json();
-    const { category, title, procedure, journeyNote, slug } = body;
-    
-    if (!category || !title) {
-      return c.json({ error: 'Missing required fields (category and title are required)' }, 400);
-    }
-
-    // Get the next available ID (start custom cases at 1000 to avoid conflicts with base cases)
-    const existingCases = await kv.getByPrefix('gallery_case_');
-    const maxId = existingCases.reduce((max, item) => {
-      const match = item.key.match(/gallery_case_(\d+)$/);
-      if (match) {
-        const id = parseInt(match[1]);
-        return id > max ? id : max;
-      }
-      return max;
-    }, 999); // Start at 999 so first case gets ID 1000
-    
-    const newId = maxId + 1;
-    
-    // Generate slug if not provided
-    const caseSlug = slug || `pt_${newId}_${category.toLowerCase()}`;
-    
-    // Save case metadata (procedure and journeyNote are now optional)
-    await kv.set(`gallery_case_${newId}`, {
-      id: newId,
-      slug: caseSlug,
-      category,
-      title,
-      procedure: procedure || category, // Default to category if not provided
-      journeyNote: journeyNote || '', // Allow empty journey notes
-      orientations: [], // Will be populated with image sets (e.g., ['front', 'side', 'angle'])
-      createdBy: user.id,
-      createdAt: new Date().toISOString()
-    });
-
-    console.log(`[Gallery Create] Created new case with ID: ${newId}, slug: ${caseSlug}`);
-
-    return c.json({ success: true, id: newId, slug: caseSlug });
-  } catch (error) {
-    console.log('[Gallery Create] Error:', error);
-    return c.json({ error: 'Failed to create gallery case' }, 500);
-  }
-});
-
-// Sync cases from GitHub (protected) - scans GitHub folder and creates missing case records
-app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Sync GitHub] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    // Check for clearFirst flag — wipes all existing KV cases before re-sync
-    let syncBody: any = {};
-    try { syncBody = await c.req.json(); } catch { /* no body is fine */ }
-    const clearFirst = syncBody?.clearFirst === true;
-
-    if (clearFirst) {
-      console.log('[Sync GitHub] clearFirst=true — deleting all existing gallery cases...');
-      const allCases = await kv.getByPrefix('gallery_case_');
-      let deleted = 0;
-      for (const entry of allCases) {
-        await kv.del(entry.key);
-        deleted++;
-      }
-      console.log(`[Sync GitHub] Deleted ${deleted} existing gallery cases.`);
-    }
-
-    console.log('[Sync GitHub] Starting sync from GitHub...');
-
-    // GitHub configuration - read token from environment
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[Sync GitHub] No GITHUB_TOKEN found in environment');
-      return c.json({ error: 'GitHub token not configured' }, 500);
-    }
-    
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_FOLDER = 'gallery';
-
-    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
-    console.log('[Sync GitHub] Fetching via Git Trees API:', githubApiUrl);
-    
-    const response = await fetch(githubApiUrl, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    console.log('[Sync GitHub] GitHub response status:', response.status);
-
-    if (response.status === 404) {
-      console.log('[Sync GitHub] ⚠️  Repository or branch not found');
-      return c.json({
-        success: false,
-        error: 'Repository or branch not found in GitHub. Please check configuration.',
-        casesFound: 0,
-        casesCreated: 0,
-        casesSkipped: 0,
-        createdCases: []
-      }, 404);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Sync GitHub] GitHub API error:', response.status, errorText);
-      throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
-    }
-
-    const treeData = await response.json();
-    if (treeData.truncated) {
-      console.warn('[Sync GitHub] ⚠️  Git tree was truncated — some files may be missing');
-    }
-
-    // Filter tree — new nested structure: {root}/{category}/{case_slug}/{filename}
-    const SYNC_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const SYNC_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
-
-    const imageFiles = (treeData.tree || [])
-      .filter(item => {
-        if (item.type !== 'blob') return false;
-        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return SYNC_GALLERY_ROOTS.some(root =>
-          SYNC_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
-      })
-      .map(item => {
-        const root = SYNC_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
-        const parts = afterRoot.split('/');
-        return {
-          name:     parts[parts.length - 1], // just filename for regex
-          category: parts[0],                // Face | Breast | Body  (from directory path)
-          fullPath: item.path                // full repo path for raw URL
-        };
-      });
-
-    console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
-
-    // Extract unique case slugs from filenames
-    // Expected format: {case_slug}_p{page}_img{index}.{ext}
-    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-    const caseSlugs      = new Set<string>();
-    const caseOrientations = new Map<string, number>();  // slug → image count
-    const caseFiles        = new Map<string, string[]>(); // slug → full repo paths
-    const caseCategories   = new Map<string, string>();   // slug → Face|Breast|Body (from directory)
-
-    imageFiles.forEach(file => {
-      const match = file.name.match(filenameRegex);
-      if (match) {
-        const caseSlug = match[1];
-        caseSlugs.add(caseSlug);
-
-        // Category is authoritative from the directory path
-        if (!caseCategories.has(caseSlug)) {
-          caseCategories.set(caseSlug, file.category || 'Face');
-        }
-
-        const count = caseOrientations.get(caseSlug) || 0;
-        caseOrientations.set(caseSlug, count + 1);
-
-        const slugFiles = caseFiles.get(caseSlug) || [];
-        slugFiles.push(file.fullPath);
-        caseFiles.set(caseSlug, slugFiles);
-      }
-    });
-
-    // Helper: build raw GitHub URL from a full repo path (e.g. "public/gallery/foo.png")
-    const rawUrl = (fullPath: string) =>
-      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
-
-    console.log(`[Sync GitHub] Found ${caseSlugs.size} unique cases:`, Array.from(caseSlugs));
-
-    // Get existing cases from database
-    const existingCases = await kv.getByPrefix('gallery_case_');
-    const existingSlugs = new Set(existingCases.map(item => item.value.slug));
-
-    console.log(`[Sync GitHub] Existing cases in database:`, Array.from(existingSlugs));
-
-    // Get next available ID
-    const maxId = existingCases.reduce((max, item) => {
-      const match = item.key.match(/gallery_case_(\d+)$/);
-      if (match) {
-        const id = parseInt(match[1]);
-        return id > max ? id : max;
-      }
-      return max;
-    }, 999);
-
-    let nextId = maxId + 1;
-    const createdCases = [];
-    let casesCreated = 0;
-    let casesSkipped = 0;
-
-    // Create missing cases
-    const failedCases = [];
-    for (const caseSlug of caseSlugs) {
-      if (existingSlugs.has(caseSlug)) {
-        // If existing case is missing image URLs (older sync), patch them in
-        const existingEntry = existingCases.find(item => item.value.slug === caseSlug);
-        if (existingEntry && !existingEntry.value.beforeImage) {
-          const slugFileList = (caseFiles.get(caseSlug) || []).sort();
-          const beforeFile = slugFileList.find(f => f.match(/_p\d+_img1\.(png|jpg|jpeg)$/));
-          const afterFile  = slugFileList.find(f => f.match(/_p\d+_img2\.(png|jpg|jpeg)$/));
-          if (beforeFile || afterFile) {
-            const updated = {
-              ...existingEntry.value,
-              // Use directory-sourced category to fix any old 'Face' defaults
-              category:    caseCategories.get(caseSlug) || existingEntry.value.category,
-              beforeImage: beforeFile ? rawUrl(beforeFile) : existingEntry.value.beforeImage,
-              afterImage:  afterFile  ? rawUrl(afterFile)  : existingEntry.value.afterImage
-            };
-            await kv.set(existingEntry.key, updated);
-            console.log(`[Sync GitHub] ✓ Patched missing images for existing case: ${caseSlug}`);
-          }
-        }
-        console.log(`[Sync GitHub] Case already exists, skipping: ${caseSlug}`);
-        casesSkipped++;
-        continue;
-      }
-
-      try {
-        // Category comes from the directory path (authoritative), not the slug
-        const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
-        const parts = caseSlug.split('_');
-        const title = `Patient ${parts[1] || 'Case'}`;
-
-        // Calculate number of orientations (2 images per orientation)
-        const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.ceil(imageCount / 2);
-        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
-        const orientations = [];
-        for (let i = 1; i <= orientationCount; i++) {
-          // Find actual files for this orientation position
-          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
-          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
-          orientations.push({
-            name: `Position ${i}`,
-            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
-            afterImage:  afterFile  ? rawUrl(afterFile)  : null
-          });
-        }
-
-        // Convenience top-level images from first orientation
-        const firstBefore = orientations[0]?.beforeImage || null;
-        const firstAfter  = orientations[0]?.afterImage  || null;
-
-        const caseData = {
-          id: nextId,
-          slug: caseSlug,
-          category: resolvedCategory,
-          title,
-          procedure: resolvedCategory,
-          journeyNote: '',
-          beforeImage: firstBefore,
-          afterImage: firstAfter,
-          orientations,
-          createdBy: user.id,
-          createdAt: new Date().toISOString(),
-          syncedFromGitHub: true
-        };
-
-        // Create case with error handling
-        console.log(`[Sync GitHub] Writing case ${caseSlug} with ID ${nextId}...`);
-        await kv.set(`gallery_case_${nextId}`, caseData);
-        
-        // Verify it was written
-        const verification = await kv.get(`gallery_case_${nextId}`);
-        if (!verification) {
-          console.error(`[Sync GitHub] ⚠️  WARNING: Case ${caseSlug} was not persisted!`);
-          failedCases.push({ slug: caseSlug, reason: 'Not persisted after write' });
-        } else {
-          console.log(`[Sync GitHub] ✓ Created case: ${caseSlug} with ID ${nextId}, orientations: ${orientations.join(', ')}`);
-          createdCases.push(caseSlug);
-          casesCreated++;
-        }
-        
-        nextId++;
-      } catch (caseError) {
-        console.error(`[Sync GitHub] ❌ Failed to create case ${caseSlug}:`, caseError);
-        failedCases.push({ slug: caseSlug, reason: caseError.message });
-      }
-    }
-
-    console.log(`[Sync GitHub] Sync complete. Created: ${casesCreated}, Skipped: ${casesSkipped}, Failed: ${failedCases.length}`);
-    if (failedCases.length > 0) {
-      console.error('[Sync GitHub] Failed cases:', failedCases);
-    }
-
-    // Clear server-side cache so new cases appear immediately
-    clearGalleryCache();
-
-    return c.json({
-      success: true,
-      casesFound: caseSlugs.size,
-      casesCreated,
-      casesSkipped,
-      casesFailed: failedCases.length,
-      createdCases,
-      failedCases
-    });
-  } catch (error) {
-    console.error('[Sync GitHub] Error:', error);
-    return c.json({ error: `Failed to sync from GitHub: ${error.message}` }, 500);
-  }
-});
-
-// ─── Auto-sync from GitHub (UNPROTECTED) ─────────────────────────────────────
-// Called automatically by the gallery frontend on each fresh load.
-// Only creates MISSING KV case records — never wipes existing ones.
-// Rate-limited to once per hour per server instance to avoid hammering GitHub.
-app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
-  try {
-    const now = Date.now();
-    if (now - lastAutoSyncMs < AUTO_SYNC_COOLDOWN_MS) {
-      const waitSec = Math.round((AUTO_SYNC_COOLDOWN_MS - (now - lastAutoSyncMs)) / 1000);
-      console.log(`[Auto-Sync] ⏱ Skipping — last sync was ${Math.round((now - lastAutoSyncMs)/1000)}s ago (cooldown ${waitSec}s remaining)`);
-      return c.json({ success: true, skipped: true, cooldownRemainingSeconds: waitSec });
-    }
-
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[Auto-Sync] No GITHUB_TOKEN in environment');
-      return c.json({ success: false, error: 'GitHub token not configured' }, 500);
-    }
-
-    console.log('[Auto-Sync] Starting automatic sync from GitHub...');
-    lastAutoSyncMs = now; // Claim the slot immediately so parallel requests don't stack
-
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO  = 'HPS-WEB-FEBRUARY';
-
-    // Fetch full recursive tree via Git Trees API
-    const treeResp = await fetch(
-      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`,
-      { headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' } }
-    );
-    if (!treeResp.ok) {
-      const txt = await treeResp.text();
-      console.error('[Auto-Sync] GitHub tree fetch failed:', treeResp.status, txt);
-      return c.json({ success: false, error: `GitHub API error: ${treeResp.status}` }, 500);
-    }
-
-    const treeData = await treeResp.json();
-    if (treeData.truncated) console.warn('[Auto-Sync] ⚠️  Git tree truncated');
-
-    // Filter to images in the nested gallery structure
-    const AS_ROOTS = ['public/gallery', 'gallery'];
-    const AS_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
-
-    const imageFiles = (treeData.tree || [])
-      .filter((item: any) => {
-        if (item.type !== 'blob') return false;
-        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return AS_ROOTS.some(root => AS_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`)));
-      })
-      .map((item: any) => {
-        const root = AS_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1);
-        const parts = afterRoot.split('/');
-        return { name: parts[parts.length - 1], category: parts[0], fullPath: item.path };
-      });
-
-    console.log(`[Auto-Sync] Found ${imageFiles.length} image files across all categories`);
-
-    // Build slug → {category, files} map
-    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-    const caseSlugs      = new Set<string>();
-    const caseCategories = new Map<string, string>();
-    const caseOrientations = new Map<string, number>();
-    const caseFiles        = new Map<string, string[]>();
-
-    imageFiles.forEach((file: any) => {
-      const match = file.name.match(filenameRegex);
-      if (!match) return;
-      const caseSlug = match[1];
-      caseSlugs.add(caseSlug);
-      if (!caseCategories.has(caseSlug)) caseCategories.set(caseSlug, file.category || 'Face');
-      caseOrientations.set(caseSlug, (caseOrientations.get(caseSlug) || 0) + 1);
-      const slugFiles = caseFiles.get(caseSlug) || [];
-      slugFiles.push(file.fullPath);
-      caseFiles.set(caseSlug, slugFiles);
-    });
-
-    console.log(`[Auto-Sync] Parsed ${caseSlugs.size} unique cases`);
-
-    // Load existing KV cases
-    const existingCases = await kv.getByPrefix('gallery_case_');
-    const existingSlugs = new Set(existingCases.map((item: any) => item.value.slug));
-    const maxId = existingCases.reduce((max: number, item: any) => {
-      const m = item.key.match(/gallery_case_(\d+)$/);
-      return m ? Math.max(max, parseInt(m[1])) : max;
-    }, 999);
-
-    let nextId = maxId + 1;
-    let casesCreated = 0;
-    let casesSkipped = 0;
-
-    const rawUrl = (fullPath: string) =>
-      `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${fullPath}`;
-
-    for (const caseSlug of caseSlugs) {
-      if (existingSlugs.has(caseSlug)) {
-        casesSkipped++;
-        continue;
-      }
-
-      try {
-        const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
-        const parts = caseSlug.split('_');
-        const title = `Patient ${parts[1] || 'Case'}`;
-
-        const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.ceil(imageCount / 2);
-        const slugFileList = (caseFiles.get(caseSlug) || []).sort();
-        const orientations = [];
-
-        for (let i = 1; i <= orientationCount; i++) {
-          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
-          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
-          orientations.push({
-            name: `Position ${i}`,
-            beforeImage: beforeFile ? rawUrl(beforeFile) : null,
-            afterImage:  afterFile  ? rawUrl(afterFile)  : null
-          });
-        }
-
-        await kv.set(`gallery_case_${nextId}`, {
-          id: nextId,
-          slug: caseSlug,
-          category: resolvedCategory,
-          title,
-          procedure: resolvedCategory,
-          journeyNote: '',
-          beforeImage: orientations[0]?.beforeImage || null,
-          afterImage:  orientations[0]?.afterImage  || null,
-          orientations,
-          createdAt: new Date().toISOString(),
-          syncedFromGitHub: true,
-          autoSynced: true
-        });
-
-        console.log(`[Auto-Sync] ✓ Created: ${caseSlug} (${resolvedCategory}) ID=${nextId}`);
-        casesCreated++;
-        nextId++;
-      } catch (err: any) {
-        console.error(`[Auto-Sync] ✗ Failed to create ${caseSlug}:`, err.message);
-      }
-    }
-
-    if (casesCreated > 0) clearGalleryCache();
-
-    console.log(`[Auto-Sync] Done. Created: ${casesCreated}, Skipped (already existed): ${casesSkipped}`);
-    c.header('Cache-Control', 'no-store');
-    return c.json({ success: true, casesCreated, casesSkipped, totalCasesInGitHub: caseSlugs.size });
-
-  } catch (error: any) {
-    console.error('[Auto-Sync] Unexpected error:', error);
-    return c.json({ success: false, error: error.message }, 500);
-  }
-});
-
-// Get GitHub gallery files (with authentication) - UNPROTECTED so gallery can load without login
-app.get("/make-server-fc862019/gallery/github-files", async (c) => {
-  try {
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[GitHub Files] No GITHUB_TOKEN found in environment');
-      return c.json({ error: 'GitHub token not configured', files: [] }, 500);
-    }
-    
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_FOLDER = 'gallery';
-
-    // Use Git Trees API (recursive) — handles unlimited files, unlike Contents API (1000 file cap)
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
-    
-    console.log('[GitHub Files] Fetching via Git Trees API:', githubApiUrl);
-    
-    const response = await fetch(githubApiUrl, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    console.log('[GitHub Files] Response status:', response.status);
-    
-    if (response.status === 404) {
-      console.log('[GitHub Files] Repo/branch not found');
-      return c.json({ files: [], exists: false }, 404);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[GitHub Files] Error:', response.status, errorText);
-      return c.json({ error: `GitHub API error: ${response.status}`, files: [] }, response.status);
-    }
-
-    const treeData = await response.json();
-    if (treeData.truncated) {
-      console.warn('[GitHub Files] Git tree was truncated — repo exceeds GitHub tree size limit');
-    }
-
-    // Filter tree — nested structure: {root}/{category}/{case_slug}/{filename}
-    const FILES_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const FILES_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
-
-    const files = (treeData.tree || [])
-      .filter(item => {
-        if (item.type !== 'blob') return false;
-        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return FILES_GALLERY_ROOTS.some(root =>
-          FILES_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
-      })
-      .map(item => {
-        const root = FILES_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
-        const parts = afterRoot.split('/');
-        return {
-          name:     parts[parts.length - 1], // just filename — for regex parsing in frontend
-          category: parts[0],                // Face | Breast | Body
-          caseDir:  parts[1],                // case slug directory
-          path:     item.path,               // full repo path — for raw URL construction
-          type: 'file',
-          sha:  item.sha,
-          size: item.size
-        };
-      });
-
-    console.log('[GitHub Files] Found', files.length, 'image files in gallery/ folder');
-    
-    // No CDN caching — always serve fresh file list so new uploads appear immediately
-    c.header('Cache-Control', 'no-store');
-    
-    return c.json({ 
-      files, 
-      exists: true,
-      count: files.length,
-      truncated: treeData.truncated || false
-    });
-
-  } catch (error) {
-    console.error('[GitHub Files] Error:', error);
-    return c.json({ error: error.message, files: [] }, 500);
-  }
-});
-
-// Diagnose filename patterns in gallery folder - UNPROTECTED for admin debugging
-app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
-  try {
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) return c.json({ error: 'GitHub token not configured' }, 500);
-
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_FOLDER = 'gallery';
-
-    const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
-    const resp = await fetch(apiUrl, {
-      headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
-    });
-    if (!resp.ok) return c.json({ error: `GitHub API error: ${resp.status}` }, resp.status);
-
-    const treeData = await resp.json();
-    const DIAG_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const DIAG_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
-
-    const imageFiles = (treeData.tree || [])
-      .filter(item => {
-        if (item.type !== 'blob') return false;
-        if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return DIAG_GALLERY_ROOTS.some(root =>
-          DIAG_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
-      })
-      .map(item => {
-        // Return just the filename so the regex check below works correctly
-        const root = DIAG_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1);
-        const parts = afterRoot.split('/');
-        return parts[parts.length - 1]; // filename only
-      });
-
-    const stdRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
-    const matching    = imageFiles.filter(n => stdRegex.test(n));
-    const nonMatching = imageFiles.filter(n => !stdRegex.test(n));
-
-    c.header('Cache-Control', 'no-store');
-    return c.json({
-      totalImages: imageFiles.length,
-      matchingStdPattern: matching.length,
-      notMatchingStdPattern: nonMatching.length,
-      truncated: treeData.truncated || false,
-      sampleMatching:    matching.slice(0, 20),
-      sampleNonMatching: nonMatching.slice(0, 30),
-      allFirst50: imageFiles.slice(0, 50)
-    });
-  } catch (e) {
-    return c.json({ error: e.message }, 500);
-  }
-});
-
-// Check GitHub folder status (for debugging) - UNPROTECTED for easier debugging
-app.get("/make-server-fc862019/gallery/check-github", async (c) => {
-  try {
-    const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
-    if (!GITHUB_TOKEN) {
-      console.error('[Check GitHub] No GITHUB_TOKEN found in environment');
-      return c.json({ error: 'GitHub token not configured' }, 500);
-    }
-    
-    const GITHUB_OWNER = 'Nesbit25';
-    const GITHUB_REPO = 'HPS-WEB-FEBRUARY';
-    const GITHUB_FOLDER = 'gallery';
-
-    // Use Git Trees API to avoid the 1000-file Contents API limit
-    const githubApiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/main?recursive=1`;
-    
-    console.log('[Check GitHub] Checking via Git Trees API:', githubApiUrl);
-    
-    const response = await fetch(githubApiUrl, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    const status = response.status;
-    
-    if (response.status === 404) {
-      return c.json({
-        exists: false,
-        status: 404,
-        message: 'Repository or branch not found',
-        url: githubApiUrl,
-        suggestion: 'Upload images using the Bulk Gallery Uploader first'
-      });
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return c.json({
-        exists: false,
-        status,
-        error: errorText,
-        url: githubApiUrl
-      });
-    }
-
-    const treeData = await response.json();
-    const CHECK_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const CHECK_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
-
-    const imageFiles = (treeData.tree || []).filter(item => {
-      if (item.type !== 'blob') return false;
-      if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-      return CHECK_GALLERY_ROOTS.some(root =>
-        CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-      );
-    });
-    const hasGalleryFolder = imageFiles.length > 0 ||
-      (treeData.tree || []).some(item =>
-        CHECK_GALLERY_ROOTS.some(root =>
-          CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        )
-      );
-
-    // Build a per-category breakdown for debugging
-    const byCategory: Record<string, number> = {};
-    imageFiles.forEach(f => {
-      const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
-      const cat  = f.path.slice(root.length + 1).split('/')[0];
-      byCategory[cat] = (byCategory[cat] || 0) + 1;
-    });
-
-    return c.json({
-      exists: hasGalleryFolder,
-      status: 200,
-      totalFiles: imageFiles.length,
-      imageFiles: imageFiles.length,
-      byCategory,
-      truncated: treeData.truncated || false,
-      fileNames: imageFiles.slice(0, 10).map(f => {
-        const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
-        return f.path.slice(root.length + 1); // "Face/pt_1086_nose/pt_1086_nose_p1_img1.png"
-      }),
-      message: imageFiles.length > 0 
-        ? `Found ${imageFiles.length} images in GitHub gallery folder` 
-        : 'gallery folder exists but contains no images',
-      url: githubApiUrl
-    });
-
-  } catch (error) {
-    console.error('[Check GitHub] Error:', error);
-    return c.json({ error: error.message }, 500);
-  }
-});
-
-// Add orientation to gallery case (protected)
-app.post("/make-server-fc862019/gallery/case/:id/orientation", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Add Orientation] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const { orientationName, beforeImage, afterImage } = body;
-    
-    if (!orientationName) {
-      return c.json({ error: 'Missing orientation name' }, 400);
-    }
-
-    // Get existing case
-    const caseData = await kv.get(`gallery_case_${id}`);
-    if (!caseData) {
-      console.log(`[Gallery Add Orientation] Case not found: gallery_case_${id}`);
-      return c.json({ error: 'Case not found' }, 404);
-    }
-
-    console.log(`[Gallery Add Orientation] Found case:`, caseData);
-    
-    // Initialize orientations array if it doesn't exist
-    const orientations = caseData.orientations || [];
-    
-    // Find existing orientation or create new one
-    let orientation = orientations.find(o => o.name === orientationName);
-    
-    if (!orientation) {
-      // Create new orientation
-      orientation = {
-        name: orientationName,
-        beforeImage: beforeImage || null,
-        afterImage: afterImage || null
-      };
-      orientations.push(orientation);
-      console.log(`[Gallery Add Orientation] Created new orientation '${orientationName}' for case ${id}`);
-    } else {
-      // Update existing orientation with new images
-      if (beforeImage) orientation.beforeImage = beforeImage;
-      if (afterImage) orientation.afterImage = afterImage;
-      console.log(`[Gallery Add Orientation] Updated orientation '${orientationName}' for case ${id}`);
-    }
-    
-    // Update case with orientations and set primary before/after from first orientation
-    const updatedCase = {
-      ...caseData,
-      orientations
-    };
-    
-    // Set primary before/after images from first orientation
-    if (orientations.length > 0 && orientations[0]) {
-      updatedCase.beforeImage = orientations[0].beforeImage || null;
-      updatedCase.afterImage = orientations[0].afterImage || null;
-    }
-    
-    await kv.set(`gallery_case_${id}`, updatedCase);
-    
-    console.log(`[Gallery Add Orientation] Case ${id} updated with orientations:`, orientations);
-
-    return c.json({ success: true, orientations });
-  } catch (error) {
-    console.log('[Gallery Add Orientation] Error:', error);
-    return c.json({ error: 'Failed to add orientation' }, 500);
-  }
-});
-
-// Clear all gallery cases (protected)
-app.delete("/make-server-fc862019/gallery/cases/all", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Clear All] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    console.log('[Gallery Clear All] Starting to clear all cases...');
-
-    // Get all gallery cases
-    const allCases = await kv.getByPrefix('gallery_case_');
-    console.log(`[Gallery Clear All] Found ${allCases.length} cases to delete`);
-
-    // Delete all case metadata
-    const caseKeys = allCases.map(c => c.key);
-    if (caseKeys.length > 0) {
-      await kv.mdel(caseKeys);
-      console.log(`[Gallery Clear All] Deleted ${caseKeys.length} case metadata entries`);
-    }
-
-    // Delete all gallery images (before/after and all orientations)
-    const allImages = await kv.getByPrefix('gallery_');
-    const imageKeys = allImages
-      .filter(item => !item.key.startsWith('gallery_case_')) // Don't re-delete case metadata
-      .map(item => item.key);
-    
-    if (imageKeys.length > 0) {
-      await kv.mdel(imageKeys);
-      console.log(`[Gallery Clear All] Deleted ${imageKeys.length} image entries`);
-    }
-
-    console.log('[Gallery Clear All] Successfully cleared all gallery data');
-
-    return c.json({ 
-      success: true, 
-      deletedCases: caseKeys.length,
-      deletedImages: imageKeys.length
-    });
-  } catch (error) {
-    console.log('[Gallery Clear All] Error:', error);
-    return c.json({ error: 'Failed to clear gallery cases' }, 500);
-  }
-});
-
-// List all gallery cases (public)
-app.get("/make-server-fc862019/gallery/cases", async (c) => {
-  try {
-    const cases = await kv.getByPrefix('gallery_case_');
-    
-    const formattedCases = cases.map(item => ({
-      ...item.value,
-      key: item.key
-    }));
-
-    // No CDN caching — always serve fresh case list
-    c.header('Cache-Control', 'no-store');
-    
-    return c.json({ cases: formattedCases });
-  } catch (error) {
-    console.log('[Gallery Cases] Error:', error);
-    return c.json({ error: 'Failed to fetch gallery cases' }, 500);
-  }
-});
-
-// Delete gallery case (protected)
-app.delete("/make-server-fc862019/gallery/case/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Delete] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    
-    console.log(`[Gallery Delete] Starting deletion of case ${id}...`);
-    
-    // Get case metadata to find all orientation images
-    const caseData = await kv.get(`gallery_case_${id}`);
-    
-    // Delete case metadata
-    await kv.del(`gallery_case_${id}`);
-    console.log(`[Gallery Delete] Deleted case metadata: gallery_case_${id}`);
-    
-    // Delete base images (position 1)
-    await kv.del(`gallery_${id}_before`);
-    await kv.del(`gallery_${id}_after`);
-    console.log(`[Gallery Delete] Deleted base images`);
-    
-    // Delete all orientation images if they exist
-    if (caseData && caseData.orientations && Array.isArray(caseData.orientations)) {
-      console.log(`[Gallery Delete] Deleting ${caseData.orientations.length} orientations...`);
-      for (const orientationName of caseData.orientations) {
-        await kv.del(`gallery_${id}_${orientationName}_before`);
-        await kv.del(`gallery_${id}_${orientationName}_after`);
-        console.log(`[Gallery Delete] Deleted orientation "${orientationName}" images`);
-      }
-    }
-    
-    // Note: We're not deleting from Supabase Storage to keep the files
-    // but they won't be linked anymore
-
-    console.log(`[Gallery Delete] Successfully deleted case ID: ${id}`);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('[Gallery Delete] Error:', error);
-    return c.json({ error: 'Failed to delete gallery case' }, 500);
-  }
-});
-
-// Toggle gallery case flags (protected)
-app.patch("/make-server-fc862019/gallery/case/:id/toggle", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Toggle] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const { flag, value } = body;
-    
-    console.log(`[Gallery Toggle] Request for case ${id}, flag: ${flag}, value: ${value}`);
-    
-    if (!flag || value === undefined) {
-      return c.json({ error: 'Missing flag or value' }, 400);
-    }
-
-    // Get existing case
-    const existingCase = await kv.get(`gallery_case_${id}`);
-    
-    console.log(`[Gallery Toggle] Existing case data:`, existingCase);
-    
-    if (!existingCase) {
-      console.log(`[Gallery Toggle] Case not found in database: gallery_case_${id}`);
-      
-      // Debug: check what keys exist
-      const allKeys = await kv.getByPrefix('gallery_case_');
-      console.log('[Gallery Toggle] Available gallery cases:', allKeys);
-      
-      // Create a new entry for base gallery items (IDs 1-12)
-      // This allows toggling flags on pre-existing cases
-      console.log(`[Gallery Toggle] Creating new database entry for case ${id}`);
-      const newCase = {
-        id: parseInt(id),
-        [flag]: value,
-        // Don't include createdBy or createdAt for base cases
-        // This distinguishes them from custom uploaded cases
-      };
-      
-      await kv.set(`gallery_case_${id}`, newCase);
-      
-      console.log(`[Gallery Toggle] Created new case entry: ${flag} = ${value}`);
-      return c.json({ success: true });
-    }
-
-    // Update the flag
-    const updatedCase = {
-      ...existingCase,
-      [flag]: value
-    };
-
-    // Save back to KV
-    await kv.set(`gallery_case_${id}`, updatedCase);
-
-    console.log(`[Gallery Toggle] Updated case ${id}: ${flag} = ${value}`);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('[Gallery Toggle] Error:', error);
-    return c.json({ error: `Failed to toggle flag: ${error.message}` }, 500);
-  }
-});
-
-// Update gallery case category (protected)
-app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Gallery Update Category] Authorization error:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const { category } = body;
-    
-    console.log(`[Gallery Update Category] Request for case ${id}, category: ${category}`);
-    
-    if (!category) {
-      return c.json({ error: 'Missing category' }, 400);
-    }
-
-    // Validate category
-    const validCategories = ['Nose', 'Face', 'Breast', 'Body'];
-    if (!validCategories.includes(category)) {
-      return c.json({ error: 'Invalid category' }, 400);
-    }
-
-    // Get existing case
-    const existingCase = await kv.get(`gallery_case_${id}`);
-    
-    if (!existingCase) {
-      console.log(`[Gallery Update Category] Case not found: gallery_case_${id}`);
-      return c.json({ error: 'Case not found' }, 404);
-    }
-
-    // Update the category
-    const updatedCase = {
-      ...existingCase,
-      category
-    };
-
-    // Save back to KV
-    await kv.set(`gallery_case_${id}`, updatedCase);
-
-    console.log(`[Gallery Update Category] Updated case ${id}: category = ${category}`);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('[Gallery Update Category] Error:', error);
-    return c.json({ error: `Failed to update category: ${error.message}` }, 500);
-  }
-});
-
-// Fix mismatched gallery case IDs (protected) - migrate images from wrong ID to correct ID
-app.post("/make-server-fc862019/gallery/fix-case-id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const { correctCaseId, wrongCaseId } = await c.req.json();
-    
-    if (!correctCaseId || !wrongCaseId) {
-      return c.json({ error: 'Missing correctCaseId or wrongCaseId' }, 400);
-    }
-
-    console.log(`[Fix Case ID] Migrating images from ${wrongCaseId} to ${correctCaseId}`);
-    
-    // Get all keys that start with gallery_{wrongCaseId}_
-    const allKeys = await kv.getByPrefix(`gallery_${wrongCaseId}_`);
-    const migratedKeys = [];
-    
-    for (const item of allKeys) {
-      const oldKey = item.key;
-      const newKey = oldKey.replace(`gallery_${wrongCaseId}_`, `gallery_${correctCaseId}_`);
-      
-      console.log(`[Fix Case ID] Migrating ${oldKey} -> ${newKey}`);
-      
-      // Copy to new key
-      await kv.set(newKey, item.value);
-      
-      // Delete old key
-      await kv.del(oldKey);
-      
-      migratedKeys.push({ from: oldKey, to: newKey });
-    }
-    
-    // Update the case metadata to include orientations
-    const caseMetadata = await kv.get(`gallery_case_${correctCaseId}`);
-    if (caseMetadata) {
-      // Extract orientation numbers from the migrated keys
-      const orientations = [];
-      migratedKeys.forEach(({ to }) => {
-        const match = to.match(/gallery_\d+_(\d+)_(before|after)/);
-        if (match) {
-          const orientationNum = match[1];
-          if (!orientations.includes(orientationNum)) {
-            orientations.push(orientationNum);
-          }
-        }
-      });
-      
-      // Update case with orientations
-      if (orientations.length > 0) {
-        await kv.set(`gallery_case_${correctCaseId}`, {
-          ...caseMetadata,
-          orientations: orientations.sort((a, b) => parseInt(a) - parseInt(b))
-        });
-        console.log(`[Fix Case ID] Updated case ${correctCaseId} with orientations:`, orientations);
-      }
-    }
-    
-    return c.json({ 
-      success: true, 
-      migratedKeys,
-      message: `Successfully migrated ${migratedKeys.length} keys from case ${wrongCaseId} to ${correctCaseId}`
-    });
-  } catch (error) {
-    console.log('[Fix Case ID] Error:', error);
-    return c.json({ error: `Failed to fix case ID: ${error.message}` }, 500);
-  }
-});
-
-// Upload photo (protected)
-app.post("/make-server-fc862019/photos/upload", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    
-    if (!accessToken) {
-      console.log('Authorization error: No token provided');
-      return c.json({ code: 401, message: 'No authorization token provided' }, 401);
-    }
-    
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (error) {
-      console.log('Authorization error during upload:', error.message);
-      return c.json({ code: 401, message: `Invalid JWT: ${error.message}` }, 401);
-    }
-    
-    if (!user) {
-      console.log('Authorization error: No user found');
-      return c.json({ code: 401, message: 'Invalid JWT: User not found' }, 401);
-    }
-
-    const body = await c.req.json();
-    console.log('Upload request received:', { 
-      fileName: body.fileName, 
-      category: body.category,
-      hasFileData: !!body.fileData,
-      fileDataLength: body.fileData?.length 
-    });
-    
-    const { fileName, fileData, category, caption, displayLocation, title, status, featured } = body;
-    
-    if (!fileName || !fileData) {
-      console.log('Missing required fields:', { hasFileName: !!fileName, hasFileData: !!fileData });
-      return c.json({ error: 'Missing fileName or fileData' }, 400);
-    }
-    
-    // Upload to Supabase Storage
-    const timestamp = Date.now();
-    const filePath = `${category}/${timestamp}_${fileName}`;
-    
-    console.log('Attempting to upload to storage:', filePath);
-    
-    // Decode base64 if needed
-    const fileBuffer = Uint8Array.from(atob(fileData), c => c.charCodeAt(0));
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, fileBuffer, {
-        contentType: 'image/jpeg',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.log('Upload error:', uploadError);
-      return c.json({ error: uploadError.message }, 400);
-    }
-
-    // Generate signed URL (valid for 1 year) - works for both public and private buckets
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from(bucketName)
-      .createSignedUrl(filePath, 31536000); // 1 year
-    
-    const publicUrl = signedData?.signedUrl || supabase.storage.from(bucketName).getPublicUrl(filePath).data.publicUrl;
-
-    // Save metadata to KV
-    const photoId = `photo_${timestamp}`;
-    await kv.set(photoId, {
-      id: photoId,
-      fileName,
-      filePath,
-      publicUrl,
-      category,
-      caption,
-      displayLocation: displayLocation || 'gallery',
-      title: title || '',
-      status: status || 'published',
-      featured: featured !== undefined ? featured : false,
-      uploadedBy: user.email,
-      uploadedAt: new Date().toISOString()
-    });
-
-    return c.json({ success: true, photoId, publicUrl });
-  } catch (error) {
-    console.log('Error uploading photo:', error);
-    return c.json({ error: 'Failed to upload photo' }, 500);
-  }
-});
-
-// IMPORTANT: Public route must come BEFORE protected /photos route
-// Get published photos (public - for image selection)
-app.get("/make-server-fc862019/photos/published", async (c) => {
-  try {
-    console.log('===== PHOTOS/PUBLISHED ENDPOINT CALLED =====');
-    const photoEntries = await kv.getByPrefix('photo_');
-    console.log('Fetched photo entries from KV:', photoEntries.length);
-    
-    // Format entries properly with id from key
-    const photos = photoEntries.map((entry: any) => ({
-      id: entry.key, // The full key like "photo_123"
-      ...entry.value // The actual photo data (publicUrl, title, category, etc.)
-    }));
-    
-    console.log('Formatted photos:', photos.length);
-    
-    // Filter to only published photos
-    const publishedPhotos = photos.filter((p: any) => p.status === 'published');
-    
-    console.log('Published photos:', publishedPhotos.length);
-    
-    // Generate fresh signed URLs for all photos (valid for 1 year)
-    // This ensures images work even if bucket is private
-    const photosWithSignedUrls = await Promise.all(publishedPhotos.map(async (photo: any) => {
-      try {
-        if (photo.filePath) {
-          const { data: signedData, error: signedError } = await supabase.storage
-            .from(bucketName)
-            .createSignedUrl(photo.filePath, 31536000); // 1 year
-          
-          if (!signedError && signedData?.signedUrl) {
-            return {
-              ...photo,
-              publicUrl: signedData.signedUrl // Replace with signed URL
-            };
-          }
-        }
-        return photo; // Fallback to original URL if signing fails
-      } catch (err) {
-        console.log(`Error generating signed URL for ${photo.id}:`, err);
-        return photo;
-      }
-    }));
-    
-    const result = { 
-      photos: photosWithSignedUrls.sort((a: any, b: any) => 
-        new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
-      )
-    };
-    
-    return c.json(result);
-  } catch (error) {
-    console.log('[Photos Published] Error fetching photos:', error);
-    return c.json({ error: 'Failed to fetch photos', errorDetails: String(error) }, 500);
-  }
-});
-
-// Get single photo by ID (public - no auth required)
-app.get("/make-server-fc862019/photos/:id", async (c) => {
-  try {
-    const photoId = c.req.param('id');
-    const photo = await kv.get(photoId);
-    
-    if (!photo) {
-      console.log(`[GET photo/:id] Photo ${photoId} not found`);
-      return c.json({ error: 'Photo not found' }, 404);
-    }
-
-    console.log(`[GET photo/:id] Returning photo ${photoId}:`, {
-      id: photo.id,
-      status: photo.status,
-      displayLocation: photo.displayLocation,
-      title: photo.title
-    });
-
-    return c.json({ photo });
-  } catch (error) {
-    console.log('Error fetching photo:', error);
-    return c.json({ error: 'Failed to fetch photo' }, 500);
-  }
-});
-
-// List photos (protected)
-app.get("/make-server-fc862019/photos", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const photoEntries = await kv.getByPrefix('photo_');
-    const photos = photoEntries.map((entry: any) => ({
-      id: entry.key, // The full key like "photo_123"
-      ...entry.value // The actual photo data
-    }));
-    
-    return c.json({ photos: photos.sort((a: any, b: any) => 
-      new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime()
-    ) });
-  } catch (error) {
-    console.log('[Photos List] Error fetching photos:', error);
-    return c.json({ error: 'Failed to fetch photos' }, 500);
-  }
-});
-
-// Delete photo (protected)
-app.delete("/make-server-fc862019/photos/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      console.log('[Photo Delete] Unauthorized:', error);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const photoId = c.req.param('id');
-    console.log(`[Photo Delete] Attempting to delete photo: ${photoId}`);
-    
-    const photo = await kv.get(photoId);
-    console.log(`[Photo Delete] Photo found:`, photo ? 'Yes' : 'No', photo);
-    
-    if (photo) {
-      // Delete from storage if filePath exists
-      if (photo.filePath) {
-        console.log(`[Photo Delete] Deleting from storage: ${photo.filePath}`);
-        const { error: storageError } = await supabase.storage
-          .from(bucketName)
-          .remove([photo.filePath]);
-        
-        if (storageError) {
-          console.log(`[Photo Delete] Storage deletion error:`, storageError);
-        } else {
-          console.log(`[Photo Delete] Successfully deleted from storage`);
-        }
-      }
-      
-      // Delete from KV
-      console.log(`[Photo Delete] Deleting from KV: ${photoId}`);
-      await kv.del(photoId);
-      console.log(`[Photo Delete] Successfully deleted from KV`);
-      
-      // Verify deletion
-      const verify = await kv.get(photoId);
-      console.log(`[Photo Delete] Verification - still exists?`, verify ? 'Yes (ERROR!)' : 'No (SUCCESS)');
-    } else {
-      console.log(`[Photo Delete] Photo not found in database: ${photoId}`);
-      return c.json({ error: 'Photo not found' }, 404);
-    }
-    
-    console.log(`[Photo Delete] Delete operation completed successfully`);
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('[Photo Delete] Error:', error);
-    return c.json({ error: 'Failed to delete photo' }, 500);
-  }
-});
-
-// Clear service card images (admin utility - protected)
-app.delete("/make-server-fc862019/admin/clear-service-cards", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const serviceCards = ['nose', 'face', 'breast', 'body'];
-    const cleared = [];
-    
-    for (const card of serviceCards) {
-      const contentKey = `service_card_${card}`;
-      await kv.del(contentKey);
-      await kv.del(`${contentKey}_focal`);
-      clearCacheEntry(contentKey);
-      clearCacheEntry(`${contentKey}_focal`);
-      cleared.push(contentKey);
-      console.log(`[Clear Service Cards] Deleted ${contentKey}`);
-    }
-    
-    return c.json({ 
-      success: true, 
-      message: 'Service card images cleared successfully',
-      cleared 
-    });
-  } catch (error) {
-    console.log('[Clear Service Cards] Error:', error);
-    return c.json({ error: 'Failed to clear service cards' }, 500);
-  }
-});
-
-// Update photo metadata (protected)
-app.put("/make-server-fc862019/photos/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const photoId = c.req.param('id');
-    const { category, caption, displayLocation, title, status, featured } = await c.req.json();
-    
-    const photo = await kv.get(photoId);
-    
-    if (!photo) {
-      return c.json({ error: 'Photo not found' }, 404);
-    }
-
-    // Update photo metadata
-    await kv.set(photoId, {
-      ...photo,
-      category: category || photo.category,
-      caption: caption !== undefined ? caption : photo.caption,
-      displayLocation: displayLocation || photo.displayLocation,
-      title: title !== undefined ? title : photo.title,
-      status: status || photo.status,
-      featured: featured !== undefined ? featured : photo.featured,
-      updatedAt: new Date().toISOString()
-    });
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating photo:', error);
-    return c.json({ error: 'Failed to update photo' }, 500);
-  }
-});
-
-// ==================== CONTENT MANAGEMENT ROUTES ====================
-
-// DIAGNOSTIC: Test public content access
-app.get('/make-server-fc862019/content-test', async (c) => {
-  console.log('[CONTENT TEST] === DIAGNOSTIC ENDPOINT CALLED ===');
-  console.log('[CONTENT TEST] Headers:', Object.fromEntries(c.req.raw.headers));
-  
-  try {
-    console.log('[CONTENT TEST] Attempting to call kv.get("test_key")...');
-    const result = await kv.get('test_key');
-    console.log('[CONTENT TEST] Success! Result:', result);
-    
-    return c.json({
-      success: true,
-      message: 'KV store is accessible',
-      testResult: result,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('[CONTENT TEST] ERROR:', error);
-    return c.json({
-      success: false,
-      error: error.message,
-      errorStack: error.stack,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Get content by key (public endpoint - no auth required)
-app.get('/make-server-fc862019/content/:key', async (c) => {
-  const key = c.req.param('key');
-  console.log(`[PUBLIC GET] === REQUEST FOR KEY: ${key} ===`);
-  console.log('[PUBLIC GET] Headers:', Object.fromEntries(c.req.raw.headers));
-  
-  // Enhanced retry logic for connection resets
-  const maxRetries = 5; // Increased from 3 to 5
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[PUBLIC GET] Attempt ${attempt}/${maxRetries} - Calling getCachedContent("${key}")...`);
-      const content = await getCachedContent(key);
-      console.log(`[PUBLIC GET] getCachedContent returned:`, content);
-      
-      if (!content) {
-        console.log(`[PUBLIC GET] Content not found for key: ${key}`);
-        return c.json({ content: null });
-      }
-      
-      console.log(`[PUBLIC GET] Content found for key: ${key}`, {
-        hasValue: !!content.value,
-        valueType: typeof content.value,
-        valuePreview: typeof content.value === 'string' ? content.value.substring(0, 100) : content.value,
-        isURL: typeof content.value === 'string' && content.value.startsWith('http'),
-        fullContent: content
-      });
-      
-      return c.json({ content });
-    } catch (error) {
-      lastError = error;
-      console.error(`[PUBLIC GET] Attempt ${attempt}/${maxRetries} failed for key: ${key}`);
-      console.error('[PUBLIC GET] Error:', error?.message);
-      console.error('[PUBLIC GET] Error type:', error?.name);
-      console.error('[PUBLIC GET] Full error:', error);
-      
-      // Check if it's a connection-related error
-      const errorMsg = (error?.message || String(error)).toLowerCase();
-      const isConnectionError = 
-        errorMsg.includes('connection') ||
-        errorMsg.includes('reset') ||
-        errorMsg.includes('econnreset') ||
-        errorMsg.includes('timeout') ||
-        errorMsg.includes('network') ||
-        errorMsg.includes('fetch') ||
-        errorMsg.includes('dns') ||
-        errorMsg.includes('lookup') ||
-        errorMsg.includes('name resolution') ||
-        errorMsg.includes('temporary failure') ||
-        error?.name === 'FetchError' ||
-        error?.name === 'TypeError' && errorMsg.includes('fetch');
-      
-      // If this isn't the last attempt and it's a connection error, wait and retry
-      if (attempt < maxRetries && isConnectionError) {
-        // Exponential backoff with moderate delays: 1500ms, 3000ms, 6000ms, 12000ms, 24000ms (max 24s)
-        const delayMs = Math.min(1500 * Math.pow(2, attempt - 1), 24000);
-        console.log(`[PUBLIC GET] Connection error detected. Retrying in ${delayMs}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        continue;
-      }
-      
-      // If it's not a connection error or we're out of retries, return error
-      if (attempt === maxRetries) {
-        console.error(`[PUBLIC GET] All ${maxRetries} attempts failed for key: ${key}`);
-        console.error('[PUBLIC GET] Final error:', lastError?.stack);
-        console.error('[PUBLIC GET] Returning null content to prevent UI breakage');
-        
-        // Return null content instead of 500 error to prevent UI breakage
-        // The frontend should handle null content gracefully
-        return c.json({ 
-          content: null,
-          error: 'Connection timeout - database temporarily unavailable',
-          retryable: true,
-          key: key
-        }, 200); // Return 200 so frontend doesn't break
-      }
-      
-      // If it's not a connection error, fail immediately
-      if (!isConnectionError) {
-        console.error(`[PUBLIC GET] Non-connection error, not retrying: ${error?.message}`);
-        return c.json({ 
-          error: 'Failed to fetch content', 
-          details: lastError?.message || String(lastError),
-          key: key
-        }, 500);
-      }
-    }
-  }
-  
-  // Fallback (should never reach here)
-  return c.json({ 
-    error: 'Failed to fetch content', 
-    details: lastError?.message || 'Unknown error',
-    key: key
-  }, 500);
-});
-
-// Get content revision history (requires auth)
-app.get('/make-server-fc862019/content/:key/history', async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
-    
-    if (authError || !user?.id) {
-      console.error('[GET HISTORY] Unauthorized access attempt');
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    
-    const key = c.req.param('key');
-    console.log(`[GET HISTORY] Fetching history for key: ${key}`);
-    
-    // Get all revisions for this key (stored with suffix _revision_timestamp)
-    const allRevisions = await kv.getByPrefix(`${key}_revision_`);
-    
-    // Map revisions with their timestamps (now stored in the data)
-    const revisions = allRevisions
-      .filter(item => item._revisionTimestamp)
-      .map(item => ({
-        timestamp: item._revisionTimestamp,
-        value: item.value,
-        updatedBy: item.updatedBy,
-        updatedAt: item.updatedAt,
-        date: new Date(item._revisionTimestamp).toISOString()
-      }))
-      .sort((a, b) => b.timestamp - a.timestamp);
-    
-    console.log(`[GET HISTORY] Found ${revisions.length} revisions for key: ${key}`);
-    return c.json({ revisions });
-  } catch (error) {
-    console.error('[GET HISTORY] Error fetching history:', error);
-    return c.json({ error: 'Failed to fetch history', details: error.message }, 500);
-  }
-});
-
-// Update content by key (protected endpoint - requires auth)
-app.put('/make-server-fc862019/content/:key', async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
-    
-    if (authError || !user?.id) {
-      console.error('[PUT] Unauthorized access attempt:', authError?.message);
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    
-    const key = c.req.param('key');
-    const body = await c.req.json();
-    
-    console.log(`[PUT] Updating content for key: ${key} by user: ${user.id}`, body);
-    
-    // Get the current content first to save as a revision
-    const currentContent = await kv.get(key);
-    
-    // If there's existing content, save it as a revision
-    if (currentContent) {
-      const timestamp = Date.now();
-      const revisionKey = `${key}_revision_${timestamp}`;
-      await kv.set(revisionKey, {
-        ...currentContent,
-        _revisionTimestamp: timestamp,
-        _originalKey: key
-      });
-      console.log(`[PUT] Saved revision: ${revisionKey}`);
-    }
-    
-    // Save the new content with all fields from body
-    await kv.set(key, {
-      ...body,  // Spread all fields from the request (value, photoId, etc.)
-      updatedBy: user.id,
-      updatedAt: new Date().toISOString()
-    });
-    
-    // Clear cache entry to force fresh fetch on next GET
-    clearCacheEntry(key);
-    
-    console.log(`[PUT] Content updated successfully for key: ${key}`);
-    return c.json({ success: true, saved: true });
-  } catch (error) {
-    console.error('[PUT] Error updating content:', error);
-    return c.json({ error: 'Failed to update content', details: error.message }, 500);
-  }
-});
-
-// DEBUG: List all content keys (protected - requires auth)
-app.get('/make-server-fc862019/content-debug/list', async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
-    
-    if (authError || !user?.id) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    
-    // Get all content entries that look like image assignments
-    const allContent = await kv.getByPrefix('home_');
-    
-    console.log('[DEBUG] Found content entries:', allContent.length);
-    
-    return c.json({ 
-      content: allContent.map(item => ({
-        key: item.key,
-        value: item.value,
-        isBad: item.value?.startsWith?.('http') || false
-      }))
-    });
-  } catch (error) {
-    console.error('[DEBUG] Error listing content:', error);
-    return c.json({ error: 'Failed to list content' }, 500);
-  }
-});
-
-// Clear corrupted image content (protected - requires auth)
-app.post('/make-server-fc862019/content-debug/clear-images', async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
-    
-    if (authError || !user?.id) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    
-    console.log('[DIRECT DELETE] ===== STARTING CLEAR OPERATION =====');
-    
-    // DIRECT DELETE - manually delete the specific corrupted keys
-    const corruptedKeys = [
-      'home_hero_image_1',
-      'home_hero_image_2',
-      'home_hero_image_3',
-      'home_hero_image_4',
-      'home_hero_image_5'
-    ];
-    
-    const deletedKeys = [];
-    const details = [];
-    
-    for (const key of corruptedKeys) {
-      console.log(`[DIRECT DELETE] --- Processing ${key} ---`);
-      
-      const existing = await kv.get(key);
-      console.log(`[DIRECT DELETE] Get result for ${key}:`, JSON.stringify(existing));
-      
-      if (existing) {
-        console.log(`[DIRECT DELETE] About to delete ${key}...`);
-        await kv.del(key);
-        console.log(`[DIRECT DELETE] Delete completed for ${key}`);
-        
-        // Verify deletion
-        const verify = await kv.get(key);
-        console.log(`[DIRECT DELETE] Verify after delete for ${key}:`, JSON.stringify(verify));
-        
-        deletedKeys.push(key);
-        details.push({
-          key,
-          hadContent: true,
-          deletedSuccessfully: verify === null,
-          originalValue: existing
-        });
-      } else {
-        console.log(`[DIRECT DELETE] Key ${key} already empty or doesn't exist`);
-        details.push({
-          key,
-          hadContent: false,
-          deletedSuccessfully: true,
-          originalValue: null
-        });
-      }
-    }
-    
-    console.log(`[DIRECT DELETE] ===== CLEAR OPERATION COMPLETE =====`);
-    console.log(`[DIRECT DELETE] Deleted ${deletedKeys.length} entries:`, deletedKeys);
-    
-    return c.json({ 
-      success: true, 
-      deleted: deletedKeys,
-      details: details,
-      message: `Forcefully cleared ${deletedKeys.length} entries`
-    });
-  } catch (error) {
-    console.error('[DIRECT DELETE] Error clearing content:', error);
-    return c.json({ error: 'Failed to clear content', details: error.message }, 500);
-  }
-});
-
-// HARD RESET - Nuclear option for hero images
-app.post('/make-server-fc862019/content-debug/hard-reset-heroes', async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error: authError } = await getUserWithRetry(accessToken);
-    
-    if (authError || !user?.id) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    
-    console.log('[HARD RESET] ===== NUCLEAR RESET INITIATED =====');
-    
-    const keys = [
-      'home_hero_image_1',
-      'home_hero_image_2', 
-      'home_hero_image_3',
-      'home_hero_image_4',
-      'home_hero_image_5'
-    ];
-    
-    const results = [];
-    
-    for (const key of keys) {
-      console.log(`[HARD RESET] Processing ${key}...`);
-      
-      // Check before
-      const before = await retryOperation(() => kv.get(key));
-      console.log(`[HARD RESET] Before: ${key} =`, JSON.stringify(before));
-      
-      // Delete with retry
-      await retryOperation(() => kv.del(key));
-      
-      // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Check after
-      const after = await retryOperation(() => kv.get(key));
-      console.log(`[HARD RESET] After: ${key} =`, JSON.stringify(after));
-      
-      results.push({
-        key,
-        hadData: !!before,
-        beforeValue: before,
-        afterValue: after,
-        success: after === null
-      });
-    }
-    
-    const allSuccessful = results.every(r => r.success);
-    console.log(`[HARD RESET] ===== RESET COMPLETE: ${allSuccessful ? 'SUCCESS' : 'FAILED'} =====`);
-    
-    return c.json({
-      success: allSuccessful,
-      results,
-      message: allSuccessful ? 'All hero images successfully reset' : 'Some deletions may have failed'
-    });
-  } catch (error) {
-    console.error('[HARD RESET] Error:', error);
-    return c.json({ error: 'Hard reset failed', details: error.message }, 500);
-  }
-});
-
-// ==================== BLOG POST ROUTES ====================
-
-// Get all blog posts (public - no auth required for reading published posts)
-app.get("/make-server-fc862019/blog-posts", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    let isAdmin = false;
-    
-    // Check if user is admin
-    if (accessToken) {
-      try {
-        const { data: { user }, error } = await getUserWithRetry(accessToken);
-        isAdmin = !!user && !error;
-      } catch (e) {
-        console.log('[Blog List] Auth check failed, treating as non-admin:', e?.message);
-      }
-    }
-    
-    // Get all blog posts
-    const allPosts = await kv.getByPrefix('blogpost_');
-    
-    // If not admin, only return published posts
-    const posts = isAdmin 
-      ? allPosts 
-      : allPosts.filter((post: any) => post.status === 'published');
-    
-    // Sort by date (newest first)
-    const sortedPosts = posts.sort((a: any, b: any) => 
-      new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
-    );
-    
-    return c.json({ posts: sortedPosts });
-  } catch (error) {
-    console.log('Error fetching blog posts:', error);
-    return c.json({ error: 'Failed to fetch blog posts' }, 500);
-  }
-});
-
-// Get single blog post by slug (public)
-app.get("/make-server-fc862019/blog-posts/:slug", async (c) => {
-  try {
-    const slug = c.req.param('slug');
-    const post = await kv.get(`blogpost_${slug}`);
-    
-    if (!post) {
-      return c.json({ error: 'Blog post not found' }, 404);
-    }
-    
-    // Check if post is published or if user is admin
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    let isAdmin = false;
-    
-    if (accessToken) {
-      try {
-        const { data: { user }, error } = await getUserWithRetry(accessToken);
-        isAdmin = !!user && !error;
-      } catch (e) {
-        console.log('[Blog Get] Auth check failed, treating as non-admin:', e?.message);
-      }
-    }
-    
-    if (post.status !== 'published' && !isAdmin) {
-      return c.json({ error: 'Blog post not found' }, 404);
-    }
-    
-    return c.json({ post });
-  } catch (error) {
-    console.log('Error fetching blog post:', error);
-    return c.json({ error: 'Failed to fetch blog post' }, 500);
-  }
-});
-
-// Create blog post (protected)
-app.post("/make-server-fc862019/blog-posts", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const postData = await c.req.json();
-    const slug = postData.slug;
-    
-    if (!slug) {
-      return c.json({ error: 'Slug is required' }, 400);
-    }
-    
-    // Check if slug already exists
-    const existing = await kv.get(`blogpost_${slug}`);
-    if (existing) {
-      return c.json({ error: 'A blog post with this slug already exists' }, 400);
-    }
-    
-    const blogPost = {
-      ...postData,
-      slug,
-      id: `blogpost_${slug}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    await kv.set(`blogpost_${slug}`, blogPost);
-    return c.json({ success: true, post: blogPost });
-  } catch (error) {
-    console.log('Error creating blog post:', error);
-    return c.json({ error: 'Failed to create blog post' }, 500);
-  }
-});
-
-// Update blog post (protected)
-app.put("/make-server-fc862019/blog-posts/:slug", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const slug = c.req.param('slug');
-    const postData = await c.req.json();
-    
-    const existing = await kv.get(`blogpost_${slug}`);
-    if (!existing) {
-      return c.json({ error: 'Blog post not found' }, 404);
-    }
-    
-    const updatedPost = {
-      ...existing,
-      ...postData,
-      slug, // Keep original slug
-      id: `blogpost_${slug}`,
-      createdAt: existing.createdAt,
-      updatedAt: new Date().toISOString()
-    };
-    
-    await kv.set(`blogpost_${slug}`, updatedPost);
-    return c.json({ success: true, post: updatedPost });
-  } catch (error) {
-    console.log('Error updating blog post:', error);
-    return c.json({ error: 'Failed to update blog post' }, 500);
-  }
-});
-
-// Delete blog post (protected)
-app.delete("/make-server-fc862019/blog-posts/:slug", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const slug = c.req.param('slug');
-    await kv.del(`blogpost_${slug}`);
-    
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error deleting blog post:', error);
-    return c.json({ error: 'Failed to delete blog post' }, 500);
-  }
-});
-
-// ==================== PDF RESOURCE ROUTES ====================
-
-// Initialize PDF bucket
-const pdfBucketName = 'make-fc862019-pdfs';
-
-const initPDFBucket = async () => {
-  try {
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(bucket => bucket.name === pdfBucketName);
-    
-    if (!bucketExists) {
-      await supabase.storage.createBucket(pdfBucketName, {
-        public: false, // Private bucket - requires signed URLs
-        fileSizeLimit: 10485760 // 10MB
-      });
-      console.log('Created PDF storage bucket:', pdfBucketName);
-    }
-  } catch (error) {
-    console.log('Error initializing PDF bucket:', error);
-  }
-};
-
-initPDFBucket();
-
-// Get all PDF resources (public)
-app.get("/make-server-fc862019/pdf-resources", async (c) => {
-  try {
-    const pdfs = await kv.getByPrefix('pdf_');
-    
-    // Generate fresh signed URLs for all PDFs
-    const pdfsWithUrls = await Promise.all(pdfs.map(async (pdf: any) => {
-      try {
-        const { data, error } = await supabase.storage
-          .from(pdfBucketName)
-          .createSignedUrl(pdf.filePath, 3600); // 1 hour expiry
-        
-        if (!error && data) {
-          return { ...pdf, fileUrl: data.signedUrl };
-        }
-      } catch (err) {
-        console.log('Error generating signed URL:', err);
-      }
-      return pdf;
-    }));
-    
-    // Sort by upload date (newest first)
-    const sortedPDFs = pdfsWithUrls.sort((a: any, b: any) => 
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    );
-    
-    return c.json({ pdfs: sortedPDFs });
-  } catch (error) {
-    console.log('Error fetching PDFs:', error);
-    return c.json({ error: 'Failed to fetch PDFs' }, 500);
-  }
-});
-
-// Upload PDF (protected)
-app.post("/make-server-fc862019/pdf-resources", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const { title, description, category, fileName, fileData, fileSize } = await c.req.json();
-    
-    if (!title || !fileName || !fileData) {
-      return c.json({ error: 'Title, fileName, and fileData are required' }, 400);
-    }
-    
-    // Generate unique file path
-    const timestamp = Date.now();
-    const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `${timestamp}_${safeFileName}`;
-    
-    // Convert base64 to buffer
-    const base64Data = fileData.split(',')[1]; // Remove data:application/pdf;base64, prefix
-    const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(pdfBucketName)
-      .upload(filePath, buffer, {
-        contentType: 'application/pdf',
-        upsert: false
-      });
-    
-    if (uploadError) {
-      console.log('Upload error:', uploadError);
-      return c.json({ error: 'Failed to upload PDF' }, 500);
-    }
-    
-    // Generate signed URL
-    const { data: urlData, error: urlError } = await supabase.storage
-      .from(pdfBucketName)
-      .createSignedUrl(filePath, 3600);
-    
-    if (urlError) {
-      console.log('URL generation error:', urlError);
-    }
-    
-    // Store metadata in KV
-    const pdfId = `pdf_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
-    const pdfResource = {
-      id: pdfId,
-      title,
-      description: description || '',
-      category,
-      fileName,
-      filePath,
-      fileUrl: urlData?.signedUrl || '',
-      fileSize: fileSize || '0 KB',
-      uploadedAt: new Date().toISOString(),
-      downloadCount: 0
-    };
-    
-    await kv.set(pdfId, pdfResource);
-    
-    return c.json({ success: true, pdf: pdfResource });
-  } catch (error) {
-    console.log('Error uploading PDF:', error);
-    return c.json({ error: 'Failed to upload PDF' }, 500);
-  }
-});
-
-// Delete PDF (protected)
-app.delete("/make-server-fc862019/pdf-resources/:id", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const id = c.req.param('id');
-    const pdf = await kv.get(id);
-    
-    if (!pdf) {
-      return c.json({ error: 'PDF not found' }, 404);
-    }
-    
-    // Delete from storage
-    try {
-      await supabase.storage
-        .from(pdfBucketName)
-        .remove([pdf.filePath]);
-    } catch (storageError) {
-      console.log('Error deleting from storage:', storageError);
-    }
-    
-    // Delete metadata
-    await kv.del(id);
-    
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error deleting PDF:', error);
-    return c.json({ error: 'Failed to delete PDF' }, 500);
-  }
-});
-
-// Track PDF download
-app.post("/make-server-fc862019/pdf-resources/:id/download", async (c) => {
-  try {
-    const id = c.req.param('id');
-    const pdf = await kv.get(id);
-    
-    if (pdf) {
-      pdf.downloadCount = (pdf.downloadCount || 0) + 1;
-      await kv.set(id, pdf);
-    }
-    
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error tracking download:', error);
-    return c.json({ error: 'Failed to track download' }, 500);
-  }
-});
-
-// ===== PATIENT PORTAL ENDPOINTS =====
-
-// Patient signup
-app.post("/make-server-fc862019/patient/signup", async (c) => {
-  try {
-    const { email, password, firstName, lastName, phone, dob } = await c.req.json();
-    
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm since email server not configured
-      user_metadata: {
-        firstName,
-        lastName,
-        phone,
-        dob,
-        userType: 'patient' // Distinguish from admin users
-      }
-    });
-
-    if (error) {
-      console.log('Patient signup error:', error);
-      return c.json({ error: error.message }, 400);
-    }
-
-    return c.json({ success: true, userId: data.user.id });
-  } catch (error) {
-    console.log('Error creating patient account:', error);
-    return c.json({ error: 'Failed to create account' }, 500);
-  }
-});
-
-// Update patient profile
-app.put("/make-server-fc862019/patient/profile", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const updates = await c.req.json();
-    
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      user.id,
-      { user_metadata: { ...user.user_metadata, ...updates } }
-    );
-
-    if (updateError) {
-      return c.json({ error: updateError.message }, 400);
-    }
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating patient profile:', error);
-    return c.json({ error: 'Failed to update profile' }, 500);
-  }
-});
-
-// Get patient's own forms
-app.get("/make-server-fc862019/patient/my-forms", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const allFormsData = await kv.getByPrefix('patientform_');
-    const allForms = allFormsData.map((item: any) => item.value);
-    
-    // Filter forms by user ID
-    const myForms = allForms.filter((form: any) => form.userId === user.id);
-    
-    return c.json({ 
-      forms: myForms.sort((a: any, b: any) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )
-    });
-  } catch (error) {
-    console.log('Error fetching patient forms:', error);
-    return c.json({ error: 'Failed to fetch forms' }, 500);
-  }
-});
-
-// ===== ANALYTICS ENDPOINTS =====
-
-// Create analytics session
-app.post("/make-server-fc862019/analytics/session", async (c) => {
-  try {
-    const sessionData = await c.req.json();
-    const sessionId = `analytics_session_${sessionData.sessionId}`;
-    
-    await kv.set(sessionId, {
-      ...sessionData,
-      events: [],
-      pageCount: 1
-    });
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error creating analytics session:', error);
-    return c.json({ error: 'Failed to create session' }, 500);
-  }
-});
-
-// Update session with userId
-app.put("/make-server-fc862019/analytics/session/:sessionId", async (c) => {
-  try {
-    const sessionId = `analytics_session_${c.req.param('sessionId')}`;
-    const { userId } = await c.req.json();
-    
-    const session = await kv.get(sessionId);
-    if (session) {
-      session.userId = userId;
-      session.lastActivity = new Date().toISOString();
-      await kv.set(sessionId, session);
-    }
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating session:', error);
-    return c.json({ error: 'Failed to update session' }, 500);
-  }
-});
-
-// Track analytics event
-app.post("/make-server-fc862019/analytics/event", async (c) => {
-  try {
-    const event = await c.req.json();
-    const sessionId = `analytics_session_${event.sessionId}`;
-    
-    // Get session and add event
-    const session = await kv.get(sessionId);
-    if (session) {
-      session.events = session.events || [];
-      session.events.push(event);
-      session.lastActivity = event.timestamp;
-      
-      // Track unique pages
-      if (event.eventType === 'pageview' && !session.pages.includes(event.page)) {
-        session.pages.push(event.page);
-        session.pageCount = session.pages.length;
-      }
-      
-      await kv.set(sessionId, session);
-    }
-
-    // Also store event individually for easier querying
-    const eventId = `analytics_event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await kv.set(eventId, event);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error tracking event:', error);
-    return c.json({ error: 'Failed to track event' }, 500);
-  }
-});
-
-// Get all analytics sessions (admin)
-app.get("/make-server-fc862019/analytics/sessions", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const sessionsData = await kv.getByPrefix('analytics_session_');
-    const sessions = sessionsData.map((item: any) => item.value);
-    
-    // Sort by most recent
-    sessions.sort((a: any, b: any) => 
-      new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
-    );
-
-    return c.json({ sessions });
-  } catch (error) {
-    console.log('Error fetching analytics sessions:', error);
-    return c.json({ error: 'Failed to fetch sessions' }, 500);
-  }
-});
-
-// Get analytics events (admin)
-app.get("/make-server-fc862019/analytics/events", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const eventsData = await kv.getByPrefix('analytics_event_');
-    const events = eventsData.map((item: any) => item.value);
-    
-    // Sort by most recent
-    events.sort((a: any, b: any) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    return c.json({ events });
-  } catch (error) {
-    console.log('Error fetching analytics events:', error);
-    return c.json({ error: 'Failed to fetch events' }, 500);
-  }
-});
-
-// Get analytics summary (admin)
-app.get("/make-server-fc862019/analytics/summary", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const sessionsData = await kv.getByPrefix('analytics_session_');
-    const sessions = sessionsData.map((item: any) => item.value);
-    
-    const eventsData = await kv.getByPrefix('analytics_event_');
-    const events = eventsData.map((item: any) => item.value);
-
-    // Calculate summary stats
-    const now = new Date();
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const activeSessions = sessions.filter((s: any) => 
-      new Date(s.lastActivity).getTime() > now.getTime() - 30 * 60 * 1000 // Active in last 30 min
-    );
-
-    const sessions24h = sessions.filter((s: any) => 
-      new Date(s.startTime) > last24Hours
-    );
-
-    const sessions7d = sessions.filter((s: any) => 
-      new Date(s.startTime) > last7Days
-    );
-
-    const pageviews24h = events.filter((e: any) => 
-      e.eventType === 'pageview' && new Date(e.timestamp) > last24Hours
-    );
-
-    const formStarts = events.filter((e: any) => e.eventType === 'form_start');
-    const formCompletions = events.filter((e: any) => e.eventType === 'form_complete');
-    
-    // Popular pages
-    const pageViewsByPage: Record<string, number> = {};
-    events.filter((e: any) => e.eventType === 'pageview').forEach((e: any) => {
-      pageViewsByPage[e.page] = (pageViewsByPage[e.page] || 0) + 1;
-    });
-    
-    const popularPages = Object.entries(pageViewsByPage)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([page, views]) => ({ page, views }));
-
-    // Traffic sources
-    const trafficSources: Record<string, number> = {};
-    sessions.forEach((s: any) => {
-      const source = s.utmSource || s.referrer || 'direct';
-      trafficSources[source] = (trafficSources[source] || 0) + 1;
-    });
-
-    return c.json({
-      activeNow: activeSessions.length,
-      sessions24h: sessions24h.length,
-      sessions7d: sessions7d.length,
-      pageviews24h: pageviews24h.length,
-      totalSessions: sessions.length,
-      totalPageviews: events.filter((e: any) => e.eventType === 'pageview').length,
-      formStarts: formStarts.length,
-      formCompletions: formCompletions.length,
-      conversionRate: formStarts.length > 0 ? ((formCompletions.length / formStarts.length) * 100).toFixed(1) : '0',
-      popularPages,
-      trafficSources: Object.entries(trafficSources)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([source, count]) => ({ source, count })),
-      deviceBreakdown: {
-        mobile: sessions.filter((s: any) => s.deviceType === 'mobile').length,
-        tablet: sessions.filter((s: any) => s.deviceType === 'tablet').length,
-        desktop: sessions.filter((s: any) => s.deviceType === 'desktop').length
-      }
-    });
-  } catch (error) {
-    console.log('Error fetching analytics summary:', error);
-    return c.json({ error: 'Failed to fetch summary' }, 500);
-  }
-});
-
-Deno.serve(app.fetch);
