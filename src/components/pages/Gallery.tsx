@@ -105,7 +105,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
             [item.beforeImage, item.afterImage,
               ...(item.orientations || []).flatMap((o: any) => [o.beforeImage, o.afterImage])]
               .filter(Boolean)
-              .some((u: string) => u.includes('raw.githubusercontent.com'))
+              .some((u: string) =>
+                u.includes('raw.githubusercontent.com') ||
+                u.startsWith('gallery-img:') ||
+                (u.startsWith('/gallery/') && !u.includes('/gallery/img/'))
+              )
           );
           if (hasBadUrls) {
             console.log('[Gallery] ⚠️  Cache has stale raw GitHub URLs — busting and re-fetching...');
@@ -205,13 +209,27 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
   
-  // Fix any raw.githubusercontent.com URLs stored from old syncs.
-  // Private repos 401 those in the browser — rewrite to Vercel static path.
+  // Resolve any image URL/marker to a full proxy URL.
+  // Handles all historical formats stored in KV or localStorage cache:
+  //   gallery-img:{rel}          ← current KV format (new syncs)
+  //   /gallery/{rel}             ← previous fix iteration (static Vercel path, 404s)
+  //   https://raw.githubusercontent.com/...  ← original format (401s on private repo)
   const normalizeImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
+    // Already a fully-resolved proxy URL
+    if (url.includes('/gallery/img/')) return url;
+    // Current KV marker format: "gallery-img:{rel}"
+    if (url.startsWith('gallery-img:')) {
+      return `${serverUrl}/gallery/img/${url.slice('gallery-img:'.length)}`;
+    }
+    // Old raw GitHub URL
     if (url.includes('raw.githubusercontent.com')) {
-      const match = url.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)$/);
-      if (match) return '/' + match[1].replace(/^public\//, '');
+      const match = url.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(?:public\/)?gallery\/(.+)$/);
+      if (match) return `${serverUrl}/gallery/img/${match[1]}`;
+    }
+    // /gallery/... Vercel static path (previous fix) — 404 for non-public/ images
+    if (url.startsWith('/gallery/')) {
+      return `${serverUrl}/gallery/img/${url.slice('/gallery/'.length)}`;
     }
     return url;
   };
@@ -294,11 +312,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // Determine type: odd = before, even = after
         const type = (index % 2 !== 0) ? 'before' : 'after';
         
-        // Build Vercel-served static URL. Images are in public/gallery/ in the repo,
-        // which Vercel serves at /gallery/. raw.githubusercontent.com 401s on private repos.
-        const imageUrl = (file as any).path
-          ? '/' + (file as any).path.replace(/^public\//, '')
-          : `/${GITHUB_FOLDER}/${file.name}`;
+        // Route ALL gallery images through the Supabase proxy endpoint.
+        // Images live in the private GitHub repo (gallery/ or public/gallery/).
+        // Vercel only serves public/ so /gallery/... would 404 for root-level files.
+        // The proxy fetches with GITHUB_TOKEN and sets Cache-Control: 1 day.
+        const galleryRelPath = (file as any).path
+          ? (file as any).path.replace(/^(?:public\/)?gallery\//, '')
+          : file.name;
+        const imageUrl = `${serverUrl}/gallery/img/${galleryRelPath}`;
         
         console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
         
