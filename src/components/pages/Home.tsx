@@ -428,7 +428,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
             <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
-                src="/images/hero/mobile/hero-slide-1.jpg"
+                src="/images/hero/mobile/hero-slide-1.png"
                 alt="Hanemann Plastic Surgery Hero Mobile"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
