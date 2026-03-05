@@ -2086,26 +2086,29 @@ app.patch("/make-server-fc862019/gallery/case/:id/toggle", async (c) => {
     console.log(`[Gallery Toggle] Existing case data:`, existingCase);
     
     if (!existingCase) {
-      console.log(`[Gallery Toggle] Case not found in database: gallery_case_${id}`);
+      console.log(`[Gallery Toggle] Case not found by key gallery_case_${id} — searching all cases by id field...`);
       
-      // Debug: check what keys exist
-      const allKeys = await kv.getByPrefix('gallery_case_');
-      console.log('[Gallery Toggle] Available gallery cases:', allKeys);
+      // Fallback: search every KV case for one whose stored .id matches.
+      // This handles the mismatch where the frontend uses a stringToId() hash
+      // but KV stores cases under sequential keys (gallery_case_1001, etc.).
+      const allCases = await kv.getByPrefix('gallery_case_');
+      const matchByIdField = allCases.find((entry: any) => entry.value?.id === parseInt(id));
       
-      // Create a new entry for base gallery items (IDs 1-12)
-      // This allows toggling flags on pre-existing cases
-      console.log(`[Gallery Toggle] Creating new database entry for case ${id}`);
-      const newCase = {
-        id: parseInt(id),
-        [flag]: value,
-        // Don't include createdBy or createdAt for base cases
-        // This distinguishes them from custom uploaded cases
-      };
+      if (matchByIdField) {
+        console.log(`[Gallery Toggle] Found case via id-field search: key=${matchByIdField.key}`);
+        const updatedCase = { ...matchByIdField.value, [flag]: value };
+        await kv.set(matchByIdField.key, updatedCase);
+        clearGalleryCache();
+        console.log(`[Gallery Toggle] Updated ${matchByIdField.key}: ${flag} = ${value}`);
+        return c.json({ success: true });
+      }
+
+      // Also try matching by slug in case the id sent is a slug-derived hash
+      // (belt-and-suspenders for any remaining edge cases)
+      console.log(`[Gallery Toggle] No case found with id=${id}. Available case count: ${allCases.length}`);
+      console.log('[Gallery Toggle] Available slugs:', allCases.map((e: any) => `${e.key} → id=${e.value?.id} slug=${e.value?.slug}`));
       
-      await kv.set(`gallery_case_${id}`, newCase);
-      
-      console.log(`[Gallery Toggle] Created new case entry: ${flag} = ${value}`);
-      return c.json({ success: true });
+      return c.json({ error: `Case ${id} not found in database. Run auto-sync first to register GitHub cases.` }, 404);
     }
 
     // Update the flag
@@ -2116,6 +2119,9 @@ app.patch("/make-server-fc862019/gallery/case/:id/toggle", async (c) => {
 
     // Save back to KV
     await kv.set(`gallery_case_${id}`, updatedCase);
+
+    // Bust server-side in-memory cache so /gallery/cases returns fresh flags immediately
+    clearGalleryCache();
 
     console.log(`[Gallery Toggle] Updated case ${id}: ${flag} = ${value}`);
 
