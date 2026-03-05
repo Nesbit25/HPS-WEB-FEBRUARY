@@ -1130,9 +1130,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
       {/* Gallery Filters */}
       <section className="pt-48 pb-16 bg-[#1a1f2e] border-b border-[#2d3548]">
         <div className="container mx-auto px-6">
-          {/* Debug button for admins */}
+          {/* Admin toolbar — only visible to admins in edit mode */}
           {isAdmin && isEditMode && (
-            <div className="hidden">
+            <div className="flex flex-wrap gap-2 mb-6 p-4 bg-[#242938]/80 border border-[#2d3548] rounded-2xl">
               <Button
                 variant="default"
                 size="sm"
@@ -1294,7 +1294,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 transition={{ duration: 0.5, delay: index * 0.05 }}
                 whileHover={{ y: -8 }}
               >
-                {/* Edit buttons (only visible to admins in edit mode) - ALWAYS VISIBLE FOR NOW */}
+                {/* Edit buttons (only visible to admins in edit mode) */}
                 {isAdmin && isEditMode && (
                   <div className="absolute top-2 left-2 z-50 flex gap-2 flex-wrap">
                     <Button
@@ -1532,7 +1532,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                             }}
                           >
                             {item.featuredOnHome ? '✓' : ''} Home
-                          </Button>
+              </Button>
                           <Button
                             size="sm"
                             variant={item.showOnNose ? "default" : "outline"}
