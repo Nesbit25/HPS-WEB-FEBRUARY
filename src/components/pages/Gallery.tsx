@@ -414,6 +414,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
           galleryItems.forEach(item => {
             const dbCase = dbCases.find(c => c.slug === item.slug);
             if (dbCase) {
+              // Use the DB's real sequential ID so PATCH /toggle hits the right KV key.
+              // Without this, item.id is a stringToId() hash that never matches gallery_case_<seq>.
+              if (dbCase.id) item.id = dbCase.id;
               item.category = dbCase.category || item.category || 'Face';
               item.procedure = dbCase.procedure || item.procedure;
               item.journeyNote = dbCase.journeyNote || item.journeyNote;
@@ -947,6 +950,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
       console.log('[Gallery Toggle] Server response:', data);
       
       if (data.success) {
+        // Bust localStorage cache so the flag change is visible immediately on
+        // this page AND on Home / procedure pages (they all share the same cache key).
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
         loadGalleryImages();
       } else {
         alert(`Failed to toggle flag: ${data.error || 'Unknown error'}`);
