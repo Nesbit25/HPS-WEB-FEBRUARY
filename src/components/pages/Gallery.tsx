@@ -69,6 +69,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const [diagnoseOpen, setDiagnoseOpen] = useState(false);
   const [diagnoseData, setDiagnoseData] = useState<any>(null);
   const [diagnosing, setDiagnosing] = useState(false);
+  // Kept for onLoad handler compatibility — card display uses fixed aspect-[3/4] instead
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<number, string>>({});
+
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
   
@@ -1058,7 +1061,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         <div className="container mx-auto px-6">
           {/* Debug button for admins */}
           {isAdmin && isEditMode && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-wrap justify-center gap-2 bg-[#1a1f2e]/95 backdrop-blur-sm border border-[#2d3548] rounded-2xl px-4 py-3 shadow-2xl">
+            <div className="hidden">
               <Button
                 variant="default"
                 size="sm"
@@ -1272,7 +1275,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   className="border-[#2d3548] bg-[#242938]/50 backdrop-blur rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 cursor-pointer group"
                   onClick={() => handleOpenLightbox(index)}
                 >
-                  <div className="aspect-square bg-gradient-to-br from-muted to-secondary/20 flex items-center justify-center relative overflow-hidden">
+                  <div className="aspect-[3/4] w-full bg-[#1a1f2e] flex items-center justify-center relative overflow-hidden">
                     {/* Gold accent corner */}
                     <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
                       <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
@@ -1312,8 +1315,21 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               alt="Before" 
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
+<<<<<<< Updated upstream
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                               style={{ opacity: state.type === 'after' ? 0 : 1 }}
+=======
+                              className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
+                              style={{ opacity: state.type === 'after' ? 0 : 1 }}
+                              onLoad={(e) => {
+                                if (imageAspectRatios[item.id]) return;
+                                const img = e.currentTarget;
+                                const r = img.naturalWidth / img.naturalHeight;
+                                // Exact pixel ratio — container matches image perfectly, zero cropping
+                                const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
+                                setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
+                              }}
+>>>>>>> Stashed changes
                               onError={(e) => {
                                 console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
                                 (e.target as HTMLImageElement).style.display = 'none';
@@ -1327,8 +1343,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               alt="After" 
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
+<<<<<<< Updated upstream
                               className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                               style={{ opacity: state.type === 'after' ? 1 : 0 }}
+=======
+                              className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
+                              style={{ opacity: state.type === 'after' ? 1 : 0 }}
+                              onLoad={(e) => {
+                                if (imageAspectRatios[item.id]) return;
+                                const img = e.currentTarget;
+                                const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
+                                setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
+                              }}
+>>>>>>> Stashed changes
                               onError={(e) => {
                                 console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
                                 (e.target as HTMLImageElement).style.display = 'none';

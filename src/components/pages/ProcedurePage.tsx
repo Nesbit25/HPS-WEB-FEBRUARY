@@ -63,6 +63,10 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
     loadFeaturedGallery();
   }, [procedureType]);
 
+<<<<<<< Updated upstream
+=======
+  // ─── Gallery constants (mirrors Gallery.tsx) ───────────────────────────────
+>>>>>>> Stashed changes
   const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
   const CACHE_DURATION = 30 * 60 * 1000;
 
@@ -78,6 +82,7 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
   const loadFeaturedGallery = async () => {
     try {
       console.log(`[${procedureType}] Loading featured gallery for flag: ${featureFlag}`);
+<<<<<<< Updated upstream
       const cacheKey = 'gallery_items_cache';
       const tsKey = 'gallery_items_cache_timestamp';
       const cached = localStorage.getItem(cacheKey);
@@ -91,6 +96,25 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         return;
       }
 
+=======
+
+      // 1. Try shared localStorage cache (populated by Gallery page)
+      const cacheKey = 'gallery_items_cache';
+      const tsKey = 'gallery_items_cache_timestamp';
+      const cached = localStorage.getItem(cacheKey);
+      const ts = localStorage.getItem(tsKey);
+
+      if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
+        const all: GalleryItem[] = JSON.parse(cached);
+        const featured = all.filter((c: any) => c[featureFlag]);
+        console.log(`[${procedureType}] Loaded ${featured.length} items from cache (flag: ${featureFlag})`);
+        setFeaturedGallery(featured);
+        return;
+      }
+
+      // 2. No valid cache — fetch from GitHub + DB in parallel
+      console.log(`[${procedureType}] No cache — fetching from GitHub + DB...`);
+>>>>>>> Stashed changes
       const [filesRes, casesRes] = await Promise.all([
         fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`),
         fetch(`${serverUrl}/gallery/cases`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } })
@@ -104,6 +128,10 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
       if (filesData.files?.length) {
         const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
         const casesMap = new Map<string, any>();
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
         filesData.files
           .filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name))
           .forEach((f: any) => {
@@ -124,6 +152,10 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
             if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
           });
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
         allItems = Array.from(casesMap.values()).map(item => {
           const db = dbCases.find((c: any) => c.slug === item.slug);
           if (!db) return item;
@@ -140,6 +172,10 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
           };
         });
       } else {
+<<<<<<< Updated upstream
+=======
+        // GitHub unavailable — DB-only fallback
+>>>>>>> Stashed changes
         allItems = dbCases.map((c: any) => ({
           ...c,
           beforeImage: normalizeImageUrl(c.beforeImage),
@@ -147,8 +183,15 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         }));
       }
 
+<<<<<<< Updated upstream
       localStorage.setItem(cacheKey, JSON.stringify(allItems));
       localStorage.setItem(tsKey, Date.now().toString());
+=======
+      // Cache for other pages to reuse
+      localStorage.setItem(cacheKey, JSON.stringify(allItems));
+      localStorage.setItem(tsKey, Date.now().toString());
+
+>>>>>>> Stashed changes
       const featured = allItems.filter((c: any) => c[featureFlag]);
       console.log(`[${procedureType}] Loaded ${featured.length} items from GitHub (flag: ${featureFlag})`);
       setFeaturedGallery(featured);
