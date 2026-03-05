@@ -13,6 +13,7 @@ import { ChevronDown } from 'lucide-react';
 import { ImagePositionPicker } from '../cms/ImagePositionPicker';
 import { HeroImageUploader } from '../cms/HeroImageUploader';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import drHanemannPhoto from '/images/dr-hanemann.png';
 
 interface GalleryItem {
   id: number;
@@ -228,63 +229,104 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     loadFeaturedGallery();
   }, []);
 
+  // ─── Gallery constants (mirrors Gallery.tsx) ───────────────────────────────
+  const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
+  const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+  const normalizeImageUrl = (url?: string | null): string | null => {
+    if (!url) return null;
+    if (url.includes('raw.githubusercontent.com')) return url;
+    if (url.startsWith('gallery-img:')) return `${GITHUB_RAW}/gallery/${url.slice('gallery-img:'.length)}`;
+    if (url.includes('/gallery/img/')) { const m = url.match(/\/gallery\/img\/(.+)$/); if (m) return `${GITHUB_RAW}/gallery/${m[1]}`; }
+    if (url.startsWith('/gallery/')) return `${GITHUB_RAW}/${url.slice(1)}`;
+    return url;
+  };
+
   const loadFeaturedGallery = async () => {
     try {
-      const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-      });
-      const casesData = await casesResponse.json();
-      const customCases = casesData.cases || [];
-      
-      // Create a map of database cases by ID for easy lookup
-      const dbCasesMap = new Map();
-      customCases.forEach(caseData => {
-        if (caseData.id) {
-          dbCasesMap.set(caseData.id, caseData);
-        }
-      });
-      
-      // Merge base items with their database flags (if they exist)
-      const mergedBaseItems = baseGalleryItems.map(baseItem => {
-        const dbCase = dbCasesMap.get(baseItem.id);
-        if (dbCase) {
-          // Merge base item with database flags
+      // 1. Try shared localStorage cache (populated by Gallery page)
+      const cacheKey = 'gallery_items_cache';
+      const tsKey = 'gallery_items_cache_timestamp';
+      const cached = localStorage.getItem(cacheKey);
+      const ts = localStorage.getItem(tsKey);
+
+      if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
+        const all: GalleryItem[] = JSON.parse(cached);
+        const featured = all.filter((c: any) => c.featuredOnHome);
+        console.log('[Home] Loaded', featured.length, 'featured items from cache');
+        setFeaturedGallery(featured);
+        return;
+      }
+
+      // 2. No valid cache — fetch from GitHub + DB in parallel
+      console.log('[Home] No cache — fetching from GitHub + DB...');
+      const [filesRes, casesRes] = await Promise.all([
+        fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`),
+        fetch(`${serverUrl}/gallery/cases`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } })
+      ]);
+      const filesData = await filesRes.json();
+      const casesData = await casesRes.json();
+      const dbCases: any[] = casesData.cases || [];
+
+      let allItems: GalleryItem[];
+
+      if (filesData.files?.length) {
+        // Parse GitHub filenames into cases (same logic as Gallery.tsx)
+        const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+        const casesMap = new Map<string, any>();
+
+        filesData.files
+          .filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name))
+          .forEach((f: any) => {
+            const m = f.name.match(filenameRegex);
+            if (!m) return;
+            const [, slug, , idxStr] = m;
+            const type = parseInt(idxStr) % 2 !== 0 ? 'before' : 'after';
+            const repoPath = f.path || `gallery/${f.name}`;
+            const imageUrl = `${GITHUB_RAW}/${repoPath}`;
+            if (!casesMap.has(slug)) {
+              casesMap.set(slug, {
+                slug, id: slug,
+                title: slug.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                category: f.category || 'Face', procedure: '', journeyNote: '',
+              });
+            }
+            const c = casesMap.get(slug);
+            if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
+            if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
+          });
+
+        allItems = Array.from(casesMap.values()).map(item => {
+          const db = dbCases.find((c: any) => c.slug === item.slug);
+          if (!db) return item;
           return {
-            ...baseItem,
-            featuredOnHome: dbCase.featuredOnHome || false
+            ...item,
+            category: db.category || item.category,
+            procedure: db.procedure || item.category,
+            journeyNote: db.journeyNote || '',
+            featuredOnHome: db.featuredOnHome || false,
+            showOnNose: db.showOnNose || false,
+            showOnFace: db.showOnFace || false,
+            showOnBreast: db.showOnBreast || false,
+            showOnBody: db.showOnBody || false,
           };
-        }
-        return baseItem;
-      });
-      
-      // Get only custom cases (IDs >= 1000) that aren't base items
-      const customOnlyCases = customCases.filter(c => c.id >= 1000);
-      
-      // Merge base items (with flags) and custom cases
-      const allItems = [...mergedBaseItems, ...customOnlyCases];
-      
-      // Filter for featured on home page
-      const featuredCases = allItems.filter((c: any) => c.featuredOnHome);
-      
-      const updatedItems = await Promise.all(
-        featuredCases.map(async (item: any) => {
-          const beforeResponse = await fetch(`${serverUrl}/content/gallery_${item.id}_before`, {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-          });
-          const beforeData = await beforeResponse.json();
-          const beforeImage = beforeData.content?.value;
+        });
+      } else {
+        // GitHub unavailable — fall back to DB-only
+        allItems = dbCases.map((c: any) => ({
+          ...c,
+          beforeImage: normalizeImageUrl(c.beforeImage),
+          afterImage: normalizeImageUrl(c.afterImage),
+        }));
+      }
 
-          const afterResponse = await fetch(`${serverUrl}/content/gallery_${item.id}_after`, {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-          });
-          const afterData = await afterResponse.json();
-          const afterImage = afterData.content?.value;
+      // Cache results for other pages to reuse
+      localStorage.setItem(cacheKey, JSON.stringify(allItems));
+      localStorage.setItem(tsKey, Date.now().toString());
 
-          return { ...item, beforeImage, afterImage };
-        })
-      );
-      
-      setFeaturedGallery(updatedItems);
+      const featured = allItems.filter((c: any) => c.featuredOnHome);
+      console.log('[Home] Loaded', featured.length, 'featured items from GitHub');
+      setFeaturedGallery(featured);
     } catch (error) {
       console.error('[Home] Error loading featured gallery:', error);
       setFeaturedGallery([]);
@@ -386,7 +428,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             {/* Mobile images - portrait optimized - STATIC FROM PUBLIC FOLDER */}
             <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400">
               <img
-                src="/images/hero/mobile/hero-slide-1.jpg"
+                src="/images/hero/mobile/hero-slide-1.png"
                 alt="Hanemann Plastic Surgery Hero Mobile"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
@@ -409,10 +451,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 {/* Hero Content */}
                 <div>
                   <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
-                    <EditableText contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
+                    <EditableText as="span" contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
                   </h2>
                   <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
+                    <EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
                   </h1>
                   <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
                     <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
@@ -741,17 +783,18 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="relative">
             <div className="absolute -top-4 -left-4 w-24 h-24 border-t-4 border-l-4 border-secondary"></div>
-            <ImageWithFallback 
-              src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkb2N0b3J8ZW58MXx8fHwxNzYzNTE0NTg5fDA&ixlib=rb-4.1.0&q=80&w=1080" 
-              alt="Dr. Hanemann" 
+            <img
+              src="/images/about/dr-hanemann-reading.png"
+              alt="Dr. Hanemann"
               className="rounded-lg shadow-2xl relative z-10 w-full h-auto"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
             <div className="absolute -bottom-4 -right-4 w-24 h-24 border-b-4 border-r-4 border-secondary z-0"></div>
           </div>
           <div>
             <h4 className="text-secondary font-bold uppercase tracking-widest mb-2">The Surgeon</h4>
             <h2 className="font-serif text-4xl lg:text-5xl text-primary mb-6">
-              <EditableText contentKey="intro_heading" defaultValue="Meet Dr. Hanemann" />
+              <EditableText as="span" contentKey="intro_heading" defaultValue="Meet Dr. Hanemann" />
             </h2>
             <div className="text-gray-600 font-light leading-relaxed mb-8">
               <EditableText 
@@ -794,10 +837,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="flex justify-between items-end mb-12">
             <div>
               <h2 className="font-serif text-4xl mb-2">
-                <EditableText contentKey="home_gallery_heading" defaultValue="Real Results" />
+                <EditableText as="span" contentKey="home_gallery_heading" defaultValue="Real Results" />
               </h2>
               <p className="text-gray-400">
-                <EditableText contentKey="home_gallery_description" defaultValue="Browse our extensive gallery of patient transformations." />
+                <EditableText as="span" contentKey="home_gallery_description" defaultValue="Browse our extensive gallery of patient transformations." />
               </p>
             </div>
             <button 
@@ -888,6 +931,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <Star className="w-8 h-8 text-secondary mx-auto mb-6 fill-current" />
           <h2 className="font-serif text-3xl md:text-5xl text-primary mb-12 leading-tight">
             <EditableText 
+              as="span"
               contentKey="testimonial_hero" 
               defaultValue="Dr. Hanemann changed my life. The results are so natural, no one knows I had surgery, they just tell me I look great." 
               multiline
