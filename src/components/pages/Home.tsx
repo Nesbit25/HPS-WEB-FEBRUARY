@@ -229,63 +229,104 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     loadFeaturedGallery();
   }, []);
 
+  // ─── Gallery constants (mirrors Gallery.tsx) ───────────────────────────────
+  const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
+  const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+  const normalizeImageUrl = (url?: string | null): string | null => {
+    if (!url) return null;
+    if (url.includes('raw.githubusercontent.com')) return url;
+    if (url.startsWith('gallery-img:')) return `${GITHUB_RAW}/gallery/${url.slice('gallery-img:'.length)}`;
+    if (url.includes('/gallery/img/')) { const m = url.match(/\/gallery\/img\/(.+)$/); if (m) return `${GITHUB_RAW}/gallery/${m[1]}`; }
+    if (url.startsWith('/gallery/')) return `${GITHUB_RAW}/${url.slice(1)}`;
+    return url;
+  };
+
   const loadFeaturedGallery = async () => {
     try {
-      const casesResponse = await fetch(`${serverUrl}/gallery/cases`, {
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-      });
-      const casesData = await casesResponse.json();
-      const customCases = casesData.cases || [];
-      
-      // Create a map of database cases by ID for easy lookup
-      const dbCasesMap = new Map();
-      customCases.forEach(caseData => {
-        if (caseData.id) {
-          dbCasesMap.set(caseData.id, caseData);
-        }
-      });
-      
-      // Merge base items with their database flags (if they exist)
-      const mergedBaseItems = baseGalleryItems.map(baseItem => {
-        const dbCase = dbCasesMap.get(baseItem.id);
-        if (dbCase) {
-          // Merge base item with database flags
+      // 1. Try shared localStorage cache (populated by Gallery page)
+      const cacheKey = 'gallery_items_cache';
+      const tsKey = 'gallery_items_cache_timestamp';
+      const cached = localStorage.getItem(cacheKey);
+      const ts = localStorage.getItem(tsKey);
+
+      if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
+        const all: GalleryItem[] = JSON.parse(cached);
+        const featured = all.filter((c: any) => c.featuredOnHome);
+        console.log('[Home] Loaded', featured.length, 'featured items from cache');
+        setFeaturedGallery(featured);
+        return;
+      }
+
+      // 2. No valid cache — fetch from GitHub + DB in parallel
+      console.log('[Home] No cache — fetching from GitHub + DB...');
+      const [filesRes, casesRes] = await Promise.all([
+        fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`),
+        fetch(`${serverUrl}/gallery/cases`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } })
+      ]);
+      const filesData = await filesRes.json();
+      const casesData = await casesRes.json();
+      const dbCases: any[] = casesData.cases || [];
+
+      let allItems: GalleryItem[];
+
+      if (filesData.files?.length) {
+        // Parse GitHub filenames into cases (same logic as Gallery.tsx)
+        const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+        const casesMap = new Map<string, any>();
+
+        filesData.files
+          .filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name))
+          .forEach((f: any) => {
+            const m = f.name.match(filenameRegex);
+            if (!m) return;
+            const [, slug, , idxStr] = m;
+            const type = parseInt(idxStr) % 2 !== 0 ? 'before' : 'after';
+            const repoPath = f.path || `gallery/${f.name}`;
+            const imageUrl = `${GITHUB_RAW}/${repoPath}`;
+            if (!casesMap.has(slug)) {
+              casesMap.set(slug, {
+                slug, id: slug,
+                title: slug.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                category: f.category || 'Face', procedure: '', journeyNote: '',
+              });
+            }
+            const c = casesMap.get(slug);
+            if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
+            if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
+          });
+
+        allItems = Array.from(casesMap.values()).map(item => {
+          const db = dbCases.find((c: any) => c.slug === item.slug);
+          if (!db) return item;
           return {
-            ...baseItem,
-            featuredOnHome: dbCase.featuredOnHome || false
+            ...item,
+            category: db.category || item.category,
+            procedure: db.procedure || item.category,
+            journeyNote: db.journeyNote || '',
+            featuredOnHome: db.featuredOnHome || false,
+            showOnNose: db.showOnNose || false,
+            showOnFace: db.showOnFace || false,
+            showOnBreast: db.showOnBreast || false,
+            showOnBody: db.showOnBody || false,
           };
-        }
-        return baseItem;
-      });
-      
-      // Get only custom cases (IDs >= 1000) that aren't base items
-      const customOnlyCases = customCases.filter(c => c.id >= 1000);
-      
-      // Merge base items (with flags) and custom cases
-      const allItems = [...mergedBaseItems, ...customOnlyCases];
-      
-      // Filter for featured on home page
-      const featuredCases = allItems.filter((c: any) => c.featuredOnHome);
-      
-      const updatedItems = await Promise.all(
-        featuredCases.map(async (item: any) => {
-          const beforeResponse = await fetch(`${serverUrl}/content/gallery_${item.id}_before`, {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-          });
-          const beforeData = await beforeResponse.json();
-          const beforeImage = beforeData.content?.value;
+        });
+      } else {
+        // GitHub unavailable — fall back to DB-only
+        allItems = dbCases.map((c: any) => ({
+          ...c,
+          beforeImage: normalizeImageUrl(c.beforeImage),
+          afterImage: normalizeImageUrl(c.afterImage),
+        }));
+      }
 
-          const afterResponse = await fetch(`${serverUrl}/content/gallery_${item.id}_after`, {
-            headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-          });
-          const afterData = await afterResponse.json();
-          const afterImage = afterData.content?.value;
+      // Cache results for other pages to reuse
+      localStorage.setItem(cacheKey, JSON.stringify(allItems));
+      localStorage.setItem(tsKey, Date.now().toString());
 
-          return { ...item, beforeImage, afterImage };
-        })
-      );
-      
-      setFeaturedGallery(updatedItems);
+      const featured = allItems.filter((c: any) => c.featuredOnHome);
+      console.log('[Home] Loaded', featured.length, 'featured items from GitHub');
+      setFeaturedGallery(featured);
     } catch (error) {
       console.error('[Home] Error loading featured gallery:', error);
       setFeaturedGallery([]);
