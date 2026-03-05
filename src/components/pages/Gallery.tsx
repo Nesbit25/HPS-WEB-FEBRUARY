@@ -1315,10 +1315,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               alt="Before" 
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
-<<<<<<< Updated upstream
-                              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                              style={{ opacity: state.type === 'after' ? 0 : 1 }}
-=======
                               className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
                               style={{ opacity: state.type === 'after' ? 0 : 1 }}
                               onLoad={(e) => {
@@ -1329,7 +1325,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
                                 const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
                                 setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
                               }}
->>>>>>> Stashed changes
                               onError={(e) => {
                                 console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
                                 (e.target as HTMLImageElement).style.display = 'none';
@@ -1343,10 +1338,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
                               alt="After" 
                               loading={isPriority ? 'eager' : 'lazy'}
                               fetchpriority={isPriority ? 'high' : 'auto'}
-<<<<<<< Updated upstream
-                              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                              style={{ opacity: state.type === 'after' ? 1 : 0 }}
-=======
                               className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
                               style={{ opacity: state.type === 'after' ? 1 : 0 }}
                               onLoad={(e) => {
@@ -1355,7 +1346,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
                                 const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
                                 setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
                               }}
->>>>>>> Stashed changes
                               onError={(e) => {
                                 console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
                                 (e.target as HTMLImageElement).style.display = 'none';
