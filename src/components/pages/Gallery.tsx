@@ -434,12 +434,37 @@ export function Gallery({ onNavigate }: GalleryProps) {
         console.warn('[Gallery] Could not fetch case metadata from database:', error);
       }
       
-      // 6. Cache the results
-      localStorage.setItem('gallery_items_cache', JSON.stringify(galleryItems));
+      // 6. Deduplicate by slug (belt-and-suspenders: casesMap already deduplicates,
+      //    but a second pass guards against edge-case double-entries and ensures
+      //    React key={item.id} never collides across hash and sequential IDs).
+      const seenSlugs = new Set<string>();
+      const seenIds = new Set<number>();
+      const dedupedItems = galleryItems.filter(item => {
+        if (!item.slug) {
+          // Orphan stubs (no slug) — keep only if id not already seen
+          if (seenIds.has(item.id)) return false;
+          seenIds.add(item.id);
+          return true;
+        }
+        if (seenSlugs.has(item.slug)) {
+          console.warn('[Gallery] Dedup: dropping duplicate slug:', item.slug);
+          return false;
+        }
+        if (seenIds.has(item.id)) {
+          console.warn('[Gallery] Dedup: id collision (hash/sequential mismatch) for slug:', item.slug, 'id:', item.id);
+          return false;
+        }
+        seenSlugs.add(item.slug);
+        seenIds.add(item.id);
+        return true;
+      });
+
+      // 7. Cache the deduplicated results
+      localStorage.setItem('gallery_items_cache', JSON.stringify(dedupedItems));
       localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
       
-      console.log('[Gallery] ✅ Setting state with', galleryItems.length, 'items');
-      setGalleryItems(galleryItems);
+      console.log('[Gallery] ✅ Setting state with', dedupedItems.length, 'items (deduped from', galleryItems.length, ')');
+      setGalleryItems(dedupedItems);
       setLoading(false);
       console.log('[Gallery] ========== END GALLERY LOAD ==========');
     } catch (error) {
@@ -452,22 +477,22 @@ export function Gallery({ onNavigate }: GalleryProps) {
 
   const filteredItems = selectedCategory === 'All' 
     ? galleryItems.filter(item => {
-        // Admins in edit mode can see all items, including those without images
-        if (isAdmin && isEditMode) {
-          return true;
-        }
+        // Always exclude orphan KV stubs — these are slug-less entries created by
+        // the old broken toggle code. They have no images and no slug and would
+        // appear as blank/phantom cards even in admin mode.
+        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
+        // Admins in edit mode can see real items even without images (e.g. new cases)
+        if (isAdmin && isEditMode) return true;
         // Public users only see items with images
         return item.beforeImage || item.afterImage;
       })
     : galleryItems.filter(item => {
+        // Exclude orphan stubs
+        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
         // Category filter
-        if (item.category !== selectedCategory) {
-          return false;
-        }
-        // Admins in edit mode can see all items, including those without images
-        if (isAdmin && isEditMode) {
-          return true;
-        }
+        if (item.category !== selectedCategory) return false;
+        // Admins in edit mode can see real items even without images
+        if (isAdmin && isEditMode) return true;
         // Public users only see items with images
         return item.beforeImage || item.afterImage;
       });
@@ -1012,6 +1037,45 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
+  const handleCleanupOrphans = async () => {
+    if (!confirm(
+      '🧹 CLEANUP ORPHAN ENTRIES\n\n' +
+      'This will scan the database and remove:\n' +
+      '  • Stub entries with no slug (created by old toggle bug)\n' +
+      '  • Duplicate slug entries (keeps first, removes extras)\n\n' +
+      'Real gallery cases and their photos are NOT affected.\n\n' +
+      'Continue?'
+    )) return;
+
+    try {
+      const response = await fetch(`${serverUrl}/gallery/cleanup-orphans`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Cleanup failed');
+      }
+
+      const data = await response.json();
+      alert(
+        `✅ Cleanup Complete!\n\n` +
+        `🗑  Orphan stubs removed: ${data.orphansRemoved}\n` +
+        `🗑  Duplicate slugs removed: ${data.duplicatesRemoved}\n` +
+        `📦  Total entries removed: ${data.totalRemoved}\n\n` +
+        (data.totalRemoved === 0 ? 'No issues found — your database is clean!' : 'Gallery refreshed.')
+      );
+
+      localStorage.removeItem('gallery_items_cache');
+      localStorage.removeItem('gallery_items_cache_timestamp');
+      loadGalleryImages();
+    } catch (error) {
+      console.error('[Cleanup Orphans] Error:', error);
+      alert(`Error during cleanup: ${error.message}`);
+    }
+  };
+
   const handleClearAllCases = async () => {
     if (!confirm('⚠️ WARNING: This will DELETE ALL gallery cases and images from the database.\n\nThis action cannot be undone.\n\nAre you absolutely sure you want to clear all cases?')) {
       return;
@@ -1068,7 +1132,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         <div className="container mx-auto px-6">
           {/* Debug button for admins */}
           {isAdmin && isEditMode && (
-            <div className="hidden">
+            <div className="flex flex-wrap gap-2 mb-6">
               <Button
                 variant="default"
                 size="sm"
@@ -1093,6 +1157,14 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 className="rounded-full bg-red-700 text-white hover:bg-red-800 shadow-lg font-bold"
               >
                 🔥 Rebuild All Cases
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCleanupOrphans}
+                className="rounded-full border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white"
+              >
+                🧹 Clean Orphans
               </Button>
               <Button
                 variant="outline"
@@ -1261,20 +1333,20 @@ export function Gallery({ onNavigate }: GalleryProps) {
                       <ImageIcon className="w-3 h-3 mr-1" />
                       Add Views
                     </Button>
-                    {/* Only show delete for custom cases (those with createdBy field) */}
-                    {item.createdBy && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="rounded-full shadow-2xl border-2 border-white"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                    {/* Delete button — available for ALL cases in admin mode */}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="rounded-full shadow-2xl border-2 border-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Delete case "${item.title || item.slug}"?\n\nThis removes it from the database. Photos in GitHub are not affected.`)) {
                           handleDeleteCase(item.id);
-                        }}
-                      >
-                        🗑️
-                      </Button>
-                    )}
+                        }
+                      }}
+                    >
+                      🗑️
+                    </Button>
                   </div>
                 )}
 
