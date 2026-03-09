@@ -30,7 +30,7 @@ interface GalleryOrientation {
 
 interface GalleryItem {
   id: number;
-  slug?: string; // Case slug from filename (e.g., "pt_1_rhino")
+  slug?: string; // Case slug from filename (e.g., "BREAST_AUGMENTATION_Patient01")
   category: string;
   title: string;
   procedure: string;
@@ -297,8 +297,8 @@ export function Gallery({ onNavigate }: GalleryProps) {
       console.log('[Gallery] Filtered to', imageFiles.length, 'image files');
       
       // 3. Parse filenames and build gallery structure
-      // Regex: ^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$
-      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+      // New format: {PROCEDURE_PREFIX}_Patient{NN}_{Before|After}{N}.{ext}
+      const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
       
       const casesMap = new Map();
       
@@ -310,35 +310,27 @@ export function Gallery({ onNavigate }: GalleryProps) {
           return;
         }
         
-        const [, caseSlug, pageStr, indexStr, extension] = match;
-        const page = parseInt(pageStr);
-        const index = parseInt(indexStr);
+        const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = match;
+        const caseSlug = `${procedurePrefix}_Patient${patientNum}`;
+        const viewNum  = parseInt(viewNumStr);
+        const type     = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
+        const position = viewNum; // view number is the orientation position
         
-        // Calculate position: Math.ceil(index / 2)
-        const position = Math.ceil(index / 2);
-        
-        // Determine type: odd = before, even = after
-        const type = (index % 2 !== 0) ? 'before' : 'after';
-        
-        const galleryRelPath = (file as any).path
-          ? (file as any).path.replace(/^(?:public\/)?gallery\//, '')
-          : file.name;
         const repoPath = (file as any).path || `gallery/${file.name}`;
-        // Repo is now public — build raw.githubusercontent.com URLs directly.
-        // No proxy, no Supabase involved. Browser fetches straight from GitHub CDN.
+        // Public repo — build raw.githubusercontent.com URLs directly
         const imageUrl = `https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main/${repoPath}`;
         
-        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
+        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, view=${position}, type=${type}`);
         
         // Get or create case
         if (!casesMap.has(caseSlug)) {
-          // Generate readable title from slug
-          const title = caseSlug
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+          const procTitle = procedurePrefix
+            .replace(/_/g, ' ')
+            .toLowerCase()
+            .replace(/\b\w/g, (c: string) => c.toUpperCase());
+          const title = `${procTitle} — Patient ${patientNum}`;
           
-          // Category comes from the directory structure (Face|Breast|Body) — not a default guess
+          // Category comes from the directory structure (Face|Breast|Body|Nose)
           const category = (file as any).category || 'Face';
 
           casesMap.set(caseSlug, {
@@ -354,11 +346,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
         
         const caseData = casesMap.get(caseSlug);
         
-        // Find or create orientation for this position
-        let orientation = caseData.orientations.find(o => o.name === position.toString());
+        // Find or create orientation for this view position
+        let orientation = caseData.orientations.find(o => o.name === `View ${position}`);
         if (!orientation) {
           orientation = {
-            name: position.toString(),
+            name: `View ${position}`,
             beforeImage: null,
             afterImage: null
           };
@@ -375,8 +367,12 @@ export function Gallery({ onNavigate }: GalleryProps) {
       
       // 4. Convert map to array and sort orientations
       const galleryItems = Array.from(casesMap.values()).map(caseData => {
-        // Sort orientations by position number
-        caseData.orientations.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+        // Sort orientations by view number (names are "View 1", "View 2", etc.)
+        caseData.orientations.sort((a, b) => {
+          const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+          const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+          return numA - numB;
+        });
         
         // Set base before/after images from first orientation
         const firstOrientation = caseData.orientations[0] || {};
@@ -676,7 +672,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         localStorage.removeItem('gallery_items_cache_timestamp');
         loadGalleryImages();
       } else {
-        alert(`Failed to fix case ID: ${data.message}`);
+        alert(`❌ Failed: ${data.error || data.message}`);
       }
     } catch (error) {
       alert(`Error fixing case ID: ${error.message}`);
@@ -979,9 +975,15 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // this page AND on Home / procedure pages (they all share the same cache key).
         localStorage.removeItem('gallery_items_cache');
         localStorage.removeItem('gallery_items_cache_timestamp');
-        loadGalleryImages();
+        
+        // Immediately update local state so admin sees feedback without full reload
+        setGalleryItems(prevItems =>
+          prevItems.map(item =>
+            item.id === id ? { ...item, [flagName]: !currentValue } : item
+          )
+        );
       } else {
-        alert(`Failed to toggle flag: ${data.error || 'Unknown error'}`);
+        alert(`Failed to update: ${data.message || data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('[Gallery Toggle] Error:', error);
@@ -1130,9 +1132,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
       {/* Gallery Filters */}
       <section className="pt-48 pb-16 bg-[#1a1f2e] border-b border-[#2d3548]">
         <div className="container mx-auto px-6">
-          {/* Admin toolbar — only visible to admins in edit mode */}
+          {/* Debug button for admins */}
           {isAdmin && isEditMode && (
-            <div className="flex flex-wrap gap-2 mb-6 p-4 bg-[#242938]/80 border border-[#2d3548] rounded-2xl">
+            <div className="flex flex-wrap gap-2 mb-6">
               <Button
                 variant="default"
                 size="sm"
@@ -1294,7 +1296,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                 transition={{ duration: 0.5, delay: index * 0.05 }}
                 whileHover={{ y: -8 }}
               >
-                {/* Edit buttons (only visible to admins in edit mode) */}
+                {/* Edit buttons (only visible to admins in edit mode) - ALWAYS VISIBLE FOR NOW */}
                 {isAdmin && isEditMode && (
                   <div className="absolute top-2 left-2 z-50 flex gap-2 flex-wrap">
                     <Button
@@ -1532,7 +1534,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                             }}
                           >
                             {item.featuredOnHome ? '✓' : ''} Home
-              </Button>
+                          </Button>
                           <Button
                             size="sm"
                             variant={item.showOnNose ? "default" : "outline"}
@@ -1795,7 +1797,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   </div>
                   {diagnoseData.notMatchingStdPattern > 0 && (
                     <div>
-                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'{{slug}}_p{{n}}_img{{n}}.ext'}</code>:</p>
+                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'PROC_Patient01_Before1.jpg'}</code>:</p>
                       {(diagnoseData.sampleNonMatching || []).map((f, i) => (
                         <div key={i} className="text-red-300 pl-2">{f}</div>
                       ))}
