@@ -1257,8 +1257,8 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
 
     // Extract unique case slugs from filenames
-    // Expected format: {case_slug}_p{page}_img{index}.{ext}
-    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    // New format: {PROCEDURE_PREFIX}_Patient{NN}_{Before|After}{N}.{ext}
+    const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
     const caseSlugs      = new Set<string>();
     const caseOrientations = new Map<string, number>();  // slug → image count
     const caseFiles        = new Map<string, string[]>(); // slug → full repo paths
@@ -1267,7 +1267,8 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
     imageFiles.forEach(file => {
       const match = file.name.match(filenameRegex);
       if (match) {
-        const caseSlug = match[1];
+        const [, procedurePrefix, patientNum] = match;
+        const caseSlug = `${procedurePrefix}_Patient${patientNum}`;
         caseSlugs.add(caseSlug);
 
         // Category is authoritative from the directory path
@@ -1324,8 +1325,8 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
         const existingEntry = existingCases.find(item => item.value.slug === caseSlug);
         if (existingEntry && !existingEntry.value.beforeImage) {
           const slugFileList = (caseFiles.get(caseSlug) || []).sort();
-          const beforeFile = slugFileList.find(f => f.match(/_p\d+_img1\.(png|jpg|jpeg)$/));
-          const afterFile  = slugFileList.find(f => f.match(/_p\d+_img2\.(png|jpg|jpeg)$/));
+          const beforeFile = slugFileList.find(f => f.match(/_Patient\d+_Before1\.(jpg|jpeg|png)$/i));
+          const afterFile  = slugFileList.find(f => f.match(/_Patient\d+_After1\.(jpg|jpeg|png)$/i));
           if (beforeFile || afterFile) {
             const updated = {
               ...existingEntry.value,
@@ -1346,20 +1347,26 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       try {
         // Category comes from the directory path (authoritative), not the slug
         const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
-        const parts = caseSlug.split('_');
-        const title = `Patient ${parts[1] || 'Case'}`;
+        const [procPrefix] = caseSlug.split('_Patient');
+        const procTitle = procPrefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
+        const patientPart = caseSlug.split('_Patient')[1] || 'Unknown';
+        const title = `${procTitle} — Patient ${patientPart}`;
 
-        // Calculate number of orientations (2 images per orientation)
-        const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.ceil(imageCount / 2);
+        // Find max view number from filenames to build orientations
         const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+        const viewNums = new Set<number>();
+        slugFileList.forEach(f => {
+          const vm = f.match(/_Patient\d+_(Before|After)(\d+)\.(jpg|jpeg|png)$/i);
+          if (vm) viewNums.add(parseInt(vm[2]));
+        });
+        const maxView = viewNums.size > 0 ? Math.max(...viewNums) : 0;
         const orientations = [];
-        for (let i = 1; i <= orientationCount; i++) {
-          // Find actual files for this orientation position
-          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
-          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+        for (let i = 1; i <= maxView; i++) {
+          // Find actual files for this view position
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_Patient\\d+_Before${i}\\.(jpg|jpeg|png)$`, 'i')));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_Patient\\d+_After${i}\\.(jpg|jpeg|png)$`, 'i')));
           orientations.push({
-            name: `Position ${i}`,
+            name: `View ${i}`,
             beforeImage: beforeFile ? rawUrl(beforeFile) : null,
             afterImage:  afterFile  ? rawUrl(afterFile)  : null
           });
@@ -1488,7 +1495,8 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
     console.log(`[Auto-Sync] Found ${imageFiles.length} image files across all categories`);
 
     // Build slug → {category, files} map
-    const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    // New format: {PROCEDURE_PREFIX}_Patient{NN}_{Before|After}{N}.{ext}
+    const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
     const caseSlugs      = new Set<string>();
     const caseCategories = new Map<string, string>();
     const caseOrientations = new Map<string, number>();
@@ -1497,7 +1505,8 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
     imageFiles.forEach((file: any) => {
       const match = file.name.match(filenameRegex);
       if (!match) return;
-      const caseSlug = match[1];
+      const [, procedurePrefix, patientNum] = match;
+      const caseSlug = `${procedurePrefix}_Patient${patientNum}`;
       caseSlugs.add(caseSlug);
       if (!caseCategories.has(caseSlug)) caseCategories.set(caseSlug, file.category || 'Face');
       caseOrientations.set(caseSlug, (caseOrientations.get(caseSlug) || 0) + 1);
@@ -1533,19 +1542,25 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
 
       try {
         const resolvedCategory = caseCategories.get(caseSlug) || 'Face';
-        const parts = caseSlug.split('_');
-        const title = `Patient ${parts[1] || 'Case'}`;
+        const [asProcPrefix] = caseSlug.split('_Patient');
+        const asProcTitle = asProcPrefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
+        const asPatientPart = caseSlug.split('_Patient')[1] || 'Unknown';
+        const title = `${asProcTitle} — Patient ${asPatientPart}`;
 
-        const imageCount = caseOrientations.get(caseSlug) || 0;
-        const orientationCount = Math.ceil(imageCount / 2);
         const slugFileList = (caseFiles.get(caseSlug) || []).sort();
+        const asViewNums = new Set<number>();
+        slugFileList.forEach(f => {
+          const vm = f.match(/_Patient\d+_(Before|After)(\d+)\.(jpg|jpeg|png)$/i);
+          if (vm) asViewNums.add(parseInt(vm[2]));
+        });
+        const asMaxView = asViewNums.size > 0 ? Math.max(...asViewNums) : 0;
         const orientations = [];
 
-        for (let i = 1; i <= orientationCount; i++) {
-          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2) - 1}\\.(png|jpg|jpeg)$`)));
-          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_p\\d+_img${(i * 2)}\\.(png|jpg|jpeg)$`)));
+        for (let i = 1; i <= asMaxView; i++) {
+          const beforeFile = slugFileList.find(f => f.match(new RegExp(`_Patient\\d+_Before${i}\\.(jpg|jpeg|png)$`, 'i')));
+          const afterFile  = slugFileList.find(f => f.match(new RegExp(`_Patient\\d+_After${i}\\.(jpg|jpeg|png)$`, 'i')));
           orientations.push({
-            name: `Position ${i}`,
+            name: `View ${i}`,
             beforeImage: beforeFile ? rawUrl(beforeFile) : null,
             afterImage:  afterFile  ? rawUrl(afterFile)  : null
           });
@@ -1754,7 +1769,7 @@ app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
         return parts[parts.length - 1]; // filename only
       });
 
-    const stdRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+    const stdRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
     const matching    = imageFiles.filter(n => stdRegex.test(n));
     const nonMatching = imageFiles.filter(n => !stdRegex.test(n));
 
@@ -1987,6 +2002,52 @@ app.delete("/make-server-fc862019/gallery/cases/all", async (c) => {
   } catch (error) {
     console.log('[Gallery Clear All] Error:', error);
     return c.json({ error: 'Failed to clear gallery cases' }, 500);
+  }
+});
+
+// Clean up orphan KV stubs + duplicate slugs (protected admin endpoint)
+app.delete("/make-server-fc862019/gallery/cleanup-orphans", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+    if (!user || error) return c.json({ error: 'Unauthorized' }, 401);
+
+    const allCases = await kv.getByPrefix('gallery_case_');
+
+    const orphanKeys: string[]     = []; // no slug field
+    const duplicateKeys: string[]  = []; // duplicate slug (keep first seen)
+    const seenSlugs = new Map<string, string>(); // slug → first key
+
+    for (const entry of allCases) {
+      const slug = entry.value?.slug;
+      if (!slug) {
+        orphanKeys.push(entry.key);
+        continue;
+      }
+      if (seenSlugs.has(slug)) {
+        duplicateKeys.push(entry.key);
+        console.log(`[Cleanup] Duplicate slug "${slug}": keeping ${seenSlugs.get(slug)}, removing ${entry.key}`);
+      } else {
+        seenSlugs.set(slug, entry.key);
+      }
+    }
+
+    const toDelete = [...orphanKeys, ...duplicateKeys];
+    for (const key of toDelete) await kv.del(key);
+
+    clearGalleryCache();
+    console.log(`[Cleanup] Removed ${orphanKeys.length} orphans + ${duplicateKeys.length} duplicate-slug entries`);
+
+    return c.json({
+      success: true,
+      orphansRemoved: orphanKeys.length,
+      duplicatesRemoved: duplicateKeys.length,
+      totalRemoved: toDelete.length,
+      removedKeys: toDelete
+    });
+  } catch (error) {
+    console.log('[Cleanup Orphans] Error:', error);
+    return c.json({ error: `Cleanup failed: ${error.message}` }, 500);
   }
 });
 
