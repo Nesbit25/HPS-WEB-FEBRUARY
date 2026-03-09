@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -18,6 +18,58 @@ import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { getOptimizedSupabaseUrl } from '../../hooks/useImagePreload';
 
+// ─── Procedure display name maps (derived from repo folder names & filename prefixes) ───
+const PROCEDURE_FOLDER_DISPLAY: Record<string, string> = {
+  'breast-augmentation-photos':      'Breast Augmentation',
+  'breast-augmentation-lift-photos': 'Breast Aug + Lift',
+  'breast-lift-photos':              'Breast Lift',
+  'tuberous-breast-photos':          'Tuberous Breast',
+  'explant-mastopexy':               'Explant / Mastopexy',
+  'breast-reduction-photos':         'Breast Reduction',
+  'asymmetrical-breast-photos':      'Asymmetrical Breast',
+  'ftm-top-photos':                  'FTM Top Surgery',
+  'gynecomastia-photos':             'Gynecomastia',
+  'tummy-tuck-photos':               'Tummy Tuck',
+  'arm-lift-photos':                 'Arm Lift',
+  'thigh-lift-photos':               'Thigh Lift',
+  'body-contouring-photos':          'Body Contouring',
+  'liposuction-photos-2':            'Liposuction',
+  'eyelid-surgery-photos':           'Eyelid Surgery',
+  'facelift-necklift-photos':        'Facelift / Neck Lift',
+  'chin-augmentation-photos':        'Chin Augmentation',
+  'otoplasty-photos':                'Otoplasty',
+  'liposuction-photos':              'Liposuction (Face)',
+  'rhinoplasty-photos':              'Rhinoplasty',
+};
+
+const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
+  'BREAST_AUGMENTATION':   'Breast Augmentation',
+  'BREAST_AUG_LIFT':       'Breast Aug + Lift',
+  'BREAST_LIFT':           'Breast Lift',
+  'TUBEROUS_BREAST':       'Tuberous Breast',
+  'EXPLANT_MASTOPEXY':     'Explant / Mastopexy',
+  'BREAST_REDUCTION':      'Breast Reduction',
+  'ASYMMETRICAL_BREAST':   'Asymmetrical Breast',
+  'FTM_TOP':               'FTM Top Surgery',
+  'GYNECOMASTIA':          'Gynecomastia',
+  'TUMMY_TUCK':            'Tummy Tuck',
+  'ARM_LIFT':              'Arm Lift',
+  'THIGH_LIFT':            'Thigh Lift',
+  'BODY_CONTOURING':       'Body Contouring',
+  'LIPOSUCTION':           'Liposuction',
+  'EYELID_SURGERY':        'Eyelid Surgery',
+  'FACELIFT_NECKLIFT':     'Facelift / Neck Lift',
+  'CHIN_AUGMENTATION':     'Chin Augmentation',
+  'OTOPLASTY':             'Otoplasty',
+  'RHINOPLASTY':           'Rhinoplasty',
+};
+
+/** Derive a human-readable procedure name from a filename prefix (e.g. "BREAST_AUGMENTATION"). */
+const getProcedureNameFromPrefix = (prefix: string): string => {
+  const key = prefix.toUpperCase();
+  if (PROCEDURE_PREFIX_DISPLAY[key]) return PROCEDURE_PREFIX_DISPLAY[key];
+  return prefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
 interface GalleryProps {
   onNavigate: (page: string) => void;
 }
@@ -30,10 +82,11 @@ interface GalleryOrientation {
 
 interface GalleryItem {
   id: number;
-  slug?: string; // Case slug from filename (e.g., "BREAST_AUGMENTATION_Patient01")
+  slug?: string; // Case slug from filename (e.g., "pt_1_rhino")
   category: string;
   title: string;
   procedure: string;
+  procedureName?: string; // Human-readable surgery name (e.g., "Breast Augmentation")
   journeyNote: string;
   beforeImage?: string;
   afterImage?: string;
@@ -52,6 +105,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const { isEditMode } = useEditMode();
   const categories = ['All', 'Face', 'Nose', 'Breast', 'Body'];
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedProcedure, setSelectedProcedure] = useState('All');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -172,12 +226,17 @@ export function Gallery({ onNavigate }: GalleryProps) {
       console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
       
       // Convert database cases to gallery items format
-      const galleryItems = dbCases.map(dbCase => ({
+      const galleryItems = dbCases.map(dbCase => {
+        // Derive procedureName from slug prefix (e.g. BREAST_AUGMENTATION_Patient01)
+        const slugPrefix = dbCase.slug?.match(/^([A-Z_]+)_Patient/i)?.[1] || '';
+        const procedureName = getProcedureNameFromPrefix(slugPrefix) || dbCase.procedure || '';
+        return ({
         id: dbCase.id,
         slug: dbCase.slug,
         title: dbCase.title || dbCase.slug,
         category: dbCase.category || 'Face',
         procedure: dbCase.procedure || '',
+        procedureName,
         journeyNote: dbCase.journeyNote || '',
         beforeImage: normalizeImageUrl(dbCase.beforeImage),
         afterImage: normalizeImageUrl(dbCase.afterImage),
@@ -193,7 +252,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         showOnBody: dbCase.showOnBody || false,
         createdBy: dbCase.createdBy,
         createdAt: dbCase.createdAt
-      }));
+      });});
       
       console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
       console.log('[Gallery] Sample case images:', galleryItems[0]?.beforeImage, galleryItems[0]?.afterImage);
@@ -333,11 +392,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
           // Category comes from the directory structure (Face|Breast|Body|Nose)
           const category = (file as any).category || 'Face';
 
+          // Derive human-readable procedure name:
+          // Prefer the folder name returned by the server, fall back to filename prefix
+          const procedureDir = (file as any).procedureDir as string | undefined;
+          const procedureName = procedureDir
+            ? (PROCEDURE_FOLDER_DISPLAY[procedureDir] || getProcedureNameFromPrefix(procedurePrefix))
+            : getProcedureNameFromPrefix(procedurePrefix);
+
           casesMap.set(caseSlug, {
             slug: caseSlug,
             title,
             category,
             procedure: category,
+            procedureName,
             journeyNote: '',
             orientations: [],
             createdAt: new Date().toISOString()
@@ -471,27 +538,30 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
-  const filteredItems = selectedCategory === 'All' 
-    ? galleryItems.filter(item => {
-        // Always exclude orphan KV stubs — these are slug-less entries created by
-        // the old broken toggle code. They have no images and no slug and would
-        // appear as blank/phantom cards even in admin mode.
-        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-        // Admins in edit mode can see real items even without images (e.g. new cases)
-        if (isAdmin && isEditMode) return true;
-        // Public users only see items with images
-        return item.beforeImage || item.afterImage;
-      })
-    : galleryItems.filter(item => {
-        // Exclude orphan stubs
-        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-        // Category filter
-        if (item.category !== selectedCategory) return false;
-        // Admins in edit mode can see real items even without images
-        if (isAdmin && isEditMode) return true;
-        // Public users only see items with images
-        return item.beforeImage || item.afterImage;
-      });
+  const filteredItems = galleryItems.filter(item => {
+    // Always exclude orphan KV stubs (no slug AND no images)
+    if (!item.slug && !item.beforeImage && !item.afterImage) return false;
+    // Category filter
+    if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+    // Procedure filter
+    if (selectedProcedure !== 'All' && item.procedureName !== selectedProcedure) return false;
+    // Admins in edit mode can see real items even without images
+    if (isAdmin && isEditMode) return true;
+    // Public users only see items with images
+    return item.beforeImage || item.afterImage;
+  });
+
+  // Sorted list of procedures available within the current category selection
+  const availableProcedures = useMemo(() => {
+    const baseItems = selectedCategory === 'All'
+      ? galleryItems
+      : galleryItems.filter(i => i.category === selectedCategory);
+    const withImages = baseItems.filter(i =>
+      (isAdmin && isEditMode) || i.beforeImage || i.afterImage
+    );
+    const names = new Set(withImages.map(i => i.procedureName).filter(Boolean) as string[]);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [galleryItems, selectedCategory, isAdmin, isEditMode]);
 
   // Preload first 6 images for faster initial load
   useEffect(() => {
@@ -672,7 +742,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         localStorage.removeItem('gallery_items_cache_timestamp');
         loadGalleryImages();
       } else {
-        alert(`❌ Failed: ${data.error || data.message}`);
+        alert(`Error: ${data.error}`);
       }
     } catch (error) {
       alert(`Error fixing case ID: ${error.message}`);
@@ -975,15 +1045,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
         // this page AND on Home / procedure pages (they all share the same cache key).
         localStorage.removeItem('gallery_items_cache');
         localStorage.removeItem('gallery_items_cache_timestamp');
-        
-        // Immediately update local state so admin sees feedback without full reload
-        setGalleryItems(prevItems =>
-          prevItems.map(item =>
-            item.id === id ? { ...item, [flagName]: !currentValue } : item
-          )
-        );
+        loadGalleryImages();
       } else {
-        alert(`Failed to update: ${data.message || data.error || 'Unknown error'}`);
+        alert(`Failed to toggle flag: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('[Gallery Toggle] Error:', error);
@@ -1265,7 +1329,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   >
                     <TabsTrigger
                       value={category}
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => { setSelectedCategory(category); setSelectedProcedure('All'); }}
                       className="rounded-full data-[state=active]:bg-[#c9b896] data-[state=active]:text-[#1a1f2e] data-[state=active]:shadow-lg text-gray-300"
                     >
                       {category} <span className="ml-1 text-xs opacity-60">({count})</span>
@@ -1275,6 +1339,59 @@ export function Gallery({ onNavigate }: GalleryProps) {
               })}
             </TabsList>
           </Tabs>
+
+          {/* ── Procedure Filter Pills ── */}
+          {availableProcedures.length > 1 && (
+            <div className="mt-6 relative">
+              {/* Fade edges for scroll hint */}
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#1a1f2e] to-transparent z-10 pointer-events-none rounded-l-full" />
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#1a1f2e] to-transparent z-10 pointer-events-none rounded-r-full" />
+              <div className="overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex gap-2 min-w-max px-4 py-1">
+                  {/* All Procedures pill */}
+                  <button
+                    onClick={() => setSelectedProcedure('All')}
+                    className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                      selectedProcedure === 'All'
+                        ? 'bg-[#b8976a] text-[#1a1f2e] border-[#b8976a] shadow-md shadow-[#b8976a]/20'
+                        : 'bg-transparent text-gray-400 border-[#2d3548] hover:border-[#b8976a]/50 hover:text-[#c9b896]'
+                    }`}
+                  >
+                    All Procedures
+                    <span className="ml-1.5 text-xs opacity-60">
+                      ({(selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory))
+                          .filter(i => (isAdmin && isEditMode) || i.beforeImage || i.afterImage).length})
+                    </span>
+                  </button>
+
+                  {/* One pill per procedure */}
+                  {availableProcedures.map(proc => {
+                    const count = (() => {
+                      const base = selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory);
+                      return base.filter(i =>
+                        i.procedureName === proc &&
+                        ((isAdmin && isEditMode) || i.beforeImage || i.afterImage)
+                      ).length;
+                    })();
+                    return (
+                      <button
+                        key={proc}
+                        onClick={() => setSelectedProcedure(proc)}
+                        className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+                          selectedProcedure === proc
+                            ? 'bg-[#b8976a] text-[#1a1f2e] border-[#b8976a] shadow-md shadow-[#b8976a]/20'
+                            : 'bg-transparent text-gray-400 border-[#2d3548] hover:border-[#b8976a]/50 hover:text-[#c9b896]'
+                        }`}
+                      >
+                        {proc}
+                        <span className="ml-1.5 text-xs opacity-60">({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1624,7 +1741,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
           {filteredItems.length === 0 && (
             <div className="text-center py-16">
               <CircleAccent size="sm" className="mx-auto mb-4" />
-              <p className="text-muted-foreground">No results found for this category.</p>
+              <p className="text-muted-foreground">
+                {selectedProcedure !== 'All'
+                  ? `No results found for "${selectedProcedure}".`
+                  : 'No results found for this category.'}
+              </p>
+              {selectedProcedure !== 'All' && (
+                <button
+                  onClick={() => setSelectedProcedure('All')}
+                  className="mt-3 text-sm text-[#b8976a] hover:text-[#c9b896] underline underline-offset-2 transition-colors"
+                >
+                  Show all procedures →
+                </button>
+              )}
             </div>
           )}
         </div>
