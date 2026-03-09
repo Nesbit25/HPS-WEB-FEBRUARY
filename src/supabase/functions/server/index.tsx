@@ -61,6 +61,38 @@ function clearGalleryCache() {
   console.log(`[CACHE] Cleared ${cleared} gallery cache entries`);
 }
 
+// ─── Procedure → Category lookup ────────────────────────────────────────────
+// Actual repo structure: gallery/{procedure-folder}/{PatientNN}/{filename}
+// There is NO intermediate category directory — derive category from folder name.
+const PROCEDURE_CATEGORY_MAP: Record<string, string> = {
+  // Breast
+  'breast-augmentation-photos':      'Breast',
+  'tuberous-breast-photos':          'Breast',
+  'breast-augmentation-lift-photos': 'Breast',
+  'breast-lift-photos':              'Breast',
+  'explant-mastopexy':               'Breast',
+  'breast-reduction-photos':         'Breast',
+  'asymmetrical-breast-photos':      'Breast',
+  'ftm-top-photos':                  'Breast',
+  'gynecomastia-photos':             'Breast',
+  // Body
+  'tummy-tuck-photos':               'Body',
+  'arm-lift-photos':                 'Body',
+  'thigh-lift-photos':               'Body',
+  'body-contouring-photos':          'Body',
+  'liposuction-photos-2':            'Body',
+  // Face
+  'eyelid-surgery-photos':           'Face',
+  'facelift-necklift-photos':        'Face',
+  'chin-augmentation-photos':        'Face',
+  'otoplasty-photos':                'Face',
+  'liposuction-photos':              'Face',
+  // Nose
+  'rhinoplasty-photos':              'Nose',
+};
+const getProcedureCategory = (procedureDir: string): string =>
+  PROCEDURE_CATEGORY_MAP[procedureDir] || 'Face';
+
 // Rate-limit for auto-sync — per cold-start instance, max once per hour
 let lastAutoSyncMs = 0;
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
@@ -1231,27 +1263,39 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
       console.warn('[Sync GitHub] ⚠️  Git tree was truncated — some files may be missing');
     }
 
-    // Filter tree — new nested structure: {root}/{category}/{case_slug}/{filename}
+    // Filter tree — supports both layouts:
+    //   3-deep: gallery/{procedure}/{PatientNN}/{file}              (flat, no category wrapper)
+    //   4-deep: gallery/{Category}/{procedure}/{PatientNN}/{file}   (current live repo)
     const SYNC_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const SYNC_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || [])
       .filter(item => {
         if (item.type !== 'blob') return false;
         if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return SYNC_GALLERY_ROOTS.some(root =>
-          SYNC_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
+        return SYNC_GALLERY_ROOTS.some(root => {
+          if (!item.path.startsWith(`${root}/`)) return false;
+          const afterRoot = item.path.slice(root.length + 1);
+          const depth = afterRoot.split('/').length;
+          return depth === 3 || depth === 4;
+        });
       })
       .map(item => {
         const root = SYNC_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
+        const afterRoot = item.path.slice(root.length + 1);
         const parts = afterRoot.split('/');
-        return {
-          name:     parts[parts.length - 1], // just filename for regex
-          category: parts[0],                // Face | Breast | Body  (from directory path)
-          fullPath: item.path                // full repo path for raw URL
-        };
+        let category: string, procedureDir: string, filename: string;
+        if (parts.length === 4) {
+          // gallery/{Category}/{procedure}/{PatientNN}/{file}
+          category     = parts[0]; // e.g. "Breast" — direct from path, authoritative
+          procedureDir = parts[1]; // e.g. "breast-augmentation-photos"
+          filename     = parts[3];
+        } else {
+          // gallery/{procedure}/{PatientNN}/{file}
+          procedureDir = parts[0];
+          category     = getProcedureCategory(procedureDir);
+          filename     = parts[2];
+        }
+        return { name: filename, category, procedureDir, fullPath: item.path };
       });
 
     console.log(`[Sync GitHub] Found ${imageFiles.length} image files`);
@@ -1475,21 +1519,31 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
     const treeData = await treeResp.json();
     if (treeData.truncated) console.warn('[Auto-Sync] ⚠️  Git tree truncated');
 
-    // Filter to images in the nested gallery structure
+    // Filter to images — supports 3-deep (flat) and 4-deep (Category wrapper) layouts
     const AS_ROOTS = ['public/gallery', 'gallery'];
-    const AS_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || [])
       .filter((item: any) => {
         if (item.type !== 'blob') return false;
         if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return AS_ROOTS.some(root => AS_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`)));
+        return AS_ROOTS.some(root => {
+          if (!item.path.startsWith(`${root}/`)) return false;
+          const afterRoot = item.path.slice(root.length + 1);
+          const depth = afterRoot.split('/').length;
+          return depth === 3 || depth === 4;
+        });
       })
       .map((item: any) => {
         const root = AS_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
         const afterRoot = item.path.slice(root.length + 1);
         const parts = afterRoot.split('/');
-        return { name: parts[parts.length - 1], category: parts[0], fullPath: item.path };
+        let category: string, procedureDir: string, filename: string;
+        if (parts.length === 4) {
+          category = parts[0]; procedureDir = parts[1]; filename = parts[3];
+        } else {
+          procedureDir = parts[0]; category = getProcedureCategory(procedureDir); filename = parts[2];
+        }
+        return { name: filename, category, procedureDir, fullPath: item.path };
       });
 
     console.log(`[Auto-Sync] Found ${imageFiles.length} image files across all categories`);
@@ -1688,27 +1742,44 @@ app.get("/make-server-fc862019/gallery/github-files", async (c) => {
       console.warn('[GitHub Files] Git tree was truncated — repo exceeds GitHub tree size limit');
     }
 
-    // Filter tree — nested structure: {root}/{category}/{case_slug}/{filename}
+    // Filter tree — supports 3-deep (flat) and 4-deep (Category wrapper) layouts:
+    //   3-deep: gallery/{procedure}/{PatientNN}/{file}
+    //   4-deep: gallery/{Category}/{procedure}/{PatientNN}/{file}  ← current live repo
     const FILES_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const FILES_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const files = (treeData.tree || [])
       .filter(item => {
         if (item.type !== 'blob') return false;
         if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return FILES_GALLERY_ROOTS.some(root =>
-          FILES_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
+        return FILES_GALLERY_ROOTS.some(root => {
+          if (!item.path.startsWith(`${root}/`)) return false;
+          const afterRoot = item.path.slice(root.length + 1);
+          const depth = afterRoot.split('/').length;
+          return depth === 3 || depth === 4;
+        });
       })
       .map(item => {
         const root = FILES_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
-        const afterRoot = item.path.slice(root.length + 1); // "Face/pt_1086_nose/filename.png"
+        const afterRoot = item.path.slice(root.length + 1);
         const parts = afterRoot.split('/');
+        let category: string, procedureDir: string, patientDir: string, filename: string;
+        if (parts.length === 4) {
+          category     = parts[0]; // e.g. "Breast" — authoritative
+          procedureDir = parts[1]; // e.g. "breast-augmentation-photos"
+          patientDir   = parts[2]; // e.g. "Patient01"
+          filename     = parts[3];
+        } else {
+          procedureDir = parts[0];
+          category     = getProcedureCategory(procedureDir);
+          patientDir   = parts[1];
+          filename     = parts[2];
+        }
         return {
-          name:     parts[parts.length - 1], // just filename — for regex parsing in frontend
-          category: parts[0],                // Face | Breast | Body
-          caseDir:  parts[1],                // case slug directory
-          path:     item.path,               // full repo path — for raw URL construction
+          name:         filename,
+          category,
+          procedureDir,
+          patientDir,
+          path:         item.path,
           type: 'file',
           sha:  item.sha,
           size: item.size
@@ -1751,22 +1822,25 @@ app.get("/make-server-fc862019/gallery/diagnose-filenames", async (c) => {
 
     const treeData = await resp.json();
     const DIAG_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const DIAG_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || [])
       .filter(item => {
         if (item.type !== 'blob') return false;
         if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-        return DIAG_GALLERY_ROOTS.some(root =>
-          DIAG_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        );
+        return DIAG_GALLERY_ROOTS.some(root => {
+          if (!item.path.startsWith(`${root}/`)) return false;
+          const afterRoot = item.path.slice(root.length + 1);
+          const depth = afterRoot.split('/').length;
+          return depth === 3 || depth === 4;
+        });
       })
       .map(item => {
-        // Return just the filename so the regex check below works correctly
         const root = DIAG_GALLERY_ROOTS.find(r => item.path.startsWith(`${r}/`)) || 'gallery';
         const afterRoot = item.path.slice(root.length + 1);
         const parts = afterRoot.split('/');
-        return parts[parts.length - 1]; // filename only
+        // 4-deep: Category/procedure/patient/file → filename at index 3
+        // 3-deep: procedure/patient/file          → filename at index 2
+        return parts.length === 4 ? parts[3] : parts[2];
       });
 
     const stdRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
@@ -1837,27 +1911,30 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
 
     const treeData = await response.json();
     const CHECK_GALLERY_ROOTS = ['public/gallery', 'gallery'];
-    const CHECK_GALLERY_CATS  = ['Face', 'Nose', 'Breast', 'Body'];
 
     const imageFiles = (treeData.tree || []).filter(item => {
       if (item.type !== 'blob') return false;
       if (!(item.path.endsWith('.png') || item.path.endsWith('.jpg') || item.path.endsWith('.jpeg'))) return false;
-      return CHECK_GALLERY_ROOTS.some(root =>
-        CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-      );
+      return CHECK_GALLERY_ROOTS.some(root => {
+        if (!item.path.startsWith(`${root}/`)) return false;
+        const afterRoot = item.path.slice(root.length + 1);
+        const depth = afterRoot.split('/').length;
+        return depth === 3 || depth === 4;
+      });
     });
     const hasGalleryFolder = imageFiles.length > 0 ||
       (treeData.tree || []).some(item =>
-        CHECK_GALLERY_ROOTS.some(root =>
-          CHECK_GALLERY_CATS.some(cat => item.path.startsWith(`${root}/${cat}/`))
-        )
+        CHECK_GALLERY_ROOTS.some(root => item.path.startsWith(`${root}/`))
       );
 
     // Build a per-category breakdown for debugging
     const byCategory: Record<string, number> = {};
     imageFiles.forEach(f => {
       const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
-      const cat  = f.path.slice(root.length + 1).split('/')[0];
+      const parts = f.path.slice(root.length + 1).split('/');
+      // 4-deep: Category/procedure/patient/file — category is parts[0] directly
+      // 3-deep: procedure/patient/file           — derive from procedure map
+      const cat = parts.length === 4 ? parts[0] : getProcedureCategory(parts[0]);
       byCategory[cat] = (byCategory[cat] || 0) + 1;
     });
 
@@ -1870,7 +1947,7 @@ app.get("/make-server-fc862019/gallery/check-github", async (c) => {
       truncated: treeData.truncated || false,
       fileNames: imageFiles.slice(0, 10).map(f => {
         const root = CHECK_GALLERY_ROOTS.find(r => f.path.startsWith(`${r}/`)) || 'gallery';
-        return f.path.slice(root.length + 1); // "Face/pt_1086_nose/pt_1086_nose_p1_img1.png"
+        return f.path.slice(root.length + 1); // "procedure-folder/PatientNN/PROC_PatientNN_Before1.png"
       }),
       message: imageFiles.length > 0 
         ? `Found ${imageFiles.length} images in GitHub gallery folder` 
