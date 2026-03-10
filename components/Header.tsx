@@ -73,7 +73,6 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
                   alt="Hanemann Plastic Surgery" 
                   className="h-20 md:h-28 w-auto transition-all duration-300"
                   onError={(e) => {
-                    // Fallback to SVG if PNG doesn't exist
                     const img = e.target as HTMLImageElement;
                     if (img.src.endsWith('.png')) {
                       img.src = '/images/logos/logo-main.svg';
@@ -141,27 +140,15 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
         </div>
       </header>
 
-      {/* Spacer to prevent content from going under fixed header - REMOVED for home page */}
+      {/* Spacer to prevent content from going under fixed header */}
       {!isHomePage && <div className="h-[65px] lg:h-[75px]"></div>}
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 bg-[#1a1f2e] pt-20 px-6 lg:hidden animate-fade-in overflow-y-auto">
           <nav className="flex flex-col gap-4 items-center text-center pb-8">
-            {/* Logo in mobile menu - SMALLER */}
-            <img 
-              src="/images/logos/logo-main.png" 
-              alt="MH" 
-              className="h-32 mb-2 opacity-80"
-              onError={(e) => {
-                // Fallback to SVG if PNG doesn't exist
-                const img = e.target as HTMLImageElement;
-                if (img.src.endsWith('.png')) {
-                  img.src = '/images/logos/logo-main.svg';
-                }
-              }}
-            />
-            
+            {/* No logo here — the fixed header logo above remains visible */}
+
             {navigationTabs.map(tab => (
               <button
                 key={tab}
