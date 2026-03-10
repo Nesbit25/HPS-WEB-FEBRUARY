@@ -67,24 +67,17 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     { title: 'Body', desc: 'Sculpting your ideal contour.', page: 'Body', img: 'https://images.unsplash.com/photo-1646932520067-81bdc09af07a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXQlMjB3b21hbiUyMGJvZHklMjBjb250b3VyJTIwZWxlZ2FudCUyMGx1eHVyeXxlbnwxfHx8fDE3NzE5Nzc0NTh8MA&ixlib=rb-4.1.0&q=80&w=1080', procedures: ['Abdominoplasty (Tummy Tuck)', 'Liposuction', 'Body Lift', 'Mommy Makeover', 'Brachioplasty (Arm Lift)', 'Thigh Lift'] },
   ];
 
-  useEffect(() => {
-    loadHeroPositions();
-    loadServiceImages();
-  }, []);
+  useEffect(() => { loadHeroPositions(); loadServiceImages(); }, []);
 
   const loadServiceImages = async () => {
     const imageUrls: Record<string, string> = {};
     for (const service of serviceCards) {
       const contentKey = `service_card_${service.title.toLowerCase()}`;
       try {
-        const response = await fetch(`${serverUrl}/content/${contentKey}`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        });
+        const response = await fetch(`${serverUrl}/content/${contentKey}`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
         const data = await response.json();
         if (data.content?.value) imageUrls[service.title] = data.content.value;
-      } catch (error) {
-        console.error(`Error loading ${service.title} service image:`, error);
-      }
+      } catch (error) { console.error(`Error loading ${service.title} service image:`, error); }
     }
     setServiceImages(imageUrls);
     setServiceImagesLoaded(true);
@@ -98,33 +91,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       const mobileRes = await fetch(`${serverUrl}/content/hero_mobile_position`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       const mobileData = await mobileRes.json();
       if (mobileData.content?.value) setHeroMobilePosition(mobileData.content.value);
-    } catch (error) {
-      console.error('Error loading hero positions:', error);
-    }
+    } catch (error) { console.error('Error loading hero positions:', error); }
   };
 
-  useEffect(() => {
-    if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); }
-  }, [heroPositionRequest, onHeroPositionHandled]);
-
-  useEffect(() => {
-    if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); }
-  }, [heroUploadRequest, onHeroUploadHandled]);
-
-  const baseGalleryItems: GalleryItem[] = [
-    { id: 1, category: 'Nose', title: 'Rhinoplasty Case Study', procedure: 'Primary Rhinoplasty', journeyNote: '' },
-    { id: 2, category: 'Face', title: 'Facelift Transformation', procedure: 'Deep Plane Facelift', journeyNote: '' },
-    { id: 3, category: 'Breast', title: 'Breast Augmentation Journey', procedure: 'Breast Augmentation', journeyNote: '' },
-    { id: 4, category: 'Body', title: 'Abdominoplasty Results', procedure: 'Tummy Tuck', journeyNote: '' },
-    { id: 5, category: 'Nose', title: 'Revision Rhinoplasty', procedure: 'Revision Rhinoplasty', journeyNote: '' },
-    { id: 6, category: 'Face', title: 'Brow Lift Enhancement', procedure: 'Endoscopic Brow Lift', journeyNote: '' },
-    { id: 7, category: 'Breast', title: 'Breast Lift Success', procedure: 'Mastopexy (Breast Lift)', journeyNote: '' },
-    { id: 8, category: 'Body', title: 'Liposuction Transformation', procedure: 'Liposuction - Multiple Areas', journeyNote: '' },
-    { id: 9, category: 'Nose', title: 'Ethnic Rhinoplasty', procedure: 'Ethnic Rhinoplasty', journeyNote: '' },
-    { id: 10, category: 'Face', title: 'Neck Lift Results', procedure: 'Neck Lift & Platysmaplasty', journeyNote: '' },
-    { id: 11, category: 'Breast', title: 'Breast Reconstruction', procedure: 'Breast Reconstruction', journeyNote: '' },
-    { id: 12, category: 'Body', title: 'Mommy Makeover', procedure: 'Mommy Makeover', journeyNote: '' }
-  ];
+  useEffect(() => { if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); } }, [heroPositionRequest, onHeroPositionHandled]);
+  useEffect(() => { if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); } }, [heroUploadRequest, onHeroUploadHandled]);
 
   useEffect(() => { loadFeaturedGallery(); }, []);
 
@@ -147,8 +118,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       const cached = localStorage.getItem(cacheKey);
       const ts = localStorage.getItem(tsKey);
       if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
-        const all: GalleryItem[] = JSON.parse(cached);
-        setFeaturedGallery(all.filter((c: any) => c.featuredOnHome));
+        setFeaturedGallery(JSON.parse(cached).filter((c: any) => c.featuredOnHome));
         return;
       }
       const [filesRes, casesRes] = await Promise.all([
@@ -226,7 +196,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   return (
     <div>
-      <SEOHead title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann" description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA." keywords="plastic surgeon Baton Rouge, Dr. Hanemann" canonical="/" />
+      <SEOHead title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann" description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA. Expert rhinoplasty, facelifts, breast augmentation, body contouring." keywords="plastic surgeon Baton Rouge, Dr. Hanemann, rhinoplasty Baton Rouge, breast augmentation Baton Rouge" canonical="/" />
+
       <section className="relative w-full overflow-hidden">
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
           <div className="absolute inset-0">
@@ -262,9 +233,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="mt-12 pt-10 border-t border-[#2d3548]">
             <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Certified &amp; Accredited</p>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-1.png" alt="Southeastern Society of Plastic and Reconstructive Surgeons" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span></div>
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-2.png" alt="American Society for Aesthetic Plastic Surgery" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span></div>
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-3.png" alt="American Society of Plastic Surgeons" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-1.png" alt="SESPRS" className="h-20 md:h-24 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-2.png" alt="ASAPS" className="h-20 md:h-24 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-3.png" alt="ASPS" className="h-20 md:h-24 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span></div>
             </div>
           </div>
         </div>
@@ -272,7 +243,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
       <section className="py-24 bg-cream">
         <div className="container mx-auto px-6">
-          <div className="grid lg:grid-cols-5 gap-12 items-center">
+          <div className="grid lg:grid-cols-5 gap-12 items-start">
             <div className="hidden lg:block lg:col-span-2 space-y-8">
               <div>
                 <h2 className="text-primary mb-2"><span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span><br /><span className="font-serif text-5xl md:text-6xl italic">Services</span></h2>
@@ -305,35 +276,25 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
 
             {/* Mobile: Standalone Image Cards - ONLY SHOWN ON MOBILE */}
-            <div className="lg:hidden space-y-5">
+            <div className="block lg:hidden space-y-5">
+              {/* Mobile-only section header */}
+              <div className="mb-6">
+                <h2 className="text-primary mb-2">
+                  <span className="text-3xl tracking-wide uppercase">OUR MAIN</span>
+                  <br />
+                  <span className="font-serif text-5xl italic">Services</span>
+                </h2>
+                <div className="w-16 h-0.5 bg-secondary mt-4"></div>
+              </div>
               {serviceCards.map((service) => {
-                const resolvedSrc = failedServiceImages.has(service.title)
-                  ? undefined
-                  : (serviceImages[service.title] || service.img);
+                const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
                 return (
-                  <div
-                    key={service.title}
-                    className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer"
-                    onClick={() => onNavigate(service.page)}
-                  >
-                    <div className="absolute inset-0 bg-gray-700">
-                      {resolvedSrc && (
-                        <img
-                          src={resolvedSrc}
-                          alt={service.title}
-                          className="w-full h-full object-cover"
-                          onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }}
-                        />
-                      )}
-                    </div>
+                  <div key={service.title} className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer" onClick={() => onNavigate(service.page)}>
+                    <div className="absolute inset-0 bg-gray-700">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
-                    <div className="absolute inset-0 flex items-center justify-center pb-24">
-                      <h3 className="font-serif text-5xl text-white italic">{service.title.toUpperCase()}</h3>
-                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center pb-24"><h3 className="font-serif text-5xl text-white italic">{service.title.toUpperCase()}</h3></div>
                     <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <div className="space-y-1 mb-4">
-                        {service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}
-                      </div>
+                      <div className="space-y-1 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div>
                       <div className="flex items-center text-[#c9b896]"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4" /></div>
                     </div>
                     <div className="absolute bottom-0 left-0 w-full h-1 bg-[#c9b896]" />
@@ -355,7 +316,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div>
             <h4 className="text-secondary font-bold uppercase tracking-widest mb-2">The Surgeon</h4>
             <h2 className="font-serif text-4xl lg:text-5xl text-primary mb-6"><EditableText as="span" contentKey="intro_heading" defaultValue="Meet Dr. Hanemann" /></h2>
-            <div className="text-gray-600 font-light leading-relaxed mb-8"><EditableText contentKey="intro_text" multiline defaultValue="Dr. Hanemann is a renowned plastic surgeon known for his meticulous attention to detail and natural-looking results." /></div>
+            <div className="text-gray-600 font-light leading-relaxed mb-8"><EditableText contentKey="intro_text" multiline defaultValue="Dr. Hanemann is a renowned plastic surgeon known for his meticulous attention to detail and natural-looking results. With a deep understanding of anatomy and an artistic eye, he helps patients achieve their aesthetic goals with confidence." /></div>
             <div className="grid grid-cols-2 gap-6 mb-8">
               <div className="flex items-start gap-3"><Shield className="text-secondary mt-1" /><div><h5 className="font-bold text-primary">Board Certified</h5><p className="text-sm text-gray-500">American Board of Plastic Surgery</p></div></div>
               <div className="flex items-start gap-3"><Award className="text-secondary mt-1" /><div><h5 className="font-bold text-primary">Top Doctor</h5><p className="text-sm text-gray-500">Voted top surgeon 5 years running</p></div></div>
@@ -368,16 +329,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       <section className="py-24 bg-primary text-white">
         <div className="container mx-auto px-6">
           <div className="flex justify-between items-end mb-12">
-            <div>
-              <h2 className="font-serif text-4xl mb-2"><EditableText as="span" contentKey="home_gallery_heading" defaultValue="Real Results" /></h2>
-              <p className="text-gray-400"><EditableText as="span" contentKey="home_gallery_description" defaultValue="Browse our extensive gallery of patient transformations." /></p>
-            </div>
+            <div><h2 className="font-serif text-4xl mb-2"><EditableText as="span" contentKey="home_gallery_heading" defaultValue="Real Results" /></h2><p className="text-gray-400"><EditableText as="span" contentKey="home_gallery_description" defaultValue="Browse our extensive gallery of patient transformations." /></p></div>
             <button onClick={() => onNavigate('Gallery')} className="hidden md:inline-flex items-center gap-2 text-secondary hover:text-white transition-colors">View Full Gallery <ArrowRight size={16}/></button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {featuredGallery.length > 0 ? (
               <>{featuredGallery.slice(0, 6).map((c, index) => (<BeforeAfterCard key={c.id} beforeImage={c.beforeImage} afterImage={c.afterImage} category={c.category} title={c.title} onClick={() => handleOpenLightbox(index)} interval={3000} />))}
-                {isAdmin && isEditMode && (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500 group-hover:scale-110 transform" /></div><div className="p-4 bg-card relative"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span></div></div></div>)}
+                {isAdmin && isEditMode && (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-2 group hover:border-secondary transition-all duration-500" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4 bg-card"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary">Click to Create →</span></div></div></div>)}
               </>
             ) : (
               <>{isAdmin && isEditMode ? (<div className="bg-card border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4"><span className="text-secondary">Add New Case</span></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}</>
@@ -400,7 +358,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
       {lightboxOpen && featuredGallery.length > 0 && (<GalleryLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} currentItem={featuredGallery[currentLightboxIndex]} currentIndex={currentLightboxIndex} totalImages={featuredGallery.length} onNext={handleNextImage} onPrevious={handlePreviousImage} />)}
       {newCaseEditorOpen && accessToken && (<NewGalleryCaseEditor isOpen={newCaseEditorOpen} onClose={() => setNewCaseEditorOpen(false)} onSaved={loadFeaturedGallery} accessToken={accessToken} />)}
-      {positionPickerOpen && (<ImagePositionPicker isOpen={true} type={positionPickerOpen} onClose={() => setPositionPickerOpen(null)} onSave={(position) => { if (positionPickerOpen === 'desktop') { setHeroDesktopPosition(position); } else { setHeroMobilePosition(position); } }} currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition} accessToken={accessToken} />)}
+      {positionPickerOpen && (<ImagePositionPicker isOpen={true} type={positionPickerOpen} onClose={() => setPositionPickerOpen(null)} onSave={(position) => { if (positionPickerOpen === 'desktop') setHeroDesktopPosition(position); else setHeroMobilePosition(position); }} currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition} accessToken={accessToken} />)}
       {uploaderOpen && (<HeroImageUploader isOpen={true} type={uploaderOpen} onClose={() => setUploaderOpen(null)} onUploadComplete={(newImageUrl) => { console.log('Hero image uploaded:', newImageUrl); }} accessToken={accessToken} />)}
     </div>
   );
