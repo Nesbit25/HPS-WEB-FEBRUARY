@@ -81,9 +81,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         });
         const data = await response.json();
-        if (data.content?.value) {
-          imageUrls[service.title] = data.content.value;
-        }
+        if (data.content?.value) imageUrls[service.title] = data.content.value;
       } catch (error) {
         console.error(`Error loading ${service.title} service image:`, error);
       }
@@ -94,15 +92,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   const loadHeroPositions = async () => {
     try {
-      const desktopRes = await fetch(`${serverUrl}/content/hero_desktop_position`, {
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-      });
+      const desktopRes = await fetch(`${serverUrl}/content/hero_desktop_position`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       const desktopData = await desktopRes.json();
       if (desktopData.content?.value) setHeroDesktopPosition(desktopData.content.value);
-
-      const mobileRes = await fetch(`${serverUrl}/content/hero_mobile_position`, {
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-      });
+      const mobileRes = await fetch(`${serverUrl}/content/hero_mobile_position`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       const mobileData = await mobileRes.json();
       if (mobileData.content?.value) setHeroMobilePosition(mobileData.content.value);
     } catch (error) {
@@ -111,32 +104,26 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   };
 
   useEffect(() => {
-    if (heroPositionRequest) {
-      setPositionPickerOpen(heroPositionRequest);
-      onHeroPositionHandled?.();
-    }
+    if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); }
   }, [heroPositionRequest, onHeroPositionHandled]);
 
   useEffect(() => {
-    if (heroUploadRequest) {
-      setUploaderOpen(heroUploadRequest);
-      onHeroUploadHandled?.();
-    }
+    if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); }
   }, [heroUploadRequest, onHeroUploadHandled]);
 
   const baseGalleryItems: GalleryItem[] = [
-    { id: 1, category: 'Nose', title: 'Rhinoplasty Case Study', procedure: 'Primary Rhinoplasty', journeyNote: 'I had been self-conscious about my nose for years.' },
-    { id: 2, category: 'Face', title: 'Facelift Transformation', procedure: 'Deep Plane Facelift', journeyNote: 'After years of considering a facelift, I finally took the step.' },
-    { id: 3, category: 'Breast', title: 'Breast Augmentation Journey', procedure: 'Breast Augmentation', journeyNote: 'Becoming a mother changed my body.' },
-    { id: 4, category: 'Body', title: 'Abdominoplasty Results', procedure: 'Tummy Tuck', journeyNote: 'After significant weight loss, I struggled with excess skin.' },
-    { id: 5, category: 'Nose', title: 'Revision Rhinoplasty', procedure: 'Revision Rhinoplasty', journeyNote: 'I needed revision surgery after an unsuccessful rhinoplasty elsewhere.' },
-    { id: 6, category: 'Face', title: 'Brow Lift Enhancement', procedure: 'Endoscopic Brow Lift', journeyNote: 'My heavy brows made me look tired.' },
-    { id: 7, category: 'Breast', title: 'Breast Lift Success', procedure: 'Mastopexy (Breast Lift)', journeyNote: 'Years of nursing and aging had taken their toll.' },
-    { id: 8, category: 'Body', title: 'Liposuction Transformation', procedure: 'Liposuction - Multiple Areas', journeyNote: 'Despite diet and exercise, I had stubborn fat deposits.' },
-    { id: 9, category: 'Nose', title: 'Ethnic Rhinoplasty', procedure: 'Ethnic Rhinoplasty', journeyNote: 'I wanted to refine my nose while maintaining my ethnic identity.' },
-    { id: 10, category: 'Face', title: 'Neck Lift Results', procedure: 'Neck Lift & Platysmaplasty', journeyNote: 'My neck was aging faster than the rest of my face.' },
-    { id: 11, category: 'Breast', title: 'Breast Reconstruction', procedure: 'Breast Reconstruction', journeyNote: 'After my mastectomy, Dr. Hanemann helped me feel whole again.' },
-    { id: 12, category: 'Body', title: 'Mommy Makeover', procedure: 'Mommy Makeover', journeyNote: 'Pregnancy changed my body in ways I wasn\'t prepared for.' }
+    { id: 1, category: 'Nose', title: 'Rhinoplasty Case Study', procedure: 'Primary Rhinoplasty', journeyNote: '' },
+    { id: 2, category: 'Face', title: 'Facelift Transformation', procedure: 'Deep Plane Facelift', journeyNote: '' },
+    { id: 3, category: 'Breast', title: 'Breast Augmentation Journey', procedure: 'Breast Augmentation', journeyNote: '' },
+    { id: 4, category: 'Body', title: 'Abdominoplasty Results', procedure: 'Tummy Tuck', journeyNote: '' },
+    { id: 5, category: 'Nose', title: 'Revision Rhinoplasty', procedure: 'Revision Rhinoplasty', journeyNote: '' },
+    { id: 6, category: 'Face', title: 'Brow Lift Enhancement', procedure: 'Endoscopic Brow Lift', journeyNote: '' },
+    { id: 7, category: 'Breast', title: 'Breast Lift Success', procedure: 'Mastopexy (Breast Lift)', journeyNote: '' },
+    { id: 8, category: 'Body', title: 'Liposuction Transformation', procedure: 'Liposuction - Multiple Areas', journeyNote: '' },
+    { id: 9, category: 'Nose', title: 'Ethnic Rhinoplasty', procedure: 'Ethnic Rhinoplasty', journeyNote: '' },
+    { id: 10, category: 'Face', title: 'Neck Lift Results', procedure: 'Neck Lift & Platysmaplasty', journeyNote: '' },
+    { id: 11, category: 'Breast', title: 'Breast Reconstruction', procedure: 'Breast Reconstruction', journeyNote: '' },
+    { id: 12, category: 'Body', title: 'Mommy Makeover', procedure: 'Mommy Makeover', journeyNote: '' }
   ];
 
   useEffect(() => { loadFeaturedGallery(); }, []);
@@ -175,27 +162,25 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       if (filesData.files?.length) {
         const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
         const casesMap = new Map<string, any>();
-        filesData.files
-          .filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name))
-          .forEach((f: any) => {
-            const m = f.name.match(filenameRegex);
-            if (!m) return;
-            const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = m;
-            const slug = `${procedurePrefix}_Patient${patientNum}`;
-            const type = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
-            const viewNum = parseInt(viewNumStr);
-            const repoPath = f.path || `gallery/${f.name}`;
-            const imageUrl = `${GITHUB_RAW}/${repoPath}`;
-            if (!casesMap.has(slug)) {
-              const procTitle = procedurePrefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1));
-              casesMap.set(slug, { slug, id: slug, title: `${procTitle} — Patient ${patientNum}`, category: f.category || 'Face', procedure: '', journeyNote: '' });
-            }
-            const c = casesMap.get(slug);
-            if (viewNum === 1) {
-              if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
-              if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
-            }
-          });
+        filesData.files.filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name)).forEach((f: any) => {
+          const m = f.name.match(filenameRegex);
+          if (!m) return;
+          const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = m;
+          const slug = `${procedurePrefix}_Patient${patientNum}`;
+          const type = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
+          const viewNum = parseInt(viewNumStr);
+          const repoPath = f.path || `gallery/${f.name}`;
+          const imageUrl = `${GITHUB_RAW}/${repoPath}`;
+          if (!casesMap.has(slug)) {
+            const procTitle = procedurePrefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1));
+            casesMap.set(slug, { slug, id: slug, title: `${procTitle} — Patient ${patientNum}`, category: f.category || 'Face', procedure: '', journeyNote: '' });
+          }
+          const c = casesMap.get(slug);
+          if (viewNum === 1) {
+            if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
+            if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
+          }
+        });
         allItems = Array.from(casesMap.values()).map(item => {
           const db = dbCases.find((c: any) => c.slug === item.slug);
           if (!db) return item;
@@ -221,9 +206,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   useEffect(() => {
     const container = carouselRef.current;
     if (!container) return;
-    const cardWidth = 384;
-    const gap = 16;
-    const cardPlusGap = cardWidth + gap;
+    const cardWidth = 384; const gap = 16; const cardPlusGap = cardWidth + gap;
     const cards = [{ title: 'Nose' }, { title: 'Face' }, { title: 'Breast' }, { title: 'Body' }];
     const totalWidth = cardPlusGap * cards.length;
     container.scrollLeft = totalWidth;
@@ -243,40 +226,21 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   return (
     <div>
-      <SEOHead
-        title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann"
-        description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA."
-        keywords="plastic surgeon Baton Rouge, Dr. Hanemann, rhinoplasty Baton Rouge, breast augmentation Baton Rouge"
-        canonical="/"
-      />
+      <SEOHead title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann" description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA." keywords="plastic surgeon Baton Rouge, Dr. Hanemann" canonical="/" />
       <section className="relative w-full overflow-hidden">
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
           <div className="absolute inset-0">
-            <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-400">
-              <img src="/images/hero/desktop/hero-slide-1.jpg" alt="Hanemann Plastic Surgery Hero" className="w-full h-full object-cover" style={{ objectPosition: heroDesktopPosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            </div>
-            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400">
-              <img src="/images/hero/mobile/hero-slide-1.png" alt="Hanemann Plastic Surgery Hero Mobile" className="w-full h-full object-cover" style={{ objectPosition: heroMobilePosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            </div>
+            <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-400"><img src="/images/hero/desktop/hero-slide-1.jpg" alt="Hanemann Plastic Surgery Hero" className="w-full h-full object-cover" style={{ objectPosition: heroDesktopPosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>
+            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400"><img src="/images/hero/mobile/hero-slide-1.png" alt="Hanemann Plastic Surgery Hero Mobile" className="w-full h-full object-cover" style={{ objectPosition: heroMobilePosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
           </div>
           <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[220px] md:pt-[240px] pointer-events-none">
-            <div className="container mx-auto pointer-events-auto">
-              <div className="max-w-3xl">
-                <div>
-                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
-                    <EditableText as="span" contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
-                  </h2>
-                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
-                  </h1>
-                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
-                    <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
-                  </p>
-                  <button onClick={() => onNavigate('Contact')} className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300">Schedule Consultation</button>
-                </div>
-              </div>
-            </div>
+            <div className="container mx-auto pointer-events-auto"><div className="max-w-3xl"><div>
+              <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold"><EditableText as="span" contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" /></h2>
+              <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight"><EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" /></h1>
+              <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed"><EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" /></p>
+              <button onClick={() => onNavigate('Contact')} className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300">Schedule Consultation</button>
+            </div></div></div>
           </div>
           {isEditMode && isAdmin && (
             <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 flex gap-4 pointer-events-auto">
@@ -339,21 +303,44 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               </div>
             </div>
             <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
-            <div className="lg:hidden space-y-4">{serviceCards.map((service) => (
-              <div key={service.title} className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-                <button onClick={(e) => { e.stopPropagation(); setExpandedService(expandedService === service.title ? null : service.title); }} className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors">
-                  <div className="flex-1"><h3 className="text-xl font-serif text-primary mb-1">{service.title}</h3><p className="text-sm text-gray-600">{service.desc}</p></div>
-                  <ChevronDown className={`w-5 h-5 text-secondary transition-transform duration-300 flex-shrink-0 ml-3 ${expandedService === service.title ? 'rotate-180' : ''}`} />
-                </button>
-                <div className={`overflow-hidden transition-all duration-300 ${expandedService === service.title ? 'max-h-96' : 'max-h-0'}`}>
-                  <div className="px-5 pb-5 border-t border-gray-100 pt-4">
-                    <h4 className="text-xs uppercase tracking-wider text-secondary font-bold mb-3">Procedures</h4>
-                    <ul className="space-y-2">{service.procedures.map((procedure, idx) => (<li key={idx} className="flex items-start"><span className="text-secondary mr-2 flex-shrink-0">•</span><span className="text-gray-700 text-sm leading-relaxed">{procedure}</span></li>))}</ul>
-                    <button onClick={() => onNavigate(service.page)} className="mt-4 w-full bg-secondary text-white px-6 py-3 rounded-lg text-sm font-semibold uppercase tracking-wider hover:bg-primary transition-colors">Learn More</button>
+
+            {/* Mobile: Standalone Image Cards - ONLY SHOWN ON MOBILE */}
+            <div className="lg:hidden space-y-5">
+              {serviceCards.map((service) => {
+                const resolvedSrc = failedServiceImages.has(service.title)
+                  ? undefined
+                  : (serviceImages[service.title] || service.img);
+                return (
+                  <div
+                    key={service.title}
+                    className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer"
+                    onClick={() => onNavigate(service.page)}
+                  >
+                    <div className="absolute inset-0 bg-gray-700">
+                      {resolvedSrc && (
+                        <img
+                          src={resolvedSrc}
+                          alt={service.title}
+                          className="w-full h-full object-cover"
+                          onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }}
+                        />
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+                    <div className="absolute inset-0 flex items-center justify-center pb-24">
+                      <h3 className="font-serif text-5xl text-white italic">{service.title.toUpperCase()}</h3>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                      <div className="space-y-1 mb-4">
+                        {service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}
+                      </div>
+                      <div className="flex items-center text-[#c9b896]"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4" /></div>
+                    </div>
+                    <div className="absolute bottom-0 left-0 w-full h-1 bg-[#c9b896]" />
                   </div>
-                </div>
-              </div>
-            ))}</div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -393,7 +380,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 {isAdmin && isEditMode && (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500 group-hover:scale-110 transform" /></div><div className="p-4 bg-card relative"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span></div></div></div>)}
               </>
             ) : (
-              <>{isAdmin && isEditMode ? (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4"><span className="text-secondary">Add New Case</span></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}</>
+              <>{isAdmin && isEditMode ? (<div className="bg-card border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4"><span className="text-secondary">Add New Case</span></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}</>
             )}
           </div>
           <div className="mt-12 text-center md:hidden"><button onClick={() => onNavigate('Gallery')} className="inline-block border border-secondary text-secondary px-8 py-3 rounded-full">View Full Gallery</button></div>

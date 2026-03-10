@@ -428,6 +428,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroDesktopPosition }}
                 onError={(e) => {
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
                   img.style.display = 'none';
                 }}
@@ -442,6 +443,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
                 onError={(e) => {
+                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
                   img.style.display = 'none';
                 }}
@@ -648,6 +650,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                             alt={service.title}
                             className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
                             onError={() => {
+                              // Track failed images in state so ALL instances of this card are consistent
                               setFailedServiceImages(prev => new Set([...prev, service.title]));
                             }}
                           />
@@ -732,54 +735,62 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               }
             `}</style>
 
-            {/* Mobile: Expandable Accordion List - ONLY SHOWN ON MOBILE */}
-            <div className="lg:hidden space-y-4">{serviceCards.map((service) => (
-              <div key={service.title} className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-                {/* Collapsible Header */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandedService(expandedService === service.title ? null : service.title);
-                  }}
-                  className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <h3 className="text-xl font-serif text-primary mb-1">{service.title}</h3>
-                    <p className="text-sm text-gray-600">{service.desc}</p>
+            {/* Mobile: Standalone Image Cards - ONLY SHOWN ON MOBILE */}
+            <div className="lg:hidden space-y-5">
+              {serviceCards.map((service) => {
+                const resolvedSrc = failedServiceImages.has(service.title)
+                  ? undefined
+                  : (serviceImages[service.title] || service.img);
+                return (
+                  <div
+                    key={service.title}
+                    className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer"
+                    onClick={() => onNavigate(service.page)}
+                  >
+                    {/* Background Image */}
+                    <div className="absolute inset-0 bg-gray-700">
+                      {resolvedSrc && (
+                        <img
+                          src={resolvedSrc}
+                          alt={service.title}
+                          className="w-full h-full object-cover"
+                          onError={() => {
+                            setFailedServiceImages(prev => new Set([...prev, service.title]));
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Always-visible dark gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+
+                    {/* Category title - centered upper area */}
+                    <div className="absolute inset-0 flex items-center justify-center pb-24">
+                      <h3 className="font-serif text-5xl text-white italic">
+                        {service.title.toUpperCase()}
+                      </h3>
+                    </div>
+
+                    {/* Always-visible bottom content */}
+                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                      <div className="space-y-1 mb-4">
+                        {service.procedures.map((proc, i) => (
+                          <p key={i} className="text-sm text-white/90 tracking-wide">
+                            • {proc}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="flex items-center text-[#c9b896]">
+                        <span className="text-sm uppercase tracking-wider mr-2">Explore</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    {/* Bottom accent line */}
+                    <div className="absolute bottom-0 left-0 w-full h-1 bg-[#c9b896]" />
                   </div>
-                  <ChevronDown 
-                    className={`w-5 h-5 text-secondary transition-transform duration-300 flex-shrink-0 ml-3 ${
-                      expandedService === service.title ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-                
-                {/* Expandable Content */}
-                <div 
-                  className={`overflow-hidden transition-all duration-300 ${
-                    expandedService === service.title ? 'max-h-96' : 'max-h-0'
-                  }`}
-                >
-                  <div className="px-5 pb-5 border-t border-gray-100 pt-4">
-                    <h4 className="text-xs uppercase tracking-wider text-secondary font-bold mb-3">Procedures</h4>
-                    <ul className="space-y-2">
-                      {service.procedures.map((procedure, idx) => (
-                        <li key={idx} className="flex items-start">
-                          <span className="text-secondary mr-2 flex-shrink-0">•</span>
-                          <span className="text-gray-700 text-sm leading-relaxed">{procedure}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      onClick={() => onNavigate(service.page)}
-                      className="mt-4 w-full bg-secondary text-white px-6 py-3 rounded-lg text-sm font-semibold uppercase tracking-wider hover:bg-primary transition-colors"
-                    >
-                      Learn More
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1007,6 +1018,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           onClose={() => setUploaderOpen(null)}
           onUploadComplete={(newImageUrl) => {
             console.log('Hero image uploaded:', newImageUrl);
+            // Image URL is saved to database by the component
           }}
           accessToken={accessToken}
         />
