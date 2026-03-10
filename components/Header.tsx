@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from './ui/sheet';
-import { Facebook, Instagram, Twitter, Phone, Menu, X, MapPin, User, Video } from 'lucide-react';
+import { Facebook, Instagram, Phone, Menu, X, MapPin, User, Video } from 'lucide-react';
 import { usePatientAuth } from '../contexts/PatientAuthContext';
 import { Link } from 'react-router';
 
@@ -34,7 +34,6 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
     ? 'bg-transparent'
     : 'bg-[#1a1f2e]/40 backdrop-blur-md shadow-lg';
 
-  // Hide the bottom border when mobile menu is open so it doesn't cut across the header area
   const borderClass = mobileMenuOpen
     ? 'border-transparent'
     : isHomePage && !scrolled ? 'border-white/20' : 'border-[#2d3548]';
@@ -46,12 +45,17 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
       >
         <div className="container mx-auto px-4 md:px-6 pt-2">
           <div className="flex items-start justify-between pb-1.5">
+            {/* Left Side: Social Icons (Desktop) */}
             <div className="hidden lg:flex items-center gap-3 w-1/4 pt-1">
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram"><Instagram size={14}/></a>
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook"><Facebook size={14}/></a>
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Twitter"><Twitter size={14}/></a>
+              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram">
+                <Instagram size={14}/>
+              </a>
+              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook">
+                <Facebook size={14}/>
+              </a>
             </div>
 
+            {/* Center: Logo */}
             <div className="flex-1 flex justify-center">
               <button onClick={() => handleNavigate('Home')} className="group hover:opacity-80 transition-opacity">
                 <img 
@@ -63,6 +67,7 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               </button>
             </div>
 
+            {/* Right Side: Patient Portal & Phone (Desktop) */}
             <div className="hidden lg:flex items-center gap-3 w-1/4 justify-end pt-1">
               <Link to={user ? '/patient/dashboard' : '/patient/login'} className="flex items-center gap-1 text-xs text-white hover:text-[#c9b896] transition-colors">
                 <User size={14} />
@@ -75,19 +80,25 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               </a>
             </div>
 
+            {/* Mobile Toggle */}
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden text-white absolute right-4">
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
 
+          {/* Desktop Nav */}
           <div className="hidden lg:block pb-3">
             <nav className="flex items-center justify-center gap-4 xl:gap-5">
               {navigationTabs.map(tab => (
                 <button key={tab} onClick={() => onNavigate(tab)}
-                  className={`text-[10px] xl:text-xs uppercase tracking-widest hover:text-[#c9b896] transition-colors relative group ${currentPage === tab ? 'text-[#c9b896]' : 'text-white'}`}
+                  className={`text-[10px] xl:text-xs uppercase tracking-widest hover:text-[#c9b896] transition-colors relative group ${
+                    currentPage === tab ? 'text-[#c9b896]' : 'text-white'
+                  }`}
                 >
                   {tab}
-                  <span className={`absolute -bottom-1 left-0 w-full h-0.5 bg-[#c9b896] transform origin-left transition-transform duration-300 ${currentPage === tab ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`}></span>
+                  <span className={`absolute -bottom-1 left-0 w-full h-0.5 bg-[#c9b896] transform origin-left transition-transform duration-300 ${
+                    currentPage === tab ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
+                  }`}></span>
                 </button>
               ))}
               <div className="h-4 w-px bg-white/20 mx-1"></div>
@@ -108,8 +119,6 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 bg-[#1a1f2e] pt-20 px-6 lg:hidden animate-fade-in overflow-y-auto">
           <nav className="flex flex-col gap-4 items-center text-center pb-8">
-            {/* No logo — fixed header logo above remains visible */}
-
             {navigationTabs.map(tab => (
               <button key={tab} onClick={() => handleNavigate(tab)}
                 className="text-base font-serif text-white hover:text-[#c9b896] transition-colors py-1"
@@ -139,10 +148,10 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               Contact
             </Button>
             
+            {/* Social Icons */}
             <div className="flex items-center gap-6 mt-8 pt-8 border-t border-[#2d3548]">
               <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram"><Instagram size={20}/></a>
               <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook"><Facebook size={20}/></a>
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Twitter"><Twitter size={20}/></a>
             </div>
           </nav>
         </div>
