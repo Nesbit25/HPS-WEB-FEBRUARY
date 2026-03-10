@@ -96,7 +96,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   useEffect(() => { if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); } }, [heroPositionRequest, onHeroPositionHandled]);
   useEffect(() => { if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); } }, [heroUploadRequest, onHeroUploadHandled]);
-
   useEffect(() => { loadFeaturedGallery(); }, []);
 
   const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
@@ -113,96 +112,74 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
   const loadFeaturedGallery = async () => {
     try {
-      const cacheKey = 'gallery_items_cache';
-      const tsKey = 'gallery_items_cache_timestamp';
-      const cached = localStorage.getItem(cacheKey);
-      const ts = localStorage.getItem(tsKey);
-      if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
-        setFeaturedGallery(JSON.parse(cached).filter((c: any) => c.featuredOnHome));
-        return;
-      }
+      const cacheKey = 'gallery_items_cache'; const tsKey = 'gallery_items_cache_timestamp';
+      const cached = localStorage.getItem(cacheKey); const ts = localStorage.getItem(tsKey);
+      if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) { setFeaturedGallery(JSON.parse(cached).filter((c: any) => c.featuredOnHome)); return; }
       const [filesRes, casesRes] = await Promise.all([
         fetch(`${serverUrl}/gallery/github-files?t=${Date.now()}`),
         fetch(`${serverUrl}/gallery/cases`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } })
       ]);
-      const filesData = await filesRes.json();
-      const casesData = await casesRes.json();
+      const filesData = await filesRes.json(); const casesData = await casesRes.json();
       const dbCases: any[] = casesData.cases || [];
       let allItems: GalleryItem[];
       if (filesData.files?.length) {
         const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
         const casesMap = new Map<string, any>();
         filesData.files.filter((f: any) => f.type === 'file' && /\.(png|jpg|jpeg)$/i.test(f.name)).forEach((f: any) => {
-          const m = f.name.match(filenameRegex);
-          if (!m) return;
+          const m = f.name.match(filenameRegex); if (!m) return;
           const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = m;
           const slug = `${procedurePrefix}_Patient${patientNum}`;
           const type = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
           const viewNum = parseInt(viewNumStr);
-          const repoPath = f.path || `gallery/${f.name}`;
-          const imageUrl = `${GITHUB_RAW}/${repoPath}`;
+          const imageUrl = `${GITHUB_RAW}/${f.path || `gallery/${f.name}`}`;
           if (!casesMap.has(slug)) {
             const procTitle = procedurePrefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1));
             casesMap.set(slug, { slug, id: slug, title: `${procTitle} — Patient ${patientNum}`, category: f.category || 'Face', procedure: '', journeyNote: '' });
           }
           const c = casesMap.get(slug);
-          if (viewNum === 1) {
-            if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
-            if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
-          }
+          if (viewNum === 1) { if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl; if (type === 'after' && !c.afterImage) c.afterImage = imageUrl; }
         });
         allItems = Array.from(casesMap.values()).map(item => {
           const db = dbCases.find((c: any) => c.slug === item.slug);
-          if (!db) return item;
-          return { ...item, category: db.category || item.category, procedure: db.procedure || item.category, journeyNote: db.journeyNote || '', featuredOnHome: db.featuredOnHome || false, showOnNose: db.showOnNose || false, showOnFace: db.showOnFace || false, showOnBreast: db.showOnBreast || false, showOnBody: db.showOnBody || false };
+          return db ? { ...item, category: db.category || item.category, procedure: db.procedure || item.category, journeyNote: db.journeyNote || '', featuredOnHome: db.featuredOnHome || false, showOnNose: db.showOnNose || false, showOnFace: db.showOnFace || false, showOnBreast: db.showOnBreast || false, showOnBody: db.showOnBody || false } : item;
         });
       } else {
         allItems = dbCases.map((c: any) => ({ ...c, beforeImage: normalizeImageUrl(c.beforeImage), afterImage: normalizeImageUrl(c.afterImage) }));
       }
-      localStorage.setItem(cacheKey, JSON.stringify(allItems));
-      localStorage.setItem(tsKey, Date.now().toString());
+      localStorage.setItem(cacheKey, JSON.stringify(allItems)); localStorage.setItem(tsKey, Date.now().toString());
       setFeaturedGallery(allItems.filter((c: any) => c.featuredOnHome));
-    } catch (error) {
-      console.error('[Home] Error loading featured gallery:', error);
-      setFeaturedGallery([]);
-    }
+    } catch (error) { console.error('[Home] Error loading featured gallery:', error); setFeaturedGallery([]); }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => setActiveSlide(prev => (prev + 1) % 3), 5000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { const i = setInterval(() => setActiveSlide(p => (p + 1) % 3), 5000); return () => clearInterval(i); }, []);
 
   useEffect(() => {
-    const container = carouselRef.current;
-    if (!container) return;
-    const cardWidth = 384; const gap = 16; const cardPlusGap = cardWidth + gap;
-    const cards = [{ title: 'Nose' }, { title: 'Face' }, { title: 'Breast' }, { title: 'Body' }];
-    const totalWidth = cardPlusGap * cards.length;
+    const container = carouselRef.current; if (!container) return;
+    const cardPlusGap = 400; const totalWidth = cardPlusGap * 4;
     container.scrollLeft = totalWidth;
     const handleScroll = () => {
       if (isAutoScrolling) return;
-      const scrollLeft = container.scrollLeft;
-      if (scrollLeft >= totalWidth * 2 - cardPlusGap / 2) { setIsAutoScrolling(true); container.scrollLeft = scrollLeft - totalWidth; setTimeout(() => setIsAutoScrolling(false), 50); }
-      else if (scrollLeft <= cardPlusGap / 2) { setIsAutoScrolling(true); container.scrollLeft = scrollLeft + totalWidth; setTimeout(() => setIsAutoScrolling(false), 50); }
+      const s = container.scrollLeft;
+      if (s >= totalWidth * 2 - cardPlusGap / 2) { setIsAutoScrolling(true); container.scrollLeft = s - totalWidth; setTimeout(() => setIsAutoScrolling(false), 50); }
+      else if (s <= cardPlusGap / 2) { setIsAutoScrolling(true); container.scrollLeft = s + totalWidth; setTimeout(() => setIsAutoScrolling(false), 50); }
     };
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isAutoScrolling]);
 
-  const handleOpenLightbox = (index: number) => { setCurrentLightboxIndex(index); setLightboxOpen(true); };
-  const handleNextImage = () => { setCurrentLightboxIndex((prev) => (prev + 1) % featuredGallery.length); };
-  const handlePreviousImage = () => { setCurrentLightboxIndex((prev) => (prev - 1 + featuredGallery.length) % featuredGallery.length); };
+  const handleOpenLightbox = (i: number) => { setCurrentLightboxIndex(i); setLightboxOpen(true); };
+  const handleNextImage = () => { setCurrentLightboxIndex(p => (p + 1) % featuredGallery.length); };
+  const handlePreviousImage = () => { setCurrentLightboxIndex(p => (p - 1 + featuredGallery.length) % featuredGallery.length); };
 
   return (
     <div>
-      <SEOHead title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann" description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA. Expert rhinoplasty, facelifts, breast augmentation, body contouring." keywords="plastic surgeon Baton Rouge, Dr. Hanemann, rhinoplasty Baton Rouge, breast augmentation Baton Rouge" canonical="/" />
+      <SEOHead title="Plastic Surgeon Baton Rouge, LA | Dr. Hanemann" description="Dr. Michael Hanemann, double board-certified plastic surgeon in Baton Rouge, LA." keywords="plastic surgeon Baton Rouge, Dr. Hanemann" canonical="/" />
 
       <section className="relative w-full overflow-hidden">
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
           <div className="absolute inset-0">
             <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-400"><img src="/images/hero/desktop/hero-slide-1.jpg" alt="Hanemann Plastic Surgery Hero" className="w-full h-full object-cover" style={{ objectPosition: heroDesktopPosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>
-            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400"><img src="/images/hero/mobile/hero-slide-1.png" alt="Hanemann Plastic Surgery Hero Mobile" className="w-full h-full object-cover" style={{ objectPosition: heroMobilePosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>
+            <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-400"><img src="/images/hero/mobile/hero-slide-1.png" alt="Hero Mobile" className="w-full h-full object-cover" style={{ objectPosition: heroMobilePosition }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
           </div>
           <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[220px] md:pt-[240px] pointer-events-none">
@@ -241,69 +218,89 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         </div>
       </section>
 
+      {/* Featured Services */}
       <section className="py-24 bg-cream">
-        <div className="container mx-auto px-6">
-          <div className="grid lg:grid-cols-5 gap-12 items-start">
-            <div className="hidden lg:block lg:col-span-2 space-y-8">
-              <div>
-                <h2 className="text-primary mb-2"><span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span><br /><span className="font-serif text-5xl md:text-6xl italic">Services</span></h2>
-                <div className="w-16 h-0.5 bg-secondary my-8"></div>
-                <p className="text-gray-600 leading-relaxed text-base mb-8"><EditableText contentKey="home_services_description_long" defaultValue="Whether you're looking to refine your facial features, contour your body, or restore symmetry and function after an injury or illness, our classic personalized approach and attention to detail ensure exceptional results tailored to your unique needs." as="span" multiline /></p>
-                <button onClick={() => onNavigate('Procedures')} className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300">View All Services</button>
-              </div>
-            </div>
-            <div className="hidden lg:block lg:col-span-3 relative h-[600px]">
-              <div className="relative overflow-hidden h-full w-[850px] mx-auto">
-                <div className="flex gap-4 overflow-x-auto lg:overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full touch-pan-x" ref={carouselRef}>
-                  {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
-                    const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
-                    return (
-                      <div key={`${service.title}-${index}`} className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full">
-                        <div className="absolute inset-0 overflow-hidden bg-gray-400">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
-                        <div className="absolute inset-0 cursor-pointer" onClick={() => onNavigate(service.page)} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
-                        <div className="absolute inset-0 flex items-center justify-center"><h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">{service.title.toUpperCase()}</h3></div>
-                        <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500"><div className="space-y-2 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div><div className="flex items-center text-secondary mt-4"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></div></div>
-                        <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-                      </div>
-                    );
-                  })}
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-auto'); if (c) c.scrollBy({ left: -320, behavior: 'smooth' }); }} className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Previous"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-auto'); if (c) c.scrollBy({ left: 320, behavior: 'smooth' }); }} className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Next"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
-              </div>
-            </div>
-            <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
 
-            {/* Mobile: Standalone Image Cards - ONLY SHOWN ON MOBILE */}
-            <div className="block lg:hidden space-y-5">
-              {/* Mobile-only section header */}
-              <div className="mb-6">
-                <h2 className="text-primary mb-2">
-                  <span className="text-3xl tracking-wide uppercase">OUR MAIN</span>
-                  <br />
-                  <span className="font-serif text-5xl italic">Services</span>
-                </h2>
-                <div className="w-16 h-0.5 bg-secondary mt-4"></div>
+        {/* DESKTOP ONLY */}
+        <div className="hidden lg:block">
+          <div className="container mx-auto px-6">
+            <div className="grid lg:grid-cols-5 gap-12 items-center">
+              <div className="lg:col-span-2 space-y-8">
+                <div>
+                  <h2 className="text-primary mb-2"><span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span><br /><span className="font-serif text-5xl md:text-6xl italic">Services</span></h2>
+                  <div className="w-16 h-0.5 bg-secondary my-8"></div>
+                  <p className="text-gray-600 leading-relaxed text-base mb-8"><EditableText contentKey="home_services_description_long" defaultValue="Whether you're looking to refine your facial features, contour your body, or restore symmetry and function after an injury or illness, our classic personalized approach and attention to detail ensure exceptional results tailored to your unique needs." as="span" multiline /></p>
+                  <button onClick={() => onNavigate('Procedures')} className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300">View All Services</button>
+                </div>
               </div>
+              <div className="lg:col-span-3 relative h-[600px]">
+                <div className="relative overflow-hidden h-full w-[850px] mx-auto">
+                  <div className="flex gap-4 overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full" ref={carouselRef}>
+                    {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
+                      const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
+                      return (
+                        <div key={`${service.title}-${index}`} className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full">
+                          <div className="absolute inset-0 overflow-hidden bg-gray-400">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
+                          <div className="absolute inset-0 cursor-pointer" onClick={() => onNavigate(service.page)} />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
+                          <div className="absolute inset-0 flex items-center justify-center"><h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">{service.title.toUpperCase()}</h3></div>
+                          <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500"><div className="space-y-2 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div><div className="flex items-center text-secondary mt-4"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></div></div>
+                          <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-hidden') as HTMLElement; if (c) c.scrollBy({ left: -320, behavior: 'smooth' }); }} className="flex absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Previous"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                  <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-hidden') as HTMLElement; if (c) c.scrollBy({ left: 320, behavior: 'smooth' }); }} className="flex absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Next"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MOBILE ONLY — fully inline styles, no Tailwind dependency for card structure */}
+        <div className="block lg:hidden">
+          <div className="container mx-auto px-6">
+            <div className="mb-8">
+              <h2 className="text-primary mb-2">
+                <span className="text-3xl tracking-wide uppercase">OUR MAIN</span>
+                <br />
+                <span className="font-serif text-5xl italic">Services</span>
+              </h2>
+              <div className="w-16 h-0.5 bg-secondary mt-4"></div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {serviceCards.map((service) => {
                 const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
                 return (
-                  <div key={service.title} className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer" onClick={() => onNavigate(service.page)}>
-                    <div className="absolute inset-0 bg-gray-700">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
-                    <div className="absolute inset-0 flex items-center justify-center pb-24"><h3 className="font-serif text-5xl text-white italic">{service.title.toUpperCase()}</h3></div>
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <div className="space-y-1 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div>
-                      <div className="flex items-center text-[#c9b896]"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4" /></div>
+                  <div key={service.title} onClick={() => onNavigate(service.page)}
+                    style={{ position: 'relative', height: '288px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}
+                  >
+                    <div style={{ position: 'absolute', inset: 0, backgroundColor: '#374151' }}>
+                      {resolvedSrc && (<img src={resolvedSrc} alt={service.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}
                     </div>
-                    <div className="absolute bottom-0 left-0 w-full h-1 bg-[#c9b896]" />
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 100%)' }} />
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '96px' }}>
+                      <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '3rem', color: '#fff', fontStyle: 'italic', margin: 0, lineHeight: 1 }}>{service.title.toUpperCase()}</h3>
+                    </div>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        {service.procedures.map((proc, i) => (<p key={i} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', margin: '3px 0', letterSpacing: '0.04em' }}>• {proc}</p>))}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', color: '#c9b896' }}>
+                        <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', marginRight: '8px' }}>Explore</span>
+                        <ArrowRight style={{ width: '16px', height: '16px' }} />
+                      </div>
+                    </div>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px', backgroundColor: '#c9b896' }} />
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
+
+        <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
       </section>
 
       <section className="py-24 bg-white">
@@ -316,7 +313,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div>
             <h4 className="text-secondary font-bold uppercase tracking-widest mb-2">The Surgeon</h4>
             <h2 className="font-serif text-4xl lg:text-5xl text-primary mb-6"><EditableText as="span" contentKey="intro_heading" defaultValue="Meet Dr. Hanemann" /></h2>
-            <div className="text-gray-600 font-light leading-relaxed mb-8"><EditableText contentKey="intro_text" multiline defaultValue="Dr. Hanemann is a renowned plastic surgeon known for his meticulous attention to detail and natural-looking results. With a deep understanding of anatomy and an artistic eye, he helps patients achieve their aesthetic goals with confidence." /></div>
+            <div className="text-gray-600 font-light leading-relaxed mb-8"><EditableText contentKey="intro_text" multiline defaultValue="Dr. Hanemann is a renowned plastic surgeon known for his meticulous attention to detail and natural-looking results." /></div>
             <div className="grid grid-cols-2 gap-6 mb-8">
               <div className="flex items-start gap-3"><Shield className="text-secondary mt-1" /><div><h5 className="font-bold text-primary">Board Certified</h5><p className="text-sm text-gray-500">American Board of Plastic Surgery</p></div></div>
               <div className="flex items-start gap-3"><Award className="text-secondary mt-1" /><div><h5 className="font-bold text-primary">Top Doctor</h5><p className="text-sm text-gray-500">Voted top surgeon 5 years running</p></div></div>
@@ -338,7 +335,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 {isAdmin && isEditMode && (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-2 group hover:border-secondary transition-all duration-500" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4 bg-card"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary">Click to Create →</span></div></div></div>)}
               </>
             ) : (
-              <>{isAdmin && isEditMode ? (<div className="bg-card border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4"><span className="text-secondary">Add New Case</span></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}</>
+              <>{isAdmin && isEditMode ? (<div className="bg-card border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden cursor-pointer group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center"><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500" /></div><div className="p-4"><span className="text-secondary">Add New Case</span></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet.</p></div>)}</>
             )}
           </div>
           <div className="mt-12 text-center md:hidden"><button onClick={() => onNavigate('Gallery')} className="inline-block border border-secondary text-secondary px-8 py-3 rounded-full">View Full Gallery</button></div>
@@ -359,7 +356,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       {lightboxOpen && featuredGallery.length > 0 && (<GalleryLightbox isOpen={lightboxOpen} onClose={() => setLightboxOpen(false)} currentItem={featuredGallery[currentLightboxIndex]} currentIndex={currentLightboxIndex} totalImages={featuredGallery.length} onNext={handleNextImage} onPrevious={handlePreviousImage} />)}
       {newCaseEditorOpen && accessToken && (<NewGalleryCaseEditor isOpen={newCaseEditorOpen} onClose={() => setNewCaseEditorOpen(false)} onSaved={loadFeaturedGallery} accessToken={accessToken} />)}
       {positionPickerOpen && (<ImagePositionPicker isOpen={true} type={positionPickerOpen} onClose={() => setPositionPickerOpen(null)} onSave={(position) => { if (positionPickerOpen === 'desktop') setHeroDesktopPosition(position); else setHeroMobilePosition(position); }} currentPosition={positionPickerOpen === 'desktop' ? heroDesktopPosition : heroMobilePosition} accessToken={accessToken} />)}
-      {uploaderOpen && (<HeroImageUploader isOpen={true} type={uploaderOpen} onClose={() => setUploaderOpen(null)} onUploadComplete={(newImageUrl) => { console.log('Hero image uploaded:', newImageUrl); }} accessToken={accessToken} />)}
+      {uploaderOpen && (<HeroImageUploader isOpen={true} type={uploaderOpen} onClose={() => setUploaderOpen(null)} onUploadComplete={(url) => { console.log('Hero image uploaded:', url); }} accessToken={accessToken} />)}
     </div>
   );
 }

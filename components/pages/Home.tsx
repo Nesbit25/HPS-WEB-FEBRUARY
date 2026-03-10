@@ -77,14 +77,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     for (const service of serviceCards) {
       const contentKey = `service_card_${service.title.toLowerCase()}`;
       try {
-        const response = await fetch(`${serverUrl}/content/${contentKey}`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-        });
+        const response = await fetch(`${serverUrl}/content/${contentKey}`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
         const data = await response.json();
         if (data.content?.value) imageUrls[service.title] = data.content.value;
-      } catch (error) {
-        console.error(`Error loading ${service.title} service image:`, error);
-      }
+      } catch (error) { console.error(`Error loading ${service.title} service image:`, error); }
     }
     setServiceImages(imageUrls);
     setServiceImagesLoaded(true);
@@ -98,33 +94,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       const mobileRes = await fetch(`${serverUrl}/content/hero_mobile_position`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       const mobileData = await mobileRes.json();
       if (mobileData.content?.value) setHeroMobilePosition(mobileData.content.value);
-    } catch (error) {
-      console.error('Error loading hero positions:', error);
-    }
+    } catch (error) { console.error('Error loading hero positions:', error); }
   };
 
-  useEffect(() => {
-    if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); }
-  }, [heroPositionRequest, onHeroPositionHandled]);
-
-  useEffect(() => {
-    if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); }
-  }, [heroUploadRequest, onHeroUploadHandled]);
-
-  const baseGalleryItems: GalleryItem[] = [
-    { id: 1, category: 'Nose', title: 'Rhinoplasty Case Study', procedure: 'Primary Rhinoplasty', journeyNote: 'I had been self-conscious about my nose for years.' },
-    { id: 2, category: 'Face', title: 'Facelift Transformation', procedure: 'Deep Plane Facelift', journeyNote: 'After years of considering a facelift, I finally took the step.' },
-    { id: 3, category: 'Breast', title: 'Breast Augmentation Journey', procedure: 'Breast Augmentation', journeyNote: 'Becoming a mother changed my body.' },
-    { id: 4, category: 'Body', title: 'Abdominoplasty Results', procedure: 'Tummy Tuck', journeyNote: 'After significant weight loss, I struggled with excess skin.' },
-    { id: 5, category: 'Nose', title: 'Revision Rhinoplasty', procedure: 'Revision Rhinoplasty', journeyNote: 'I needed revision surgery after an unsuccessful rhinoplasty elsewhere.' },
-    { id: 6, category: 'Face', title: 'Brow Lift Enhancement', procedure: 'Endoscopic Brow Lift', journeyNote: 'My heavy brows made me look tired.' },
-    { id: 7, category: 'Breast', title: 'Breast Lift Success', procedure: 'Mastopexy (Breast Lift)', journeyNote: 'Years of nursing and aging had taken their toll.' },
-    { id: 8, category: 'Body', title: 'Liposuction Transformation', procedure: 'Liposuction - Multiple Areas', journeyNote: 'Despite diet and exercise, I had stubborn fat deposits.' },
-    { id: 9, category: 'Nose', title: 'Ethnic Rhinoplasty', procedure: 'Ethnic Rhinoplasty', journeyNote: 'I wanted to refine my nose while maintaining my ethnic identity.' },
-    { id: 10, category: 'Face', title: 'Neck Lift Results', procedure: 'Neck Lift & Platysmaplasty', journeyNote: 'My neck was aging faster than the rest of my face.' },
-    { id: 11, category: 'Breast', title: 'Breast Reconstruction', procedure: 'Breast Reconstruction', journeyNote: 'After my mastectomy, Dr. Hanemann helped me feel whole again.' },
-    { id: 12, category: 'Body', title: 'Mommy Makeover', procedure: 'Mommy Makeover', journeyNote: "Pregnancy changed my body in ways I wasn't prepared for." }
-  ];
+  useEffect(() => { if (heroPositionRequest) { setPositionPickerOpen(heroPositionRequest); onHeroPositionHandled?.(); } }, [heroPositionRequest, onHeroPositionHandled]);
+  useEffect(() => { if (heroUploadRequest) { setUploaderOpen(heroUploadRequest); onHeroUploadHandled?.(); } }, [heroUploadRequest, onHeroUploadHandled]);
 
   useEffect(() => { loadFeaturedGallery(); }, []);
 
@@ -232,6 +206,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         keywords="plastic surgeon Baton Rouge, Dr. Hanemann, rhinoplasty Baton Rouge, breast augmentation Baton Rouge, tummy tuck Baton Rouge, facelift Baton Rouge, board certified plastic surgeon Louisiana"
         canonical="/"
       />
+
+      {/* Hero */}
       <section className="relative w-full overflow-hidden">
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
           <div className="absolute inset-0">
@@ -247,15 +223,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             <div className="container mx-auto pointer-events-auto">
               <div className="max-w-3xl">
                 <div>
-                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold">
-                    <EditableText as="span" contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" />
-                  </h2>
-                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight">
-                    <EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
-                  </h1>
-                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
-                    <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
-                  </p>
+                  <h2 className="text-secondary text-xs md:text-sm lg:text-base uppercase tracking-[0.3em] mb-3 md:mb-4 font-bold"><EditableText as="span" contentKey="hero_label_1" defaultValue="Double Board Certified Plastic Surgeon" /></h2>
+                  <h1 className="text-3xl md:text-5xl lg:text-7xl font-serif text-white mb-4 md:mb-6 leading-tight"><EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" /></h1>
+                  <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed"><EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" /></p>
                   <button onClick={() => onNavigate('Contact')} className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300">Schedule Consultation</button>
                 </div>
               </div>
@@ -270,6 +240,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         </div>
       </section>
 
+      {/* Trust Bar */}
       <section className="bg-[#1a1f2e] py-16 md:py-20 border-b border-[#2d3548] mt-12 md:mt-16">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
@@ -281,69 +252,75 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="mt-12 pt-10 border-t border-[#2d3548]">
             <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Certified &amp; Accredited</p>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-1.png" alt="Southeastern Society of Plastic and Reconstructive Surgeons" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span></div>
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-2.png" alt="American Society for Aesthetic Plastic Surgery" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span></div>
-              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-3.png" alt="American Society of Plastic Surgeons" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-1.png" alt="SESPRS" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-2.png" alt="ASAPS" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span></div>
+              <div className="flex flex-col items-center group cursor-pointer"><div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"><img src="/images/certifications/cert-logo-3.png" alt="ASPS" className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div><span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span><span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span></div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Featured Services */}
       <section className="py-24 bg-cream">
-        <div className="container mx-auto px-6">
-          <div className="grid lg:grid-cols-5 gap-12 items-start">
-            {/* Left Content Section - ONLY ON DESKTOP */}
-            <div className="hidden lg:block lg:col-span-2 space-y-8">
-              <div>
-                <h2 className="text-primary mb-2">
-                  <span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span>
-                  <br />
-                  <span className="font-serif text-5xl md:text-6xl italic">Services</span>
-                </h2>
-                <div className="w-16 h-0.5 bg-secondary my-8"></div>
-                <p className="text-gray-600 leading-relaxed text-base mb-8">
-                  <EditableText contentKey="home_services_description_long" defaultValue="Whether you're looking to refine your facial features, contour your body, or restore symmetry and function after an injury or illness, our classic personalized approach and attention to detail ensure exceptional results tailored to your unique needs. You can trust Dr. Hanemann's skill and artistry to transform your vision into reality and rediscover your confidence and self-assurance." as="span" multiline />
-                </p>
-                <button onClick={() => onNavigate('Procedures')} className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300">View All Services</button>
-              </div>
-            </div>
 
-            {/* Right Carousel Section - DESKTOP ONLY */}
-            <div className="hidden lg:block lg:col-span-3 relative h-[600px]">
-              <div className="relative overflow-hidden h-full w-[850px] mx-auto">
-                <div className="flex gap-4 overflow-x-auto lg:overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full touch-pan-x" ref={carouselRef}>
-                  {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
-                    const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
-                    return (
-                      <div key={`${service.title}-${index}`} className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full">
-                        <div className="absolute inset-0 overflow-hidden bg-gray-400">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
-                        <div className="absolute inset-0 cursor-pointer" onClick={() => onNavigate(service.page)} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
-                        <div className="absolute inset-0 flex items-center justify-center"><h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">{service.title.toUpperCase()}</h3></div>
-                        <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500"><div className="space-y-2 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div><div className="flex items-center text-secondary mt-4"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></div></div>
-                        <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-                      </div>
-                    );
-                  })}
+        {/* ── DESKTOP LAYOUT (lg+) ── completely separate from mobile ── */}
+        <div className="hidden lg:block">
+          <div className="container mx-auto px-6">
+            <div className="grid lg:grid-cols-5 gap-12 items-center">
+              {/* Left Content */}
+              <div className="lg:col-span-2 space-y-8">
+                <div>
+                  <h2 className="text-primary mb-2">
+                    <span className="text-3xl md:text-4xl tracking-wide uppercase">OUR MAIN</span>
+                    <br />
+                    <span className="font-serif text-5xl md:text-6xl italic">Services</span>
+                  </h2>
+                  <div className="w-16 h-0.5 bg-secondary my-8"></div>
+                  <p className="text-gray-600 leading-relaxed text-base mb-8">
+                    <EditableText contentKey="home_services_description_long" defaultValue="Whether you're looking to refine your facial features, contour your body, or restore symmetry and function after an injury or illness, our classic personalized approach and attention to detail ensure exceptional results tailored to your unique needs. You can trust Dr. Hanemann's skill and artistry to transform your vision into reality and rediscover your confidence and self-assurance." as="span" multiline />
+                  </p>
+                  <button onClick={() => onNavigate('Procedures')} className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300">View All Services</button>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-auto'); if (c) c.scrollBy({ left: -320, behavior: 'smooth' }); }} className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Previous"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-                <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-auto'); if (c) c.scrollBy({ left: 320, behavior: 'smooth' }); }} className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Next"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+              </div>
+              {/* Right Carousel */}
+              <div className="lg:col-span-3 relative h-[600px]">
+                <div className="relative overflow-hidden h-full w-[850px] mx-auto">
+                  <div className="flex gap-4 overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full" ref={carouselRef}>
+                    {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
+                      const resolvedSrc = failedServiceImages.has(service.title) ? undefined : (serviceImages[service.title] || service.img);
+                      return (
+                        <div key={`${service.title}-${index}`} className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full">
+                          <div className="absolute inset-0 overflow-hidden bg-gray-400">{resolvedSrc && (<img src={resolvedSrc} alt={service.title} className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700" onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }} />)}</div>
+                          <div className="absolute inset-0 cursor-pointer" onClick={() => onNavigate(service.page)} />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
+                          <div className="absolute inset-0 flex items-center justify-center"><h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">{service.title.toUpperCase()}</h3></div>
+                          <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500"><div className="space-y-2 mb-4">{service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}</div><div className="flex items-center text-secondary mt-4"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></div></div>
+                          <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-hidden') as HTMLElement; if (c) c.scrollBy({ left: -320, behavior: 'smooth' }); }} className="flex absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Previous"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                  <button onClick={(e) => { e.stopPropagation(); const c = e.currentTarget.parentElement?.querySelector('.overflow-x-hidden') as HTMLElement; if (c) c.scrollBy({ left: 320, behavior: 'smooth' }); }} className="flex absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 rounded-full text-white transition-all duration-300 hover:scale-110 z-10" aria-label="Next"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
-
-            {/* Mobile: Standalone Image Cards - ONLY SHOWN ON MOBILE */}
-            <div className="block lg:hidden space-y-5">
-              {/* Mobile-only section header */}
-              <div className="mb-6">
-                <h2 className="text-primary mb-2">
-                  <span className="text-3xl tracking-wide uppercase">OUR MAIN</span>
-                  <br />
-                  <span className="font-serif text-5xl italic">Services</span>
-                </h2>
-                <div className="w-16 h-0.5 bg-secondary mt-4"></div>
-              </div>
+        {/* ── MOBILE LAYOUT (below lg) — fully independent, no grid parent —
+             All card styles are INLINE so Tailwind CSS purge cannot break them */}
+        <div className="block lg:hidden">
+          <div className="container mx-auto px-6">
+            <div className="mb-8">
+              <h2 className="text-primary mb-2">
+                <span className="text-3xl tracking-wide uppercase">OUR MAIN</span>
+                <br />
+                <span className="font-serif text-5xl italic">Services</span>
+              </h2>
+              <div className="w-16 h-0.5 bg-secondary mt-4"></div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {serviceCards.map((service) => {
                 const resolvedSrc = failedServiceImages.has(service.title)
                   ? undefined
@@ -351,38 +328,57 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 return (
                   <div
                     key={service.title}
-                    className="relative h-72 rounded-xl overflow-hidden shadow-xl cursor-pointer"
                     onClick={() => onNavigate(service.page)}
+                    style={{
+                      position: 'relative',
+                      height: '288px',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+                    }}
                   >
-                    <div className="absolute inset-0 bg-gray-700">
+                    <div style={{ position: 'absolute', inset: 0, backgroundColor: '#374151' }}>
                       {resolvedSrc && (
                         <img
                           src={resolvedSrc}
                           alt={service.title}
-                          className="w-full h-full object-cover"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }}
                         />
                       )}
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
-                    <div className="absolute inset-0 flex items-center justify-center pb-24">
-                      <h3 className="font-serif text-5xl text-white italic">{service.title.toUpperCase()}</h3>
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.12) 100%)' }} />
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '96px' }}>
+                      <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '3rem', color: '#ffffff', fontStyle: 'italic', margin: 0, lineHeight: 1 }}>
+                        {service.title.toUpperCase()}
+                      </h3>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <div className="space-y-1 mb-4">
-                        {service.procedures.map((proc, i) => (<p key={i} className="text-sm text-white/90 tracking-wide">• {proc}</p>))}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px' }}>
+                      <div style={{ marginBottom: '12px' }}>
+                        {service.procedures.map((proc, i) => (
+                          <p key={i} style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', margin: '3px 0', letterSpacing: '0.04em' }}>
+                            • {proc}
+                          </p>
+                        ))}
                       </div>
-                      <div className="flex items-center text-[#c9b896]"><span className="text-sm uppercase tracking-wider mr-2">Explore</span><ArrowRight className="w-4 h-4" /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', color: '#c9b896' }}>
+                        <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', marginRight: '8px' }}>Explore</span>
+                        <ArrowRight style={{ width: '16px', height: '16px' }} />
+                      </div>
                     </div>
-                    <div className="absolute bottom-0 left-0 w-full h-1 bg-[#c9b896]" />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px', backgroundColor: '#c9b896' }} />
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
+
+        <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
       </section>
 
+      {/* Introduction */}
       <section className="py-24 bg-white">
         <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="relative">
@@ -403,6 +399,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         </div>
       </section>
 
+      {/* Before & After Preview */}
       <section className="py-24 bg-primary text-white">
         <div className="container mx-auto px-6">
           <div className="flex justify-between items-end mb-12">
@@ -414,24 +411,31 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {featuredGallery.length > 0 ? (
-              <>{featuredGallery.slice(0, 6).map((c, index) => (<BeforeAfterCard key={c.id} beforeImage={c.beforeImage} afterImage={c.afterImage} category={c.category} title={c.title} onClick={() => handleOpenLightbox(index)} interval={3000} />))}
+              <>
+                {featuredGallery.slice(0, 6).map((c, index) => (<BeforeAfterCard key={c.id} beforeImage={c.beforeImage} afterImage={c.afterImage} category={c.category} title={c.title} onClick={() => handleOpenLightbox(index)} interval={3000} />))}
                 {isAdmin && isEditMode && (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500 group-hover:scale-110 transform" /><div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div></div><div className="p-4 bg-card relative"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span></div></div></div>)}
               </>
             ) : (
-              <>{isAdmin && isEditMode ? (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500 group-hover:scale-110 transform" /><div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div></div><div className="p-4 bg-card relative"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span></div></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}</>
+              <>
+                {isAdmin && isEditMode ? (<div className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary" onClick={() => setNewCaseEditorOpen(true)}><div className="aspect-square bg-gradient-to-br from-muted to-secondary/10 flex items-center justify-center relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div><Plus className="w-16 h-16 text-secondary/40 group-hover:text-secondary transition-colors duration-500 group-hover:scale-110 transform" /><div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div></div><div className="p-4 bg-card relative"><div className="flex items-center justify-between"><span className="text-secondary">Add New Case</span><span className="text-xs text-muted-foreground group-hover:text-secondary transition-colors">Click to Create →</span></div></div></div>) : (<div className="col-span-full text-center py-12"><p className="text-gray-400">No featured cases yet. Add cases in the admin panel.</p></div>)}
+              </>
             )}
           </div>
           <div className="mt-12 text-center md:hidden"><button onClick={() => onNavigate('Gallery')} className="inline-block border border-secondary text-secondary px-8 py-3 rounded-full">View Full Gallery</button></div>
         </div>
       </section>
 
+      {/* Testimonials */}
       <section className="py-24 bg-cream">
         <div className="container mx-auto px-6 text-center max-w-4xl">
           <Star className="w-8 h-8 text-secondary mx-auto mb-6 fill-current" />
           <h2 className="font-serif text-3xl md:text-5xl text-primary mb-12 leading-tight"><EditableText as="span" contentKey="testimonial_hero" defaultValue="Dr. Hanemann changed my life. The results are so natural, no one knows I had surgery, they just tell me I look great." multiline /></h2>
           <div className="flex justify-center items-center gap-4">
             <div className="w-12 h-12 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-serif font-bold text-xl">S</div>
-            <div className="text-left"><p className="font-bold text-primary"><EditableText contentKey="testimonial_author" defaultValue="Sarah M." as="span" /></p><p className="text-xs text-gray-500"><EditableText contentKey="testimonial_author_detail" defaultValue="Rhinoplasty Patient" as="span" /></p></div>
+            <div className="text-left">
+              <p className="font-bold text-primary"><EditableText contentKey="testimonial_author" defaultValue="Sarah M." as="span" /></p>
+              <p className="text-xs text-gray-500"><EditableText contentKey="testimonial_author_detail" defaultValue="Rhinoplasty Patient" as="span" /></p>
+            </div>
           </div>
         </div>
       </section>
