@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -18,6 +18,58 @@ import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { getOptimizedSupabaseUrl } from '../../hooks/useImagePreload';
 
+// ─── Procedure display name maps (derived from repo folder names & filename prefixes) ───
+const PROCEDURE_FOLDER_DISPLAY: Record<string, string> = {
+  'breast-augmentation-photos':      'Breast Augmentation',
+  'breast-augmentation-lift-photos': 'Breast Aug + Lift',
+  'breast-lift-photos':              'Breast Lift',
+  'tuberous-breast-photos':          'Tuberous Breast',
+  'explant-mastopexy':               'Explant / Mastopexy',
+  'breast-reduction-photos':         'Breast Reduction',
+  'asymmetrical-breast-photos':      'Asymmetrical Breast',
+  'ftm-top-photos':                  'FTM Top Surgery',
+  'gynecomastia-photos':             'Gynecomastia',
+  'tummy-tuck-photos':               'Tummy Tuck',
+  'arm-lift-photos':                 'Arm Lift',
+  'thigh-lift-photos':               'Thigh Lift',
+  'body-contouring-photos':          'Body Contouring',
+  'liposuction-photos-2':            'Liposuction',
+  'eyelid-surgery-photos':           'Eyelid Surgery',
+  'facelift-necklift-photos':        'Facelift / Neck Lift',
+  'chin-augmentation-photos':        'Chin Augmentation',
+  'otoplasty-photos':                'Otoplasty',
+  'liposuction-photos':              'Liposuction (Face)',
+  'rhinoplasty-photos':              'Rhinoplasty',
+};
+
+const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
+  'BREAST_AUGMENTATION':   'Breast Augmentation',
+  'BREAST_AUG_LIFT':       'Breast Aug + Lift',
+  'BREAST_LIFT':           'Breast Lift',
+  'TUBEROUS_BREAST':       'Tuberous Breast',
+  'EXPLANT_MASTOPEXY':     'Explant / Mastopexy',
+  'BREAST_REDUCTION':      'Breast Reduction',
+  'ASYMMETRICAL_BREAST':   'Asymmetrical Breast',
+  'FTM_TOP':               'FTM Top Surgery',
+  'GYNECOMASTIA':          'Gynecomastia',
+  'TUMMY_TUCK':            'Tummy Tuck',
+  'ARM_LIFT':              'Arm Lift',
+  'THIGH_LIFT':            'Thigh Lift',
+  'BODY_CONTOURING':       'Body Contouring',
+  'LIPOSUCTION':           'Liposuction',
+  'EYELID_SURGERY':        'Eyelid Surgery',
+  'FACELIFT_NECKLIFT':     'Facelift / Neck Lift',
+  'CHIN_AUGMENTATION':     'Chin Augmentation',
+  'OTOPLASTY':             'Otoplasty',
+  'RHINOPLASTY':           'Rhinoplasty',
+};
+
+/** Derive a human-readable procedure name from a filename prefix (e.g. "BREAST_AUGMENTATION"). */
+const getProcedureNameFromPrefix = (prefix: string): string => {
+  const key = prefix.toUpperCase();
+  if (PROCEDURE_PREFIX_DISPLAY[key]) return PROCEDURE_PREFIX_DISPLAY[key];
+  return prefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
 interface GalleryProps {
   onNavigate: (page: string) => void;
 }
@@ -34,6 +86,7 @@ interface GalleryItem {
   category: string;
   title: string;
   procedure: string;
+  procedureName?: string; // Human-readable surgery name (e.g., "Breast Augmentation")
   journeyNote: string;
   beforeImage?: string;
   afterImage?: string;
@@ -52,6 +105,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const { isEditMode } = useEditMode();
   const categories = ['All', 'Face', 'Nose', 'Breast', 'Body'];
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedProcedures, setSelectedProcedures] = useState<string[]>([]); // empty array = show all
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -172,12 +226,17 @@ export function Gallery({ onNavigate }: GalleryProps) {
       console.log('[Gallery] ✅ Loaded', dbCases.length, 'cases from database');
       
       // Convert database cases to gallery items format
-      const galleryItems = dbCases.map(dbCase => ({
+      const galleryItems = dbCases.map(dbCase => {
+        // Derive procedureName from slug prefix (e.g. BREAST_AUGMENTATION_Patient01)
+        const slugPrefix = dbCase.slug?.match(/^([A-Z_]+)_Patient/i)?.[1] || '';
+        const procedureName = getProcedureNameFromPrefix(slugPrefix) || dbCase.procedure || '';
+        return ({
         id: dbCase.id,
         slug: dbCase.slug,
         title: dbCase.title || dbCase.slug,
         category: dbCase.category || 'Face',
         procedure: dbCase.procedure || '',
+        procedureName,
         journeyNote: dbCase.journeyNote || '',
         beforeImage: normalizeImageUrl(dbCase.beforeImage),
         afterImage: normalizeImageUrl(dbCase.afterImage),
@@ -193,7 +252,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
         showOnBody: dbCase.showOnBody || false,
         createdBy: dbCase.createdBy,
         createdAt: dbCase.createdAt
-      }));
+      });});
       
       console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
       console.log('[Gallery] Sample case images:', galleryItems[0]?.beforeImage, galleryItems[0]?.afterImage);
@@ -297,8 +356,8 @@ export function Gallery({ onNavigate }: GalleryProps) {
       console.log('[Gallery] Filtered to', imageFiles.length, 'image files');
       
       // 3. Parse filenames and build gallery structure
-      // Regex: ^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$
-      const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+      // New format: {PROCEDURE_PREFIX}_Patient{NN}_{Before|After}{N}.{ext}
+      const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
       
       const casesMap = new Map();
       
@@ -310,42 +369,42 @@ export function Gallery({ onNavigate }: GalleryProps) {
           return;
         }
         
-        const [, caseSlug, pageStr, indexStr, extension] = match;
-        const page = parseInt(pageStr);
-        const index = parseInt(indexStr);
+        const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = match;
+        const caseSlug = `${procedurePrefix}_Patient${patientNum}`;
+        const viewNum  = parseInt(viewNumStr);
+        const type     = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
+        const position = viewNum; // view number is the orientation position
         
-        // Calculate position: Math.ceil(index / 2)
-        const position = Math.ceil(index / 2);
-        
-        // Determine type: odd = before, even = after
-        const type = (index % 2 !== 0) ? 'before' : 'after';
-        
-        const galleryRelPath = (file as any).path
-          ? (file as any).path.replace(/^(?:public\/)?gallery\//, '')
-          : file.name;
         const repoPath = (file as any).path || `gallery/${file.name}`;
-        // Repo is now public — build raw.githubusercontent.com URLs directly.
-        // No proxy, no Supabase involved. Browser fetches straight from GitHub CDN.
+        // Public repo — build raw.githubusercontent.com URLs directly
         const imageUrl = `https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main/${repoPath}`;
         
-        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, position=${position}, type=${type}`);
+        console.log(`[Gallery] Parsed: ${file.name} -> case=${caseSlug}, view=${position}, type=${type}`);
         
         // Get or create case
         if (!casesMap.has(caseSlug)) {
-          // Generate readable title from slug
-          const title = caseSlug
-            .split('_')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
+          const procTitle = procedurePrefix
+            .replace(/_/g, ' ')
+            .toLowerCase()
+            .replace(/\b\w/g, (c: string) => c.toUpperCase());
+          const title = `${procTitle} — Patient ${patientNum}`;
           
-          // Category comes from the directory structure (Face|Breast|Body) — not a default guess
+          // Category comes from the directory structure (Face|Breast|Body|Nose)
           const category = (file as any).category || 'Face';
+
+          // Derive human-readable procedure name:
+          // Prefer the folder name returned by the server, fall back to filename prefix
+          const procedureDir = (file as any).procedureDir as string | undefined;
+          const procedureName = procedureDir
+            ? (PROCEDURE_FOLDER_DISPLAY[procedureDir] || getProcedureNameFromPrefix(procedurePrefix))
+            : getProcedureNameFromPrefix(procedurePrefix);
 
           casesMap.set(caseSlug, {
             slug: caseSlug,
             title,
             category,
             procedure: category,
+            procedureName,
             journeyNote: '',
             orientations: [],
             createdAt: new Date().toISOString()
@@ -354,11 +413,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
         
         const caseData = casesMap.get(caseSlug);
         
-        // Find or create orientation for this position
-        let orientation = caseData.orientations.find(o => o.name === position.toString());
+        // Find or create orientation for this view position
+        let orientation = caseData.orientations.find(o => o.name === `View ${position}`);
         if (!orientation) {
           orientation = {
-            name: position.toString(),
+            name: `View ${position}`,
             beforeImage: null,
             afterImage: null
           };
@@ -375,8 +434,12 @@ export function Gallery({ onNavigate }: GalleryProps) {
       
       // 4. Convert map to array and sort orientations
       const galleryItems = Array.from(casesMap.values()).map(caseData => {
-        // Sort orientations by position number
-        caseData.orientations.sort((a, b) => parseInt(a.name) - parseInt(b.name));
+        // Sort orientations by view number (names are "View 1", "View 2", etc.)
+        caseData.orientations.sort((a, b) => {
+          const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+          const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+          return numA - numB;
+        });
         
         // Set base before/after images from first orientation
         const firstOrientation = caseData.orientations[0] || {};
@@ -475,27 +538,30 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
-  const filteredItems = selectedCategory === 'All' 
-    ? galleryItems.filter(item => {
-        // Always exclude orphan KV stubs — these are slug-less entries created by
-        // the old broken toggle code. They have no images and no slug and would
-        // appear as blank/phantom cards even in admin mode.
-        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-        // Admins in edit mode can see real items even without images (e.g. new cases)
-        if (isAdmin && isEditMode) return true;
-        // Public users only see items with images
-        return item.beforeImage || item.afterImage;
-      })
-    : galleryItems.filter(item => {
-        // Exclude orphan stubs
-        if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-        // Category filter
-        if (item.category !== selectedCategory) return false;
-        // Admins in edit mode can see real items even without images
-        if (isAdmin && isEditMode) return true;
-        // Public users only see items with images
-        return item.beforeImage || item.afterImage;
-      });
+  const filteredItems = galleryItems.filter(item => {
+    // Always exclude orphan KV stubs (no slug AND no images)
+    if (!item.slug && !item.beforeImage && !item.afterImage) return false;
+    // Category filter
+    if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+    // Procedure filter (multi-select: empty array = show all)
+    if (selectedProcedures.length > 0 && !selectedProcedures.includes(item.procedureName || '')) return false;
+    // Admins in edit mode can see real items even without images
+    if (isAdmin && isEditMode) return true;
+    // Public users only see items with images
+    return item.beforeImage || item.afterImage;
+  });
+
+  // Sorted list of procedures available within the current category selection
+  const availableProcedures = useMemo(() => {
+    const baseItems = selectedCategory === 'All'
+      ? galleryItems
+      : galleryItems.filter(i => i.category === selectedCategory);
+    const withImages = baseItems.filter(i =>
+      (isAdmin && isEditMode) || i.beforeImage || i.afterImage
+    );
+    const names = new Set(withImages.map(i => i.procedureName).filter(Boolean) as string[]);
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [galleryItems, selectedCategory, isAdmin, isEditMode]);
 
   // Preload first 6 images for faster initial load
   useEffect(() => {
@@ -1240,39 +1306,142 @@ export function Gallery({ onNavigate }: GalleryProps) {
             </div>
           )}
           
-          <Tabs defaultValue="All" className="w-full">
-            <TabsList className="w-full justify-center bg-[#242938]/50 p-1 rounded-full max-w-2xl mx-auto border border-[#2d3548]">
-              {categories.map((category, index) => {
-                const count = category === 'All'
-                  ? (isAdmin && isEditMode
-                      ? galleryItems.length
-                      : galleryItems.filter(item => item.beforeImage || item.afterImage).length)
-                  : (isAdmin && isEditMode
-                      ? galleryItems.filter(item => item.category === category).length
-                      : galleryItems.filter(item =>
-                          item.category === category &&
-                          (item.beforeImage || item.afterImage)
-                        ).length);
-                
-                return (
-                  <motion.div
-                    key={category}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                  >
-                    <TabsTrigger
-                      value={category}
-                      onClick={() => setSelectedCategory(category)}
-                      className="rounded-full data-[state=active]:bg-[#c9b896] data-[state=active]:text-[#1a1f2e] data-[state=active]:shadow-lg text-gray-300"
+          {/* Category Tabs — plain buttons + inline styles to survive Tailwind purge in Vite build */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: '4px',
+            backgroundColor: 'rgba(36,41,56,0.5)',
+            padding: '4px',
+            borderRadius: '9999px',
+            maxWidth: '42rem',
+            margin: '0 auto',
+            border: '1px solid #2d3548',
+          }}>
+            {categories.map((category, index) => {
+              const count = category === 'All'
+                ? (isAdmin && isEditMode
+                    ? galleryItems.length
+                    : galleryItems.filter(item => item.beforeImage || item.afterImage).length)
+                : (isAdmin && isEditMode
+                    ? galleryItems.filter(item => item.category === category).length
+                    : galleryItems.filter(item =>
+                        item.category === category &&
+                        (item.beforeImage || item.afterImage)
+                      ).length);
+              const isActive = selectedCategory === category;
+              return (
+                <motion.button
+                  key={category}
+                  onClick={() => { setSelectedCategory(category); setSelectedProcedures([]); }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  style={{
+                    borderRadius: '9999px',
+                    padding: '6px 16px',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    backgroundColor: isActive ? '#c9b896' : 'transparent',
+                    color: isActive ? '#1a1f2e' : '#d1d5db',
+                    boxShadow: isActive ? '0 2px 8px rgba(201,184,150,0.3)' : 'none',
+                  }}
+                >
+                  {category} <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '2px' }}>({count})</span>
+                </motion.button>
+              );
+            })}
+          </div>
+
+          {/* ── Procedure Filter Pills ── multi-select, wrapping, inline styles to survive Tailwind purge */}
+          {availableProcedures.length > 1 && (
+            <div style={{ marginTop: '24px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', padding: '4px 8px' }}>
+                {/* "All" clear pill — active when nothing is selected */}
+                <button
+                  onClick={() => setSelectedProcedures([])}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: '9999px',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    border: selectedProcedures.length === 0 ? '1px solid #b8976a' : '1px solid #2d3548',
+                    backgroundColor: selectedProcedures.length === 0 ? '#b8976a' : 'transparent',
+                    color: selectedProcedures.length === 0 ? '#1a1f2e' : '#9ca3af',
+                    transition: 'all 0.2s',
+                    cursor: 'pointer',
+                  }}
+                >
+                  All Procedures
+                  <span style={{ marginLeft: '6px', fontSize: '0.75rem', opacity: 0.6 }}>
+                    ({(selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory))
+                        .filter(i => (isAdmin && isEditMode) || i.beforeImage || i.afterImage).length})
+                  </span>
+                </button>
+
+                {/* One toggleable pill per procedure */}
+                {availableProcedures.map(proc => {
+                  const isSelected = selectedProcedures.includes(proc);
+                  const count = (() => {
+                    const base = selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory);
+                    return base.filter(i =>
+                      i.procedureName === proc &&
+                      ((isAdmin && isEditMode) || i.beforeImage || i.afterImage)
+                    ).length;
+                  })();
+                  return (
+                    <button
+                      key={proc}
+                      onClick={() => {
+                        setSelectedProcedures(prev =>
+                          prev.includes(proc)
+                            ? prev.filter(p => p !== proc)   // deselect
+                            : [...prev, proc]                 // add to selection
+                        );
+                      }}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: '9999px',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        border: isSelected ? '1px solid #b8976a' : '1px solid #2d3548',
+                        backgroundColor: isSelected ? '#b8976a' : 'transparent',
+                        color: isSelected ? '#1a1f2e' : '#9ca3af',
+                        transition: 'all 0.2s',
+                        cursor: 'pointer',
+                      }}
                     >
-                      {category} <span className="ml-1 text-xs opacity-60">({count})</span>
-                    </TabsTrigger>
-                  </motion.div>
-                );
-              })}
-            </TabsList>
-          </Tabs>
+                      {proc}
+                      <span style={{ marginLeft: '6px', fontSize: '0.75rem', opacity: 0.6 }}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Active filter summary */}
+              {selectedProcedures.length > 0 && (
+                <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                  <button
+                    onClick={() => setSelectedProcedures([])}
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#9ca3af',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: '2px',
+                    }}
+                  >
+                    Clear {selectedProcedures.length} filter{selectedProcedures.length > 1 ? 's' : ''}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
@@ -1622,7 +1791,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
           {filteredItems.length === 0 && (
             <div className="text-center py-16">
               <CircleAccent size="sm" className="mx-auto mb-4" />
-              <p className="text-muted-foreground">No results found for this category.</p>
+              <p className="text-muted-foreground">
+                {selectedProcedures.length > 0
+                  ? `No results found for the selected procedure${selectedProcedures.length > 1 ? 's' : ''}.`
+                  : 'No results found for this category.'}
+              </p>
+              {selectedProcedures.length > 0 && (
+                <button
+                  onClick={() => setSelectedProcedures([])}
+                  className="mt-3 text-sm text-[#b8976a] hover:text-[#c9b896] underline underline-offset-2 transition-colors"
+                >
+                  Show all procedures →
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1795,7 +1976,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   </div>
                   {diagnoseData.notMatchingStdPattern > 0 && (
                     <div>
-                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'{{slug}}_p{{n}}_img{{n}}.ext'}</code>:</p>
+                      <p className="text-red-400 font-bold mb-2">❌ Files NOT matching <code className="bg-black/30 px-1 rounded">{'PROC_Patient01_Before1.jpg'}</code>:</p>
                       {(diagnoseData.sampleNonMatching || []).map((f, i) => (
                         <div key={i} className="text-red-300 pl-2">{f}</div>
                       ))}
