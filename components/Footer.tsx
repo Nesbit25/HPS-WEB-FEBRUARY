@@ -16,9 +16,19 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
     { label: 'Eyelid Surgery', page: 'Face' },
   ];
 
+  const hours = [
+    { day: 'Monday',    hours: '9:00 AM – 5:00 PM' },
+    { day: 'Tuesday',   hours: '9:00 AM – 5:00 PM' },
+    { day: 'Wednesday', hours: '9:00 AM – 5:00 PM' },
+    { day: 'Thursday',  hours: '9:00 AM – 5:00 PM' },
+    { day: 'Friday',    hours: '9:00 AM – 5:00 PM' },
+    { day: 'Saturday',  hours: 'By Appointment' },
+    { day: 'Sunday',    hours: 'Closed' },
+  ];
+
   return (
     <footer className="bg-[#1a1f2e] text-white pt-20 pb-10 border-t border-[#2d3548]">
-      <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+      <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
         {/* Column 1: Brand */}
         <div className="md:col-span-1 flex flex-col items-center md:items-start">
           <img 
@@ -26,7 +36,6 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
             alt="Hanemann Plastic Surgery" 
             className="h-32 md:h-36 w-auto mb-6"
             onError={(e) => {
-              // Fallback to SVG if PNG doesn't exist
               const img = e.target as HTMLImageElement;
               if (img.src.endsWith('.png')) {
                 img.src = '/images/logos/logo-main.svg';
@@ -67,9 +76,9 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
         </div>
 
         {/* Column 3: Contact */}
-        <div>
+        <div className="md:col-span-2">
           <h3 className="text-lg font-serif mb-6 text-white">Contact</h3>
-          <div className="space-y-4 text-sm text-gray-400">
+          <div className="space-y-3 text-sm text-gray-400 mb-5">
             <div>
               <EditableText 
                 contentKey="footer_address" 
@@ -79,31 +88,42 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
               />
             </div>
             <div>
+              <a href="mailto:drh@hanemannplasticsurgery.com" className="hover:text-[#c9b896] transition-colors">
+                drh@hanemannplasticsurgery.com
+              </a>
+            </div>
+            <div>
               <EditableText 
                 contentKey="footer_phone" 
                 defaultContent="(225) 766-2166"
               />
             </div>
-            <p>info@hanemannplastic.com</p>
+          </div>
+          {/* Embedded Map */}
+          <div className="rounded-lg overflow-hidden border border-white/10 w-full" style={{ height: '200px' }}>
+            <iframe
+              title="Hanemann Plastic Surgery Location"
+              src="https://maps.google.com/maps?q=5233+Dijon+Drive,+Baton+Rouge,+LA+70808&t=&z=15&ie=UTF8&iwloc=&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0, filter: 'grayscale(20%) invert(5%) contrast(90%)' }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
           </div>
         </div>
 
         {/* Column 4: Hours */}
         <div>
           <h3 className="text-lg font-serif mb-6 text-white">Hours</h3>
-          <ul className="space-y-2 text-sm text-gray-400">
-            <li className="flex justify-between">
-              <span>Mon - Fri</span> 
-              <span>9:00 AM - 5:00 PM</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Sat</span> 
-              <span>By Appointment</span>
-            </li>
-            <li className="flex justify-between">
-              <span>Sun</span> 
-              <span>Closed</span>
-            </li>
+          <ul className="space-y-2 text-sm">
+            {hours.map(({ day, hours: time }) => (
+              <li key={day} className="flex justify-between gap-3">
+                <span className="text-gray-300">{day}</span>
+                <span className="text-gray-400 text-right whitespace-nowrap">{time}</span>
+              </li>
+            ))}
           </ul>
         </div>
       </div>

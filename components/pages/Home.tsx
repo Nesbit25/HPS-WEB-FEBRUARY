@@ -229,7 +229,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     loadFeaturedGallery();
   }, []);
 
-  // ─── Gallery constants (mirrors Gallery.tsx) ───────────────────────────────
+  // ─── Gallery constants (mirrors Gallery.tsx) ─────────────────────────────────────────────
   const GITHUB_RAW = 'https://raw.githubusercontent.com/Nesbit25/HPS-WEB-FEBRUARY/main';
   const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
@@ -272,7 +272,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
       if (filesData.files?.length) {
         // Parse GitHub filenames into cases (same logic as Gallery.tsx)
-        const filenameRegex = /^(.*)_p(\d+)_img(\d+)\.(png|jpg|jpeg)$/;
+        // New format: {PROCEDURE_PREFIX}_Patient{NN}_{Before|After}{N}.{ext}
+        const filenameRegex = /^([A-Z_]+)_Patient(\d+)_(Before|After)(\d+)\.(jpg|jpeg|png)$/i;
         const casesMap = new Map<string, any>();
 
         filesData.files
@@ -280,20 +281,29 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           .forEach((f: any) => {
             const m = f.name.match(filenameRegex);
             if (!m) return;
-            const [, slug, , idxStr] = m;
-            const type = parseInt(idxStr) % 2 !== 0 ? 'before' : 'after';
+            const [, procedurePrefix, patientNum, beforeAfter, viewNumStr] = m;
+            const slug = `${procedurePrefix}_Patient${patientNum}`;
+            const type = beforeAfter.toLowerCase() === 'before' ? 'before' : 'after';
+            const viewNum = parseInt(viewNumStr);
             const repoPath = f.path || `gallery/${f.name}`;
             const imageUrl = `${GITHUB_RAW}/${repoPath}`;
             if (!casesMap.has(slug)) {
+              const procTitle = procedurePrefix
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1));
               casesMap.set(slug, {
                 slug, id: slug,
-                title: slug.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                title: `${procTitle} — Patient ${patientNum}`,
                 category: f.category || 'Face', procedure: '', journeyNote: '',
               });
             }
             const c = casesMap.get(slug);
-            if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
-            if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
+            // Only take view 1 as the primary before/after for the home featured cards
+            if (viewNum === 1) {
+              if (type === 'before' && !c.beforeImage) c.beforeImage = imageUrl;
+              if (type === 'after' && !c.afterImage) c.afterImage = imageUrl;
+            }
           });
 
         allItems = Array.from(casesMap.values()).map(item => {
@@ -418,7 +428,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroDesktopPosition }}
                 onError={(e) => {
-                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
                   img.style.display = 'none';
                 }}
@@ -433,7 +442,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 className="w-full h-full object-cover"
                 style={{ objectPosition: heroMobilePosition }}
                 onError={(e) => {
-                  // Hide image on error, showing gray background
                   const img = e.target as HTMLImageElement;
                   img.style.display = 'none';
                 }}
@@ -537,11 +545,39 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="mt-12 pt-10 border-t border-[#2d3548]">
             <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Certified &amp; Accredited</p>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 lg:gap-16">
-              {/* American Society of Plastic Surgeons */}
+              {/* SESPRS - Blue & Red Symbol */}
               <div className="flex flex-col items-center group cursor-pointer">
                 <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-1.png"
+                    alt="Southeastern Society of Plastic and Reconstructive Surgeons"
+                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span>
+              </div>
+              
+              {/* ASAPS - Triangle Symbol */}
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                  <img
+                    src="/images/certifications/cert-logo-2.png"
+                    alt="American Society for Aesthetic Plastic Surgery"
+                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                </div>
+                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span>
+              </div>
+              
+              {/* ASPS - Circle Image */}
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                  <img
+                    src="/images/certifications/cert-logo-3.png"
                     alt="American Society of Plastic Surgeons"
                     className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -549,34 +585,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 </div>
                 <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span>
                 <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span>
-              </div>
-              
-              {/* American Board of Plastic Surgery */}
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
-                  <img
-                    src="/images/certifications/cert-logo-2.png"
-                    alt="American Board of Plastic Surgery"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABPS</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Board of Plastic Surgery</span>
-              </div>
-              
-              {/* American Board of Otolaryngology */}
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
-                  <img
-                    src="/images/certifications/cert-logo-3.png"
-                    alt="American Board of Otolaryngology"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABOto</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Board of Otolaryngology</span>
               </div>
             </div>
           </div>
@@ -640,7 +648,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                             alt={service.title}
                             className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
                             onError={() => {
-                              // Track failed images in state so ALL instances of this card are consistent
                               setFailedServiceImages(prev => new Set([...prev, service.title]));
                             }}
                           />
@@ -1000,7 +1007,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           onClose={() => setUploaderOpen(null)}
           onUploadComplete={(newImageUrl) => {
             console.log('Hero image uploaded:', newImageUrl);
-            // Image URL is saved to database by the component
           }}
           accessToken={accessToken}
         />
