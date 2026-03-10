@@ -34,10 +34,15 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
     ? 'bg-transparent'
     : 'bg-[#1a1f2e]/40 backdrop-blur-md shadow-lg';
 
+  // Hide the bottom border when mobile menu is open so it doesn't cut across the header area
+  const borderClass = mobileMenuOpen
+    ? 'border-transparent'
+    : isHomePage && !scrolled ? 'border-white/20' : 'border-[#2d3548]';
+
   return (
     <>
       <header 
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBgClass} border-b ${isHomePage && !scrolled ? 'border-white/20' : 'border-[#2d3548]'}`}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBgClass} border-b ${borderClass}`}
       >
         <div className="container mx-auto px-4 md:px-6 pt-2">
           <div className="flex items-start justify-between pb-1.5">
@@ -103,7 +108,7 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 bg-[#1a1f2e] pt-20 px-6 lg:hidden animate-fade-in overflow-y-auto">
           <nav className="flex flex-col gap-4 items-center text-center pb-8">
-            {/* No logo here — the fixed header logo above remains visible */}
+            {/* No logo — fixed header logo above remains visible */}
 
             {navigationTabs.map(tab => (
               <button key={tab} onClick={() => handleNavigate(tab)}
