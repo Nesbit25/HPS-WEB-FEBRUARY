@@ -61,6 +61,94 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
   
   const featureFlag = flagMap[procedureType];
   
+  // Base gallery items (same as Gallery page)
+  const baseGalleryItems: GalleryItem[] = [
+    {
+      id: 1,
+      category: 'Nose',
+      title: 'Rhinoplasty Case Study',
+      procedure: 'Primary Rhinoplasty',
+      journeyNote: 'I had been self-conscious about my nose for years. Dr. Hanemann took the time to understand exactly what I wanted and the results exceeded my expectations. The recovery was smooth, and the staff was incredibly supportive throughout the entire process. I finally feel confident in my appearance.'
+    },
+    {
+      id: 2,
+      category: 'Face',
+      title: 'Facelift Transformation',
+      procedure: 'Deep Plane Facelift',
+      journeyNote: 'After years of considering a facelift, I finally took the step. Dr. Hanemann\'s expertise is evident in the natural-looking results. I look refreshed and more like myself, not overdone. Friends tell me I look well-rested, not that I\'ve had work done. That\'s exactly what I hoped for.'
+    },
+    {
+      id: 3,
+      category: 'Breast',
+      title: 'Breast Augmentation Journey',
+      procedure: 'Breast Augmentation',
+      journeyNote: 'Becoming a mother changed my body, and I wanted to feel like myself again. Dr. Hanemann listened to my concerns and helped me choose the perfect size. The results look completely natural, and I couldn\'t be happier with my decision. My confidence has returned.'
+    },
+    {
+      id: 4,
+      category: 'Body',
+      title: 'Abdominoplasty Results',
+      procedure: 'Tummy Tuck',
+      journeyNote: 'After significant weight loss, I struggled with excess skin. Dr. Hanemann performed an amazing tummy tuck that gave me the flat stomach I had worked so hard for. The transformation has been life-changing, and I finally feel comfortable in my own skin.'
+    },
+    {
+      id: 5,
+      category: 'Nose',
+      title: 'Revision Rhinoplasty',
+      procedure: 'Revision Rhinoplasty',
+      journeyNote: 'I needed revision surgery after an unsuccessful rhinoplasty elsewhere. Dr. Hanemann\'s skill in revision work is exceptional. He corrected the issues and gave me the nose I had always wanted. I\'m so grateful for his expertise and meticulous attention to detail.'
+    },
+    {
+      id: 6,
+      category: 'Face',
+      title: 'Brow Lift Enhancement',
+      procedure: 'Endoscopic Brow Lift',
+      journeyNote: 'My heavy brows made me look tired and older than I felt. The brow lift has opened up my eyes and taken years off my appearance. Dr. Hanemann\'s technique resulted in minimal scarring and a very natural outcome. I look more alert and feel more youthful.'
+    },
+    {
+      id: 7,
+      category: 'Breast',
+      title: 'Breast Lift Success',
+      procedure: 'Mastopexy (Breast Lift)',
+      journeyNote: 'Years of nursing and aging had taken their toll. Dr. Hanemann performed a breast lift that restored my youthful contour without implants. The results are beautiful and natural. I feel comfortable going braless again, which I haven\'t done in years.'
+    },
+    {
+      id: 8,
+      category: 'Body',
+      title: 'Liposuction Transformation',
+      procedure: 'Liposuction - Multiple Areas',
+      journeyNote: 'Despite diet and exercise, I had stubborn fat deposits that wouldn\'t budge. Dr. Hanemann\'s liposuction technique sculpted my body beautifully. The results are smooth and natural-looking. I finally have the body contours I worked so hard to achieve.'
+    },
+    {
+      id: 9,
+      category: 'Nose',
+      title: 'Ethnic Rhinoplasty',
+      procedure: 'Ethnic Rhinoplasty',
+      journeyNote: 'I wanted to refine my nose while maintaining my ethnic identity. Dr. Hanemann understood my goals perfectly and created results that enhanced my features without erasing my heritage. The outcome is exactly what I envisioned - natural and harmonious with my face.'
+    },
+    {
+      id: 10,
+      category: 'Face',
+      title: 'Neck Lift Results',
+      procedure: 'Neck Lift & Platysmaplasty',
+      journeyNote: 'My neck was aging faster than the rest of my face. Dr. Hanemann\'s neck lift procedure has given me a more defined jawline and eliminated the sagging that bothered me. The results are dramatic yet natural, and I look years younger.'
+    },
+    {
+      id: 11,
+      category: 'Breast',
+      title: 'Breast Reconstruction',
+      procedure: 'Breast Reconstruction',
+      journeyNote: 'After my mastectomy, Dr. Hanemann helped me feel whole again. His compassionate care and surgical skill gave me beautiful, natural-looking breasts. The reconstruction was an important part of my healing journey, and I\'m grateful for the outcome.'
+    },
+    {
+      id: 12,
+      category: 'Body',
+      title: 'Mommy Makeover',
+      procedure: 'Mommy Makeover',
+      journeyNote: 'Pregnancy changed my body in ways I wasn\'t prepared for. Dr. Hanemann\'s mommy makeover combined multiple procedures to restore my pre-pregnancy figure. The comprehensive approach addressed all my concerns, and I feel like myself again. Worth every penny.'
+    }
+  ];
+  
   // Load featured gallery items
   useEffect(() => {
     loadFeaturedGallery();
@@ -296,6 +384,59 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         </div>
       </section>
 
+      {/* Before & After Gallery */}
+      <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
+        {/* Gradient separator */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
+        
+        <div className="container mx-auto px-6 relative z-10">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="mb-4 text-[#faf9f7]">Before & After Results</h2>
+            <p className="text-gray-400">Real results from real patients</p>
+            
+            {/* Gold accent divider */}
+            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
+          </motion.div>
+
+          {featuredGallery.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
+              {featuredGallery.map((item, index) => (
+                <BeforeAfterCardWithCard
+                  key={item.id}
+                  beforeImage={item.beforeImage}
+                  afterImage={item.afterImage}
+                  title={item.title}
+                  procedure={item.procedure}
+                  onClick={() => handleOpenLightbox(index)}
+                  interval={3000}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-400">No featured results yet. Check back soon!</p>
+            </div>
+          )}
+
+          <div className="text-center">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              onClick={() => onNavigate('Gallery')}
+            >
+              View Full Gallery
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Procedures Section */}
       <section className="py-24 bg-gradient-to-b from-[#1a1f2e] to-[#242938] border-t border-[#2d3548] relative overflow-hidden">
         {/* Gradient separator at top */}
@@ -441,59 +582,6 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                 </div>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Before & After Gallery */}
-      <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
-        {/* Gradient separator */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
-        
-        <div className="container mx-auto px-6 relative z-10">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="mb-4 text-[#faf9f7]">Before & After Results</h2>
-            <p className="text-gray-400">Real results from real patients</p>
-            
-            {/* Gold accent divider */}
-            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
-          </motion.div>
-
-          {featuredGallery.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
-              {featuredGallery.map((item, index) => (
-                <BeforeAfterCardWithCard
-                  key={item.id}
-                  beforeImage={item.beforeImage}
-                  afterImage={item.afterImage}
-                  title={item.title}
-                  procedure={item.procedure}
-                  onClick={() => handleOpenLightbox(index)}
-                  interval={3000}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No featured results yet. Check back soon!</p>
-            </div>
-          )}
-
-          <div className="text-center">
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
-              onClick={() => onNavigate('Gallery')}
-            >
-              View Full Gallery
-            </Button>
           </div>
         </div>
       </section>

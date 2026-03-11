@@ -656,10 +656,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 </p>
                 
                 <button
-                  onClick={() => onNavigate('Procedures')}
+                  onClick={() => onNavigate('Gallery')}
                   className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300"
                 >
-                  View All Services
+                  See Our Results
                 </button>
               </div>
             </div>
