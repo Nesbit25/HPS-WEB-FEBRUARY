@@ -6,7 +6,6 @@ import { Button } from '../ui/button';
 import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
-import { unsplash_tool } from '../../utils/unsplash';
 
 // Placeholder image - replace with actual hosted image URL
 const noseServiceImage = 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=800&q=80';
@@ -252,10 +251,10 @@ export function HomeLuxury({ onNavigate, onOpenConsultation }: HomeLuxuryProps) 
                   whileTap={{ scale: 0.95 }}
                 >
                   <Button
-                    onClick={() => onNavigate('Procedures')}
+                    onClick={() => onNavigate('Gallery')}
                     className="bg-transparent border-2 border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e] px-8 py-6 text-sm uppercase tracking-[0.2em] rounded-none transition-all duration-300"
                   >
-                    View All Services
+                    See Our Results
                   </Button>
                 </motion.div>
               </motion.div>
