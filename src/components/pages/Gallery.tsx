@@ -605,33 +605,8 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   }, [filteredItems]);
 
-  // Auto-cycle between before/after images AND orientations
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveImages(prev => {
-        const newState = { ...prev };
-        filteredItems.forEach(item => {
-          const currentState = prev[item.id] || { orientationIndex: 0, type: 'before' };
-          const orientationCount = item.orientations?.length || 1;
-          
-          // Toggle between before and after first
-          if (currentState.type === 'before') {
-            newState[item.id] = { ...currentState, type: 'after' };
-          } else {
-            // After switching to "after", move to next orientation
-            const nextOrientationIndex = (currentState.orientationIndex + 1) % orientationCount;
-            newState[item.id] = { 
-              orientationIndex: nextOrientationIndex, 
-              type: 'before' 
-            };
-          }
-        });
-        return newState;
-      });
-    }, 3000); // Change every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [filteredItems]);
+  // Gallery cards always show the first before photo — no auto-cycling.
+  // (BeforeAfterCard on Home/ProcedurePages retains its own animation.)
 
   const handleOpenLightbox = (index: number) => {
     setCurrentLightboxIndex(index);
@@ -1320,16 +1295,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
             border: '1px solid #2d3548',
           }}>
             {categories.map((category, index) => {
-              const count = category === 'All'
-                ? (isAdmin && isEditMode
-                    ? galleryItems.length
-                    : galleryItems.filter(item => item.beforeImage || item.afterImage).length)
-                : (isAdmin && isEditMode
-                    ? galleryItems.filter(item => item.category === category).length
-                    : galleryItems.filter(item =>
-                        item.category === category &&
-                        (item.beforeImage || item.afterImage)
-                      ).length);
               const isActive = selectedCategory === category;
               return (
                 <motion.button
@@ -1351,7 +1316,7 @@ export function Gallery({ onNavigate }: GalleryProps) {
                     boxShadow: isActive ? '0 2px 8px rgba(201,184,150,0.3)' : 'none',
                   }}
                 >
-                  {category} <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '2px' }}>({count})</span>
+                  {category}
                 </motion.button>
               );
             })}
@@ -1377,22 +1342,11 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   }}
                 >
                   All Procedures
-                  <span style={{ marginLeft: '6px', fontSize: '0.75rem', opacity: 0.6 }}>
-                    ({(selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory))
-                        .filter(i => (isAdmin && isEditMode) || i.beforeImage || i.afterImage).length})
-                  </span>
                 </button>
 
                 {/* One toggleable pill per procedure */}
                 {availableProcedures.map(proc => {
                   const isSelected = selectedProcedures.includes(proc);
-                  const count = (() => {
-                    const base = selectedCategory === 'All' ? galleryItems : galleryItems.filter(i => i.category === selectedCategory);
-                    return base.filter(i =>
-                      i.procedureName === proc &&
-                      ((isAdmin && isEditMode) || i.beforeImage || i.afterImage)
-                    ).length;
-                  })();
                   return (
                     <button
                       key={proc}
@@ -1416,7 +1370,6 @@ export function Gallery({ onNavigate }: GalleryProps) {
                       }}
                     >
                       {proc}
-                      <span style={{ marginLeft: '6px', fontSize: '0.75rem', opacity: 0.6 }}>({count})</span>
                     </button>
                   );
                 })}
