@@ -384,6 +384,59 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         </div>
       </section>
 
+      {/* Before & After Gallery */}
+      <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
+        {/* Gradient separator */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
+        
+        <div className="container mx-auto px-6 relative z-10">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="mb-4 text-[#faf9f7]">Before & After Results</h2>
+            <p className="text-gray-400">Real results from real patients</p>
+            
+            {/* Gold accent divider */}
+            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
+          </motion.div>
+
+          {featuredGallery.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
+              {featuredGallery.map((item, index) => (
+                <BeforeAfterCardWithCard
+                  key={item.id}
+                  beforeImage={item.beforeImage}
+                  afterImage={item.afterImage}
+                  title={item.title}
+                  procedure={item.procedure}
+                  onClick={() => handleOpenLightbox(index)}
+                  interval={3000}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-400">No featured results yet. Check back soon!</p>
+            </div>
+          )}
+
+          <div className="text-center">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+              onClick={() => onNavigate('Gallery')}
+            >
+              View Full Gallery
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Procedures Section */}
       <section className="py-24 bg-gradient-to-b from-[#1a1f2e] to-[#242938] border-t border-[#2d3548] relative overflow-hidden">
         {/* Gradient separator at top */}
@@ -529,59 +582,6 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                 </div>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Before & After Gallery */}
-      <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
-        {/* Gradient separator */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
-        
-        <div className="container mx-auto px-6 relative z-10">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="mb-4 text-[#faf9f7]">Before & After Results</h2>
-            <p className="text-gray-400">Real results from real patients</p>
-            
-            {/* Gold accent divider */}
-            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
-          </motion.div>
-
-          {featuredGallery.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
-              {featuredGallery.map((item, index) => (
-                <BeforeAfterCardWithCard
-                  key={item.id}
-                  beforeImage={item.beforeImage}
-                  afterImage={item.afterImage}
-                  title={item.title}
-                  procedure={item.procedure}
-                  onClick={() => handleOpenLightbox(index)}
-                  interval={3000}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No featured results yet. Check back soon!</p>
-            </div>
-          )}
-
-          <div className="text-center">
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
-              onClick={() => onNavigate('Gallery')}
-            >
-              View Full Gallery
-            </Button>
           </div>
         </div>
       </section>
