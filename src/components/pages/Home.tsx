@@ -444,7 +444,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {[1, 2, 3].map((n, i) => (
                 <img
                   key={`mobile-${n}`}
-                  src={`/images/hero/mobile/hero-slide-${n}.png`}
+                  src={`/images/hero/mobile/hero-slide-${n}.jpg`}
                   alt={`Hanemann Plastic Surgery Hero Mobile ${n}`}
                   className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                   style={{
@@ -452,7 +452,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     opacity: activeSlide === i ? 1 : 0,
                   }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
+                    const img = e.target as HTMLImageElement;
+                    // Try .png if .jpg fails, then hide if that fails too
+                    if (img.src.endsWith('.jpg')) {
+                      img.src = img.src.replace('.jpg', '.png');
+                    } else {
+                      img.style.display = 'none';
+                    }
                   }}
                 />
               ))}
