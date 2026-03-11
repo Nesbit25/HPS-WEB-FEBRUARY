@@ -97,20 +97,9 @@ const getProcedureCategory = (procedureDir: string): string =>
 let lastAutoSyncMs = 0;
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
-// Periodic cache cleanup (every 10 minutes)
-setInterval(() => {
-  const now = Date.now();
-  let cleared = 0;
-  for (const [key, entry] of contentCache.entries()) {
-    if (now - entry.timestamp >= CACHE_TTL_MS) {
-      contentCache.delete(key);
-      cleared++;
-    }
-  }
-  if (cleared > 0) {
-    console.log(`[CACHE] Cleaned up ${cleared} expired entries`);
-  }
-}, 10 * 60 * 1000);
+// NOTE: setInterval is intentionally removed — Edge Function workers are ephemeral
+// and timers can interfere with the response lifecycle causing "connection closed"
+// errors. Cache eviction now happens lazily inside getCachedContent() instead.
 // ===== END CACHE =====
 
 // Retry utility for handling connection resets
@@ -3736,4 +3725,43 @@ app.get("/make-server-fc862019/analytics/summary", async (c) => {
   }
 });
 
-Deno.serve(app.fetch);
+// Global Hono error handler — catches anything that escapes route try/catch blocks
+app.onError((err, c) => {
+  console.error('[Hono] Unhandled route error:', err?.message ?? err);
+  return c.json({ error: 'Internal server error', details: err?.message }, 500);
+});
+
+// 404 handler for unmatched routes
+app.notFound((c) => {
+  return c.json({ error: 'Not found', path: c.req.path }, 404);
+});
+
+// Wrap Deno.serve so that "Http: connection closed before message completed"
+// (client disconnected before we finished writing the response) is caught
+// silently instead of crashing the worker and corrupting in-flight responses.
+Deno.serve(async (req: Request) => {
+  try {
+    return await app.fetch(req);
+  } catch (err: any) {
+    const msg: string = err?.message ?? String(err);
+    const name: string = err?.name ?? '';
+
+    // Client disconnected mid-response — this is normal (navigation away,
+    // network drop, load-balancer timeout).  Don't log as a crash.
+    if (name === 'Http' || msg.includes('connection closed') || msg.includes('broken pipe')) {
+      return new Response(null, { status: 0 });
+    }
+
+    console.error('[Deno.serve] Unhandled error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
+  }
+});
