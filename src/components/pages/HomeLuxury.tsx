@@ -214,57 +214,6 @@ export function HomeLuxury({ onNavigate, onOpenConsultation }: HomeLuxuryProps) 
         </div>
       </section>
 
-      {/* Certified & Accredited Section */}
-      <section className="py-16 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#242938]/30 to-transparent pointer-events-none" />
-        <div className="container mx-auto px-6 relative z-10">
-          {/* Section heading */}
-          <div className="text-center mb-10">
-            <p className="text-xs tracking-[0.3em] uppercase text-[#c9b896] mb-2">Trust &amp; Expertise</p>
-            <h2 className="font-serif text-3xl md:text-4xl text-white">
-              Certified <span className="italic text-[#c9b896]">&amp;</span> Accredited
-            </h2>
-            <div className="w-12 h-px bg-[#c9b896]/50 mx-auto mt-4" />
-          </div>
-
-          {/* Certification cards */}
-          <div className="flex flex-wrap justify-center gap-6">
-            {/* American Board of Plastic Surgery */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="flex flex-col items-center justify-center gap-4 bg-[#242938]/60 border border-[#2d3548] hover:border-[#c9b896]/40 rounded-2xl px-10 py-8 w-64 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-[#c9b896]/10"
-            >
-              <div className="h-20 flex items-center justify-center">
-                <img
-                  src="/images/certifications/abps-logo.png"
-                  alt="American Board of Plastic Surgery"
-                  className="max-h-20 max-w-[160px] w-auto object-contain"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                    if (fallback) fallback.style.display = 'flex';
-                  }}
-                />
-                {/* Fallback icon shown until PNG is uploaded */}
-                <div
-                  style={{ display: 'none' }}
-                  className="w-16 h-16 rounded-full border-2 border-[#c9b896]/40 items-center justify-center"
-                >
-                  <Award className="w-8 h-8 text-[#c9b896]" />
-                </div>
-              </div>
-              <div className="text-center">
-                <p className="text-white font-medium text-sm leading-snug">American Board of</p>
-                <p className="text-[#c9b896] font-semibold text-sm tracking-wide">Plastic Surgery</p>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
       {/* Why Choose Section */}
       <section className="py-24 bg-[#1a1f2e] relative overflow-hidden">
         {/* Ambient background glow */}

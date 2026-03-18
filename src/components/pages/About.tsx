@@ -26,18 +26,16 @@ export function About({ onNavigate }: AboutProps) {
     { degree: 'Medical Doctorate (MD)', institution: 'Louisiana State University School of Medicine, New Orleans' },
     { degree: 'Residency: Otolaryngology – Head and Neck Surgery', institution: 'LSU School of Medicine, New Orleans' },
     { degree: 'Residency: Plastic Surgery', institution: 'University of North Carolina – Chapel Hill' },
-    { degree: 'Fellowship: Aesthetic Surgery & Breast Reconstruction', institution: 'University of Alabama – Birmingham' }
+    { degree: 'Fellowship: Aesthetic Surgery & Breast Reconstruction', institution: 'University of Alabama – Birmingham, Grotting Plastic Surgery' }
   ];
 
   const affiliations = [
-    'American Board of Plastic Surgery (Board Certified)',
-    'American Board of Otolaryngology – Head and Neck Surgery (Board Certified)',
-    'Louisiana Society of Plastic Surgeons (Past President)',
-    'Capital Area Medical Society (Past President)',
+    'American Board of Plastic Surgery (Board Certified Diplomate)',
+    'American Board of Otolaryngology – Head and Neck Surgery (Board Certified Diplomate)',
+    'Louisiana Society of Plastic Surgeons (Past President, Current Member)',
+    'Capital Area Medical Society (Past President, Current Member)',
     'Southeastern Society of Plastic and Reconstructive Surgeons (Board Member)',
-    'Louisiana State Medical Society\'s Council on Legislation (Member)',
-    'Faculty Member, Division of Plastic Surgery at LSU School of Medicine',
-    'Faculty Member, Division of Plastic Surgery at Tulane School of Medicine'
+    'Louisiana State Medical Society\'s Council on Legislation (Former Councilor)',
   ];
 
   return (
@@ -104,19 +102,13 @@ export function About({ onNavigate }: AboutProps) {
                 />
                 <EditableText
                   contentKey="about_bio_paragraph_2"
-                  defaultValue="Dr. Hanemann has been in private practice since 2009, bringing over 15 years of expertise to his patients. His dual board certifications provide him with unique insights into both facial aesthetics and comprehensive plastic surgery."
+                  defaultValue="Dr. Hanemann has been in private practice since 2009, bringing over 15 years of expertise to his patients. Dr. Hanemann's practice is entirely dedicated to aesthetic (cosmetic) plastic surgery. He completed an ASAPS accredited fellowship with world renowned plastic surgeon, Dr. James Grotting, in Birmingham, AL, following completion of a comprehensive residency in plastic surgery at the University of North Carolina Chapel Hill. Dr. Hanemann has published numerous peer reviewed journal articles and book chapters in the plastic surgery literature and has lectured and presented his research to regional, national, and international meetings."
                   as="p"
                   multiline
                 />
                 <EditableText
                   contentKey="about_bio_paragraph_3"
-                  defaultValue="Dr. Hanemann has published numerous peer reviewed journal articles and book chapters in the plastic surgery literature and has presented his research at regional, national, and international meetings."
-                  as="p"
-                  multiline
-                />
-                <EditableText
-                  contentKey="about_bio_paragraph_4"
-                  defaultValue="As a faculty member of the Division of Plastic Surgery at LSU and Tulane Schools of Medicine, Dr. Hanemann is actively involved in the training of plastic surgery residents in cosmetic surgery and breast reconstruction."
+                  defaultValue="As a faculty member of the Division of Plastic Surgery at LSU and Tulane Schools of Medicine, Dr. Hanemann is actively involved in the training of plastic surgery residents in aesthetic plastic surgery."
                   as="p"
                   multiline
                 />
@@ -359,7 +351,7 @@ export function About({ onNavigate }: AboutProps) {
             />
             <EditableText
               contentKey="about_operating_room_description"
-              defaultValue="With an in-Office Operating Room equipped with the latest equipment, we offer a variety of cosmetic surgical procedures that are private and safe. Our accredited facility provides the highest standards of patient care in a comfortable, confidential setting."
+              defaultValue="With two fully equipped in-Office Operating Rooms, Dr. Hanemann offers a variety of cosmetic surgical procedures that are private and safe. Our AAAASF accredited facility provides the highest standards of patient care in a comfortable, confidential setting."
               as="p"
               className="text-gray-300 leading-relaxed max-w-3xl mx-auto"
               multiline
@@ -416,7 +408,7 @@ export function About({ onNavigate }: AboutProps) {
                 <CardContent className="p-8 relative z-10">
                   <EditableText
                     contentKey="about_philosophy_paragraph_1"
-                    defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results."
+                    defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest innovations and procedures to achieve desired results."
                     as="p"
                     className="text-gray-300 leading-relaxed"
                     multiline

@@ -1,4 +1,4 @@
-import { Instagram, Facebook, Twitter } from 'lucide-react';
+import { Instagram, Facebook } from 'lucide-react';
 import { Button } from './ui/button';
 import { EditableText } from './cms/EditableText';
 
@@ -8,27 +8,19 @@ interface FooterProps {
 }
 
 export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
-  const procedureLinks = [
-    { label: 'Rhinoplasty', page: 'Nose' },
-    { label: 'Facelift', page: 'Face' },
-    { label: 'Breast Augmentation', page: 'Breast' },
-    { label: 'Liposuction', page: 'Body' },
-    { label: 'Eyelid Surgery', page: 'Face' },
-  ];
-
   const hours = [
-    { day: 'Monday',    hours: '9:00 AM – 5:00 PM' },
-    { day: 'Tuesday',   hours: '9:00 AM – 5:00 PM' },
-    { day: 'Wednesday', hours: '9:00 AM – 5:00 PM' },
-    { day: 'Thursday',  hours: '9:00 AM – 5:00 PM' },
-    { day: 'Friday',    hours: '9:00 AM – 5:00 PM' },
-    { day: 'Saturday',  hours: 'By Appointment' },
+    { day: 'Monday',    hours: '8:00 AM – 4:00 PM' },
+    { day: 'Tuesday',   hours: '8:00 AM – 4:00 PM' },
+    { day: 'Wednesday', hours: '8:00 AM – 4:00 PM' },
+    { day: 'Thursday',  hours: '8:00 AM – 4:00 PM' },
+    { day: 'Friday',    hours: '8:00 AM – 4:00 PM' },
+    { day: 'Saturday',  hours: 'Closed' },
     { day: 'Sunday',    hours: 'Closed' },
   ];
 
   return (
     <footer className="bg-[#1a1f2e] text-white pt-20 pb-10 border-t border-[#2d3548]">
-      <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
+      <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
         {/* Column 1: Brand */}
         <div className="md:col-span-1 flex flex-col items-center md:items-start">
           <img 
@@ -36,6 +28,7 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
             alt="Hanemann Plastic Surgery" 
             className="h-32 md:h-36 w-auto mb-6"
             onError={(e) => {
+              // Fallback to SVG if PNG doesn't exist
               const img = e.target as HTMLImageElement;
               if (img.src.endsWith('.png')) {
                 img.src = '/images/logos/logo-main.svg';
@@ -52,30 +45,10 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
             <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors">
               <Facebook size={18}/>
             </a>
-            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors">
-              <Twitter size={18}/>
-            </a>
           </div>
         </div>
 
-        {/* Column 2: Procedures */}
-        <div>
-          <h3 className="text-lg font-serif mb-6 text-white">Procedures</h3>
-          <ul className="space-y-3 text-sm text-gray-400">
-            {procedureLinks.map((link) => (
-              <li key={link.label}>
-                <button 
-                  onClick={() => onNavigate(link.page)} 
-                  className="hover:text-[#c9b896] transition-colors text-left"
-                >
-                  {link.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Column 3: Contact */}
+        {/* Column 2: Contact */}
         <div className="md:col-span-2">
           <h3 className="text-lg font-serif mb-6 text-white">Contact</h3>
           <div className="space-y-3 text-sm text-gray-400 mb-5">
@@ -114,7 +87,7 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
           </div>
         </div>
 
-        {/* Column 4: Hours */}
+        {/* Column 3: Hours */}
         <div>
           <h3 className="text-lg font-serif mb-6 text-white">Hours</h3>
           <ul className="space-y-2 text-sm">
@@ -133,16 +106,20 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
         <div className="max-w-4xl mx-auto text-center">
           <h3 className="text-lg mb-4 text-[#c9b896]">Areas We Serve</h3>
           <p className="text-gray-300 text-sm mb-6">
-            Proudly serving patients throughout the Baton Rouge metropolitan area and surrounding Louisiana communities
+            Proudly serving patients throughout Louisiana and beyond. Dr. Hanemann welcomes patients from the Baton Rouge metropolitan area, surrounding Louisiana communities, and out-of-state patients seeking exceptional plastic surgery care.
           </p>
           <div className="flex flex-wrap justify-center gap-3 text-sm">
             {[
               'Baton Rouge',
+              'Alexandria',
+              'Pineville',
+              'Marksville',
+              'New Roads',
+              'Lake Charles',
               'Prairieville',
               'Gonzales',
               'Denham Springs',
               'Zachary',
-              'Baker',
               'Central',
               'Walker',
               'Livingston Parish',
