@@ -384,56 +384,43 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         </div>
       </section>
 
-      {/* Before & After Gallery */}
+      {/* Gallery CTA Banner */}
       <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
-        {/* Gradient separator */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
-        
+        {/* Ambient glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[300px] bg-[#c9b896]/5 rounded-full blur-3xl pointer-events-none"></div>
+
         <div className="container mx-auto px-6 relative z-10">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
+          <motion.div
+            className="max-w-3xl mx-auto text-center"
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7 }}
           >
-            <h2 className="mb-4 text-[#faf9f7]">Before & After Results</h2>
-            <p className="text-gray-400">Real results from real patients</p>
-            
-            {/* Gold accent divider */}
-            <div className="w-24 h-1 bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
-          </motion.div>
+            {/* Gold accent line */}
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mb-8"></div>
 
-          {featuredGallery.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
-              {featuredGallery.map((item, index) => (
-                <BeforeAfterCardWithCard
-                  key={item.id}
-                  beforeImage={item.beforeImage}
-                  afterImage={item.afterImage}
-                  title={item.title}
-                  procedure={item.procedure}
-                  onClick={() => handleOpenLightbox(index)}
-                  interval={3000}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No featured results yet. Check back soon!</p>
-            </div>
-          )}
+            <p className="text-sm uppercase tracking-[0.2em] text-[#c9b896] mb-4 font-medium">Real Patient Results</p>
+            <h2 className="text-[#faf9f7] mb-6">
+              See the Difference<br />for Yourself
+            </h2>
+            <p className="text-gray-400 text-lg mb-10 leading-relaxed">
+              Browse our full before &amp; after gallery to see the natural, lasting results Dr. Hanemann delivers across every procedure.
+            </p>
 
-          <div className="text-center">
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
+            <motion.button
               onClick={() => onNavigate('Gallery')}
+              className="group inline-flex items-center gap-3 bg-[#c9b896] text-[#1a1f2e] font-semibold px-10 py-4 rounded-full text-base hover:bg-[#d4c4a8] transition-all duration-300 shadow-lg shadow-[#c9b896]/20"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
             >
-              View Full Gallery
-            </Button>
-          </div>
+              View Full Before &amp; After Gallery
+              <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </motion.button>
+          </motion.div>
         </div>
       </section>
 

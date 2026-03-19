@@ -8,21 +8,25 @@ export interface BeforeAfterCardProps {
   onClick?: () => void;
   className?: string;
   interval?: number;
+  imagePosition?: string;
+  objectFit?: 'cover' | 'contain';
+  /** 'side-by-side' (default) or 'stacked' — stacked shows full images top/bottom */
+  layout?: 'side-by-side' | 'stacked';
 }
 
-export function BeforeAfterCard({ 
-  beforeImage, 
-  afterImage, 
-  category, 
-  title, 
+export function BeforeAfterCard({
+  beforeImage,
+  afterImage,
+  category,
+  title,
   onClick,
   className = '',
-  interval = 3000 
+  interval = 3000,
+  imagePosition = 'center',
+  objectFit = 'cover',
+  layout = 'side-by-side',
 }: BeforeAfterCardProps) {
-  const [showBefore, setShowBefore] = useState(false);
   const [isInView, setIsInView] = useState(false);
-  const [beforeLoaded, setBeforeLoaded] = useState(false);
-  const [afterLoaded, setAfterLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,101 +39,137 @@ export function BeforeAfterCard({
           }
         });
       },
-      {
-        rootMargin: '100px',
-        threshold: 0.01
-      }
+      { rootMargin: '100px', threshold: 0.01 }
     );
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
-
+    if (cardRef.current) observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!beforeImage || !afterImage || !beforeLoaded || !afterLoaded) return;
-    
-    const timer = setInterval(() => {
-      setShowBefore(prev => !prev);
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [beforeImage, afterImage, interval, beforeLoaded, afterLoaded]);
-
-  const getOptimizedUrl = (url?: string, size: 'thumb' | 'full' = 'full') => {
+  const getOptimizedUrl = (url?: string) => {
     if (!url) return '';
-    
     if (url.includes('supabase.co/storage/v1/object/public/')) {
-      const width = size === 'thumb' ? 50 : 800;
-      const quality = size === 'thumb' ? 10 : 80;
-      return `${url}?width=${width}&quality=${quality}&format=webp`;
+      return `${url}?width=800&quality=80&format=webp`;
     }
-    
     return url;
   };
 
-  const beforeThumbUrl = getOptimizedUrl(beforeImage, 'thumb');
-  const afterThumbUrl = getOptimizedUrl(afterImage, 'thumb');
-  const beforeFullUrl = getOptimizedUrl(beforeImage, 'full');
-  const afterFullUrl = getOptimizedUrl(afterImage, 'full');
+  const beforeFullUrl = getOptimizedUrl(beforeImage);
+  const afterFullUrl = getOptimizedUrl(afterImage);
+
+  const isStacked = layout === 'stacked';
 
   return (
-    <div 
+    <div
       ref={cardRef}
       className={`group relative bg-[#242938]/50 rounded-2xl overflow-hidden cursor-pointer border border-[#2d3548] hover:shadow-lg hover:shadow-[#c9b896]/10 transition-all duration-500 ${className}`}
       onClick={onClick}
     >
-      {/* Image area — portrait 3:4 ratio, centered like Gallery.tsx */}
-      <div className="relative bg-[#1a1f2e] aspect-[3/4] flex items-center justify-center overflow-hidden">
-        {isInView && afterImage && (
-          <>
-            <img 
-              src={afterThumbUrl} 
-              alt="" 
-              className={`absolute inset-0 w-full h-full object-contain filter blur-xl scale-110 transition-opacity duration-500 ${afterLoaded ? 'opacity-0' : 'opacity-100'}`}
-              aria-hidden="true"
-            />
-            <img 
-              src={afterFullUrl} 
-              alt="After" 
-              loading="lazy"
-              onLoad={() => setAfterLoaded(true)}
-              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${showBefore ? 'opacity-0' : 'opacity-100'}`} 
-            />
-          </>
-        )}
-        {isInView && beforeImage && (
-          <>
-            <img 
-              src={beforeThumbUrl} 
-              alt="" 
-              className={`absolute inset-0 w-full h-full object-contain filter blur-xl scale-110 transition-opacity duration-500 ${beforeLoaded ? 'opacity-0' : 'opacity-100'}`}
-              aria-hidden="true"
-            />
-            <img 
-              src={beforeFullUrl} 
-              alt="Before" 
-              loading="lazy"
-              onLoad={() => setBeforeLoaded(true)}
-              className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-1000 ${showBefore ? 'opacity-100' : 'opacity-0'}`} 
-            />
-          </>
-        )}
-        
-        {!isInView && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
-          </div>
-        )}
-        
-        <div className="absolute bottom-4 right-4 bg-black/60 px-3 py-1 text-xs rounded-full backdrop-blur-sm border border-white/10">
-          <span className={showBefore ? 'hidden' : 'text-[#c9b896]'}>After</span>
-          <span className={showBefore ? 'text-[#c9b896]' : 'hidden'}>Before</span>
+      {/* ── Side-by-side layout ── */}
+      {!isStacked && (
+        <div className="relative bg-[#1a1f2e] aspect-[2/1] flex overflow-hidden">
+          {!isInView && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
+            </div>
+          )}
+          {isInView && (
+            <>
+              {/* Before — left */}
+              <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                {beforeImage ? (
+                  <img
+                    src={beforeFullUrl}
+                    alt="Before"
+                    loading="lazy"
+                    className="w-full h-full"
+                    style={{ objectFit, objectPosition: imagePosition }}
+                  />
+                ) : (
+                  <span className="text-xs text-[#c9b896]/40">No image</span>
+                )}
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
+                </div>
+              </div>
+              <div className="w-px bg-[#2d3548] flex-shrink-0 z-10" />
+              {/* After — right */}
+              <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                {afterImage ? (
+                  <img
+                    src={afterFullUrl}
+                    alt="After"
+                    loading="lazy"
+                    className="w-full h-full"
+                    style={{ objectFit, objectPosition: imagePosition }}
+                  />
+                ) : (
+                  <span className="text-xs text-[#c9b896]/40">No image</span>
+                )}
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
+                </div>
+              </div>
+            </>
+          )}
+          <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
         </div>
-        <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors"></div>
-      </div>
+      )}
+
+      {/* ── Stacked layout — full image, auto height ── */}
+      {isStacked && (
+        <div className="relative bg-[#1a1f2e] flex flex-col overflow-hidden">
+          {!isInView && (
+            <div className="h-40 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
+            </div>
+          )}
+          {isInView && (
+            <>
+              {/* Before — top, natural height */}
+              <div className="relative w-full bg-[#1a1f2e]">
+                {beforeImage ? (
+                  <img
+                    src={beforeFullUrl}
+                    alt="Before"
+                    loading="lazy"
+                    className="w-full block"
+                    style={{ objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div className="h-32 flex items-center justify-center">
+                    <span className="text-xs text-[#c9b896]/40">No image</span>
+                  </div>
+                )}
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
+                </div>
+              </div>
+              {/* Horizontal divider */}
+              <div className="h-px w-full bg-[#2d3548]" />
+              {/* After — bottom, natural height */}
+              <div className="relative w-full bg-[#1a1f2e]">
+                {afterImage ? (
+                  <img
+                    src={afterFullUrl}
+                    alt="After"
+                    loading="lazy"
+                    className="w-full block"
+                    style={{ objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div className="h-32 flex items-center justify-center">
+                    <span className="text-xs text-[#c9b896]/40">No image</span>
+                  </div>
+                )}
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
+                </div>
+              </div>
+            </>
+          )}
+          <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
+        </div>
+      )}
 
       {/* Card info */}
       <div className="p-4 bg-[#1a1f2e]">

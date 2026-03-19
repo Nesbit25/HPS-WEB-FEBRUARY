@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "HPS Dev Server",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js", "run", "dev"],
+      "port": 5173,
+      "cwd": "C:\\Users\\music\\OneDrive\\Desktop\\New folder\\HPS-WEB-FEBRUARY"
+    }
+  ]
+}

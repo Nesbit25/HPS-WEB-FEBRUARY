@@ -123,8 +123,9 @@ export function Gallery({ onNavigate }: GalleryProps) {
   const [diagnoseOpen, setDiagnoseOpen] = useState(false);
   const [diagnoseData, setDiagnoseData] = useState<any>(null);
   const [diagnosing, setDiagnosing] = useState(false);
-  // Kept for onLoad handler compatibility — card display uses fixed aspect-[3/4] instead
-  const [imageAspectRatios, setImageAspectRatios] = useState<Record<number, string>>({});
+  // Stores the computed card aspect ratio per item: (naturalWidth * 2) / naturalHeight
+  // Multiplied by 2 because the card shows Before + After side by side
+  const [imageAspectRatios, setImageAspectRatios] = useState<Record<number, number>>({});
 
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
@@ -538,18 +539,31 @@ export function Gallery({ onNavigate }: GalleryProps) {
     }
   };
 
-  const filteredItems = galleryItems.filter(item => {
-    // Always exclude orphan KV stubs (no slug AND no images)
-    if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-    // Category filter
-    if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
-    // Procedure filter (multi-select: empty array = show all)
-    if (selectedProcedures.length > 0 && !selectedProcedures.includes(item.procedureName || '')) return false;
-    // Admins in edit mode can see real items even without images
-    if (isAdmin && isEditMode) return true;
-    // Public users only see items with images
-    return item.beforeImage || item.afterImage;
-  });
+  const CATEGORY_ORDER: Record<string, number> = { Breast: 0, Body: 1, Face: 2, Nose: 3 };
+
+  const filteredItems = galleryItems
+    .filter(item => {
+      // Always exclude orphan KV stubs (no slug AND no images)
+      if (!item.slug && !item.beforeImage && !item.afterImage) return false;
+      // Category filter
+      if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+      // Procedure filter (multi-select: empty array = show all)
+      if (selectedProcedures.length > 0 && !selectedProcedures.includes(item.procedureName || '')) return false;
+      // Admins in edit mode can see real items even without images
+      if (isAdmin && isEditMode) return true;
+      // Public users only see items with images
+      return item.beforeImage || item.afterImage;
+    })
+    .sort((a, b) => {
+      // When showing All, group by category first
+      if (selectedCategory === 'All') {
+        const catA = CATEGORY_ORDER[a.category] ?? 99;
+        const catB = CATEGORY_ORDER[b.category] ?? 99;
+        if (catA !== catB) return catA - catB;
+      }
+      // Within a category, sort by title
+      return (a.title || '').localeCompare(b.title || '');
+    });
 
   // Sorted list of procedures available within the current category selection
   const availableProcedures = useMemo(() => {
@@ -1476,7 +1490,10 @@ export function Gallery({ onNavigate }: GalleryProps) {
                   className="border-[#2d3548] bg-[#242938]/50 backdrop-blur rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 cursor-pointer group"
                   onClick={() => handleOpenLightbox(index)}
                 >
-                  <div className="aspect-[3/4] w-full bg-[#1a1f2e] flex items-center justify-center relative overflow-hidden">
+                  <div
+                    className="w-full bg-[#1a1f2e] flex items-center justify-center relative overflow-hidden"
+                    style={{ aspectRatio: imageAspectRatios[item.id] ?? 0.75 }}
+                  >
                     {/* Gold accent corner */}
                     <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
                       <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
@@ -1508,63 +1525,71 @@ export function Gallery({ onNavigate }: GalleryProps) {
                       const isPriority = index < 6;
                       
                       return (
-                        <div className="w-full h-full relative">
-                          {/* Before Image */}
-                          {displayBeforeImage && (
-                            <img 
-                              src={getOptimizedUrl(displayBeforeImage)} 
-                              alt="Before" 
-                              loading={isPriority ? 'eager' : 'lazy'}
-                              fetchpriority={isPriority ? 'high' : 'auto'}
-                              className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
-                              style={{ opacity: state.type === 'after' ? 0 : 1 }}
-                              onLoad={(e) => {
-                                if (imageAspectRatios[item.id]) return;
-                                const img = e.currentTarget;
-                                const r = img.naturalWidth / img.naturalHeight;
-                                // Exact pixel ratio — container matches image perfectly, zero cropping
-                                const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
-                                setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
-                              }}
-                              onError={(e) => {
-                                console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          )}
-                          {/* After Image */}
-                          {displayAfterImage && (
-                            <img 
-                              src={getOptimizedUrl(displayAfterImage)} 
-                              alt="After" 
-                              loading={isPriority ? 'eager' : 'lazy'}
-                              fetchpriority={isPriority ? 'high' : 'auto'}
-                              className="absolute inset-0 w-full h-full object-contain transition-opacity duration-1000"
-                              style={{ opacity: state.type === 'after' ? 1 : 0 }}
-                              onLoad={(e) => {
-                                if (imageAspectRatios[item.id]) return;
-                                const img = e.currentTarget;
-                                const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
-                                setImageAspectRatios(prev => ({ ...prev, [item.id]: aspect }));
-                              }}
-                              onError={(e) => {
-                                console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          )}
-                          
-                          {/* Label overlay */}
-                          <div className="absolute bottom-4 right-4 z-20">
-                            <div className="bg-card/90 backdrop-blur-sm px-3 py-1 rounded-full border border-secondary/20">
-                              <span className="text-xs text-secondary">
-                                {state.type === 'after' ? 'After' : 'Before'}
-                                {item.orientations && item.orientations.length > 1 && (
-                                  <span className="ml-1 opacity-60">
-                                    · View {state.orientationIndex + 1}/{item.orientations.length}
-                                  </span>
-                                )}
-                              </span>
+                        <div className="w-full h-full flex">
+                          {/* Before — left half */}
+                          <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                            {displayBeforeImage ? (
+                              <img
+                                src={getOptimizedUrl(displayBeforeImage)}
+                                alt="Before"
+                                loading={isPriority ? 'eager' : 'lazy'}
+                                fetchpriority={isPriority ? 'high' : 'auto'}
+                                className="w-full h-full object-cover object-center"
+                                onLoad={(e) => {
+                                  if (imageAspectRatios[item.id]) return;
+                                  const img = e.currentTarget;
+                                  // Card = two halves side by side, so total ratio = 2 * (imageW/imageH)
+                                  setImageAspectRatios(prev => ({
+                                    ...prev,
+                                    [item.id]: (img.naturalWidth * 2) / img.naturalHeight
+                                  }));
+                                }}
+                                onError={(e) => {
+                                  console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No image</span>
+                            )}
+                            <div className="absolute bottom-2 left-0 right-0 flex justify-center z-10">
+                              <div className="bg-card/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-secondary/20">
+                                <span className="text-[10px] text-secondary">Before</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Vertical divider */}
+                          <div className="w-px bg-secondary/20 flex-shrink-0 z-10" />
+
+                          {/* After — right half */}
+                          <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                            {displayAfterImage ? (
+                              <img
+                                src={getOptimizedUrl(displayAfterImage)}
+                                alt="After"
+                                loading={isPriority ? 'eager' : 'lazy'}
+                                fetchpriority={isPriority ? 'high' : 'auto'}
+                                className="w-full h-full object-cover object-center"
+                                onError={(e) => {
+                                  console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No image</span>
+                            )}
+                            <div className="absolute bottom-2 left-0 right-0 flex justify-center z-10">
+                              <div className="bg-card/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-secondary/20">
+                                <span className="text-[10px] text-secondary">
+                                  After
+                                  {item.orientations && item.orientations.length > 1 && (
+                                    <span className="ml-1 opacity-60">
+                                      · {state.orientationIndex + 1}/{item.orientations.length}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>

@@ -815,7 +815,12 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {featuredGallery.length > 0 ? (
               <>
-                {featuredGallery.slice(0, 6).map((c, index) => (
+                {[...featuredGallery].sort((a, b) => a.category.localeCompare(b.category)).slice(0, 6).map((c, index) => {
+                  const titleLower = c.title.toLowerCase();
+                  const isStackedType =
+                    titleLower.includes('arm lift') ||
+                    titleLower.includes('eyelid');
+                  return (
                   <BeforeAfterCard
                     key={c.id}
                     beforeImage={c.beforeImage}
@@ -824,8 +829,12 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     title={c.title}
                     onClick={() => handleOpenLightbox(index)}
                     interval={3000}
+                    layout={isStackedType ? 'stacked' : 'side-by-side'}
+                    objectFit={isStackedType ? 'contain' : 'cover'}
+                    imagePosition="center"
                   />
-                ))}
+                  );
+                })}
                 {isAdmin && isEditMode && (
                   <div 
                     className="bg-card text-card-foreground border-2 border-dashed border-secondary/40 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-secondary/20 transition-all duration-500 cursor-pointer hover:-translate-y-2 group hover:border-secondary"
