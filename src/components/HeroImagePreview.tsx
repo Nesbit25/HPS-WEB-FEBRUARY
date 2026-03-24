@@ -31,7 +31,7 @@ export function HeroImagePreview() {
                   Revealing Beauty
                 </h1>
                 <p className="text-gray-200 text-lg lg:text-xl mb-8 font-light max-w-2xl leading-relaxed">
-                  Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results
+                  Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest techniques and procedures to achieve desired results
                 </p>
                 <button className="inline-block bg-secondary text-white px-10 py-4 rounded-full text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300">
                   Schedule Consultation

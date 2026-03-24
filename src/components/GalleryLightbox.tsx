@@ -34,26 +34,28 @@ interface GalleryLightboxProps {
   totalImages: number;
   currentIndex: number;
   onEditImage?: (caseId: number, imageType: 'before' | 'after', orientationIndex: number) => void;
+  defaultOrientation?: number;
 }
 
-export function GalleryLightbox({ 
-  isOpen, 
-  onClose, 
+export function GalleryLightbox({
+  isOpen,
+  onClose,
   currentItem,
-  onNext, 
-  onPrevious, 
+  onNext,
+  onPrevious,
   totalImages,
   currentIndex,
-  onEditImage
+  onEditImage,
+  defaultOrientation = 0
 }: GalleryLightboxProps) {
   const { isAdmin } = useAuth();
   const { isEditMode } = useEditMode();
-  const [selectedOrientation, setSelectedOrientation] = useState(0);
+  const [selectedOrientation, setSelectedOrientation] = useState(defaultOrientation);
 
   // Reset selected orientation when changing cases
   useEffect(() => {
-    setSelectedOrientation(0);
-  }, [currentItem?.id]);
+    setSelectedOrientation(defaultOrientation);
+  }, [currentItem?.id, defaultOrientation]);
 
   // Handle escape key
   useEffect(() => {

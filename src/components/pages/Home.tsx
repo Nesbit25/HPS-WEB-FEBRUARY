@@ -44,6 +44,27 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const [activeSlide, setActiveSlide] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
+
+  // Client-specified 6 patients in exact order, with preferred orientation index for the card thumbnail
+  const FEATURED_ORDER: { slug: string; preferredView?: number }[] = [
+    { slug: 'TUMMY_TUCK_Patient01' },                          // 1. Abdominoplasty Pt #1
+    { slug: 'BREAST_AUGMENTATION_Patient01' },                  // 2. Breast Augmentation Pt #1
+    { slug: 'BREAST_LIFT_Patient01' },                          // 3. Breast Lift (Mastopexy) Pt #1
+    { slug: 'RHINOPLASTY_Patient01', preferredView: 2 },       // 4. Rhinoplasty Pt #1 — profile (View 3, index 2)
+    { slug: 'FACELIFT_NECKLIFT_Patient12' },                   // 5. Facelift Pt #12
+    { slug: 'CHIN_AUGMENTATION_Patient02', preferredView: 1 }, // 6. Chin Aug Pt #2 / Neck Lipo Pt #8 — oblique (View 2, index 1)
+  ];
+
+  const displayedGallery = React.useMemo(() => {
+    return FEATURED_ORDER
+      .map(({ slug, preferredView }) => {
+        const item = featuredGallery.find(i => i.slug === slug);
+        if (!item) return null;
+        // Attach preferred view so the card can show the right orientation thumbnail
+        return { ...item, _preferredView: preferredView ?? 0 };
+      })
+      .filter(Boolean) as (GalleryItem & { _preferredView: number })[];
+  }, [featuredGallery]);
   const [newCaseEditorOpen, setNewCaseEditorOpen] = useState(false);
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -252,9 +273,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
       if (cached && ts && Date.now() - parseInt(ts) < CACHE_DURATION) {
         const all: GalleryItem[] = JSON.parse(cached);
-        const featured = all.filter((c: any) => c.featuredOnHome);
-        console.log('[Home] Loaded', featured.length, 'featured items from cache');
-        setFeaturedGallery(featured);
+        console.log('[Home] Loaded', all.length, 'gallery items from cache');
+        setFeaturedGallery(all);
         return;
       }
 
@@ -319,6 +339,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             showOnFace: db.showOnFace || false,
             showOnBreast: db.showOnBreast || false,
             showOnBody: db.showOnBody || false,
+            orientations: (db.orientations || []).map((o: any) => ({
+              ...o,
+              beforeImage: normalizeImageUrl(o.beforeImage),
+              afterImage: normalizeImageUrl(o.afterImage),
+            })),
           };
         });
       } else {
@@ -327,6 +352,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           ...c,
           beforeImage: normalizeImageUrl(c.beforeImage),
           afterImage: normalizeImageUrl(c.afterImage),
+          orientations: (c.orientations || []).map((o: any) => ({
+            ...o,
+            beforeImage: normalizeImageUrl(o.beforeImage),
+            afterImage: normalizeImageUrl(o.afterImage),
+          })),
         }));
       }
 
@@ -334,9 +364,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       localStorage.setItem(cacheKey, JSON.stringify(allItems));
       localStorage.setItem(tsKey, Date.now().toString());
 
-      const featured = allItems.filter((c: any) => c.featuredOnHome);
-      console.log('[Home] Loaded', featured.length, 'featured items from GitHub');
-      setFeaturedGallery(featured);
+      console.log('[Home] Loaded', allItems.length, 'gallery items');
+      setFeaturedGallery(allItems);
     } catch (error) {
       console.error('[Home] Error loading featured gallery:', error);
       setFeaturedGallery([]);
@@ -398,11 +427,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   };
 
   const handleNextImage = () => {
-    setCurrentLightboxIndex((prev) => (prev + 1) % featuredGallery.length);
+    setCurrentLightboxIndex((prev) => (prev + 1) % displayedGallery.length);
   };
 
   const handlePreviousImage = () => {
-    setCurrentLightboxIndex((prev) => (prev - 1 + featuredGallery.length) % featuredGallery.length);
+    setCurrentLightboxIndex((prev) => (prev - 1 + displayedGallery.length) % displayedGallery.length);
   };
 
   return (
@@ -481,7 +510,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     <EditableText as="span" contentKey="home_hero_title_1" defaultValue="Experience you can trust" />
                   </h1>
                   <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
-                    <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest technology and procedures to achieve desired results" />
+                    <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest techniques and procedures to achieve desired results" />
                   </p>
                   <button 
                     onClick={() => onNavigate('Contact')}
@@ -792,6 +821,62 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         </div>
       </section>
 
+      {/* The Process Section */}
+      <section className="py-24 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#c9b896]/4 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="text-center mb-16">
+            <p className="text-[#c9b896] text-xs uppercase tracking-[0.25em] font-medium mb-3">Your Journey</p>
+            <h2 className="font-serif text-4xl md:text-5xl text-[#faf9f7] mb-4">How It Works</h2>
+            <p className="text-gray-400 max-w-xl mx-auto text-base">From your first question to your final result, we guide you every step of the way.</p>
+            <div className="w-16 h-px bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mt-6"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-0 max-w-5xl mx-auto relative">
+            {/* Step 1 */}
+            <div className="flex flex-col items-center text-center px-8 pb-12 md:pb-0 relative z-10">
+              <div className="w-[104px] h-[104px] rounded-full bg-[#c9b896]/10 border border-[#c9b896]/30 flex items-center justify-center mb-6 relative">
+                <span className="font-serif text-4xl text-[#c9b896] font-bold">1</span>
+                <div className="absolute inset-0 rounded-full bg-[#c9b896]/5 animate-pulse"></div>
+              </div>
+              <h3 className="text-[#faf9f7] text-lg font-semibold mb-3">Schedule a Consultation</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">Meet with Dr. Hanemann in his private Baton Rouge office for a personalized, pressure-free consultation to discuss your goals.</p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex flex-col items-center text-center px-8 pb-12 md:pb-0 relative z-10">
+              <div className="w-[104px] h-[104px] rounded-full bg-[#c9b896]/20 border border-[#c9b896]/50 flex items-center justify-center mb-6">
+                <span className="font-serif text-4xl text-[#c9b896] font-bold">2</span>
+              </div>
+              <h3 className="text-[#faf9f7] text-lg font-semibold mb-3">Your Custom Plan</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">Dr. Hanemann crafts a tailored treatment plan around your unique anatomy, aesthetic goals, and lifestyle — never a one-size-fits-all approach.</p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex flex-col items-center text-center px-8 relative z-10">
+              <div className="w-[104px] h-[104px] rounded-full bg-[#c9b896]/10 border border-[#c9b896]/30 flex items-center justify-center mb-6">
+                <span className="font-serif text-4xl text-[#c9b896] font-bold">3</span>
+              </div>
+              <h3 className="text-[#faf9f7] text-lg font-semibold mb-3">Your Transformation</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">Experience natural, lasting results with the confidence of knowing you were cared for by one of Louisiana's most trusted surgeons.</p>
+            </div>
+          </div>
+
+          <div className="text-center mt-14">
+            <button
+              onClick={() => onNavigate('Contact')}
+              className="inline-flex items-center gap-3 bg-[#c9b896] text-[#1a1f2e] font-semibold px-10 py-4 rounded-full text-sm uppercase tracking-widest hover:bg-[#d4c4a8] transition-all duration-300 shadow-lg shadow-[#c9b896]/20"
+            >
+              Begin Your Journey
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Before & After Preview */}
       <section className="py-24 bg-primary text-white">
         <div className="container mx-auto px-6">
@@ -813,18 +898,23 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredGallery.length > 0 ? (
+            {displayedGallery.length > 0 ? (
               <>
-                {[...featuredGallery].sort((a, b) => a.category.localeCompare(b.category)).slice(0, 6).map((c, index) => {
+                {displayedGallery.map((c, index) => {
                   const titleLower = c.title.toLowerCase();
                   const isStackedType =
                     titleLower.includes('arm lift') ||
                     titleLower.includes('eyelid');
+                  // Use preferred orientation images for the card thumbnail
+                  const viewIdx = (c as any)._preferredView ?? 0;
+                  const ori = c.orientations?.[viewIdx];
+                  const cardBefore = ori?.beforeImage || c.beforeImage;
+                  const cardAfter = ori?.afterImage || c.afterImage;
                   return (
                   <BeforeAfterCard
                     key={c.id}
-                    beforeImage={c.beforeImage}
-                    afterImage={c.afterImage}
+                    beforeImage={cardBefore}
+                    afterImage={cardAfter}
                     category={c.category}
                     title={c.title}
                     onClick={() => handleOpenLightbox(index)}
@@ -897,26 +987,94 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
 
       {/* Testimonials */}
       <section className="py-24 bg-cream">
-        <div className="container mx-auto px-6 text-center max-w-4xl">
-          <Star className="w-8 h-8 text-secondary mx-auto mb-6 fill-current" />
-          <h2 className="font-serif text-3xl md:text-5xl text-primary mb-12 leading-tight">
-            <EditableText 
-              as="span"
-              contentKey="testimonial_hero" 
-              defaultValue="Dr. Hanemann changed my life. The results are so natural, no one knows I had surgery, they just tell me I look great." 
-              multiline
-            />
-          </h2>
-          <div className="flex justify-center items-center gap-4">
-            <div className="w-12 h-12 bg-secondary/20 rounded-full flex items-center justify-center text-secondary font-serif font-bold text-xl">S</div>
-            <div className="text-left">
-              <p className="font-bold text-primary">
-                <EditableText contentKey="testimonial_author" defaultValue="Sarah M." as="span" />
-              </p>
-              <p className="text-xs text-gray-500">
-                <EditableText contentKey="testimonial_author_detail" defaultValue="Rhinoplasty Patient" as="span" />
-              </p>
+        <div className="container mx-auto px-6">
+          {/* Section header */}
+          <div className="text-center mb-16">
+            <p className="text-secondary text-xs uppercase tracking-[0.25em] font-bold mb-3">Patient Stories</p>
+            <h2 className="font-serif text-4xl md:text-5xl text-primary mb-4 leading-tight">What Our Patients Say</h2>
+            <div className="w-16 h-0.5 bg-secondary mx-auto mt-4"></div>
+          </div>
+
+          {/* 3-column testimonial grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {/* Testimonial 1 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex gap-1 mb-5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 text-secondary fill-secondary" />
+                ))}
+              </div>
+              <blockquote className="text-gray-600 leading-relaxed italic flex-1 mb-6 text-sm md:text-base">
+                "Dr. Hanemann changed my life. The results are so natural — no one knows I had surgery, they just tell me I look great. The care I received throughout the entire process was exceptional."
+              </blockquote>
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                <div className="w-10 h-10 bg-secondary/15 rounded-full flex items-center justify-center text-secondary font-serif font-bold">S</div>
+                <div>
+                  <p className="font-bold text-primary text-sm">Sarah M.</p>
+                  <p className="text-xs text-gray-400">Rhinoplasty Patient</p>
+                </div>
+              </div>
             </div>
+
+            {/* Testimonial 2 — featured center */}
+            <div className="bg-[#1a1f2e] rounded-2xl p-8 shadow-xl flex flex-col group hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-[#c9b896]/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="flex gap-1 mb-5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 text-[#c9b896] fill-[#c9b896]" />
+                ))}
+              </div>
+              <blockquote className="text-gray-300 leading-relaxed italic flex-1 mb-6 text-sm md:text-base relative z-10">
+                "After years of insecurity, I finally feel like myself. Dr. Hanemann took the time to truly understand what I was looking for and delivered results that are beautiful and completely natural. I couldn't be happier."
+              </blockquote>
+              <div className="flex items-center gap-3 pt-4 border-t border-[#2d3548] relative z-10">
+                <div className="w-10 h-10 bg-[#c9b896]/20 rounded-full flex items-center justify-center text-[#c9b896] font-serif font-bold">J</div>
+                <div>
+                  <p className="font-bold text-white text-sm">Jennifer L.</p>
+                  <p className="text-xs text-gray-400">Breast Augmentation Patient</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Testimonial 3 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex gap-1 mb-5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-4 h-4 text-secondary fill-secondary" />
+                ))}
+              </div>
+              <blockquote className="text-gray-600 leading-relaxed italic flex-1 mb-6 text-sm md:text-base">
+                "The attention to detail and artistry Dr. Hanemann brings to his work is unmatched. My facelift results are stunning — friends say I look refreshed and well-rested, not like I had surgery. Exactly what I wanted."
+              </blockquote>
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                <div className="w-10 h-10 bg-secondary/15 rounded-full flex items-center justify-center text-secondary font-serif font-bold">M</div>
+                <div>
+                  <p className="font-bold text-primary text-sm">Michelle T.</p>
+                  <p className="text-xs text-gray-400">Facelift Patient</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Google Reviews CTA */}
+          <div className="text-center mt-12">
+            <a
+              href="https://www.google.com/search?q=Hanemann+Plastic+Surgery+Baton+Rouge+reviews"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-secondary transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Read more reviews on Google
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           </div>
         </div>
       </section>
@@ -1027,15 +1185,16 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       </section>
 
       {/* Lightbox */}
-      {lightboxOpen && featuredGallery.length > 0 && (
+      {lightboxOpen && displayedGallery.length > 0 && (
         <GalleryLightbox
           isOpen={lightboxOpen}
           onClose={() => setLightboxOpen(false)}
-          currentItem={featuredGallery[currentLightboxIndex]}
+          currentItem={displayedGallery[currentLightboxIndex]}
           currentIndex={currentLightboxIndex}
-          totalImages={featuredGallery.length}
+          totalImages={displayedGallery.length}
           onNext={handleNextImage}
           onPrevious={handlePreviousImage}
+          defaultOrientation={(displayedGallery[currentLightboxIndex] as any)?._preferredView ?? 0}
         />
       )}
 

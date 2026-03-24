@@ -443,6 +443,36 @@ export function About({ onNavigate }: AboutProps) {
         </div>
       </section>
 
+      {/* Pull Quote Section */}
+      <section className="py-20 bg-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#c9b896]/30 to-transparent"></div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-[20rem] font-serif text-[#c9b896]/3 leading-none select-none">"</div>
+        </div>
+        <div className="container mx-auto px-6 max-w-4xl relative z-10">
+          <motion.div
+            className="text-center"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+          >
+            <div className="w-10 h-px bg-[#c9b896]/50 mx-auto mb-10"></div>
+            <p className="font-serif text-2xl md:text-3xl lg:text-4xl text-[#faf9f7] leading-relaxed mb-10 italic">
+              "My goal is never to make someone look like they've had surgery — it's to help them look like the very best version of themselves."
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <div className="h-px w-12 bg-[#c9b896]/40"></div>
+              <div>
+                <p className="text-[#c9b896] font-semibold tracking-wide text-sm">Dr. Michael S. Hanemann Jr., MD</p>
+                <p className="text-gray-500 text-xs mt-0.5">Double Board-Certified Plastic Surgeon</p>
+              </div>
+              <div className="h-px w-12 bg-[#c9b896]/40"></div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-32 bg-gradient-to-br from-[#242938] to-[#1a1f2e] border-t border-[#2d3548] relative overflow-hidden">
         {/* Gradient separator */}
