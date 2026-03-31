@@ -637,8 +637,6 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                             src={resolvedSrc}
                             alt={service.title}
                             loading="eager"
-                            // @ts-ignore - fetchPriority is valid but not yet in React types
-                            fetchPriority="high"
                             className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 opacity-0"
                             onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
                             onError={() => {
@@ -1101,104 +1099,139 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       {/* Trust Bar - Credentials */}
       <section className="bg-[#1a1f2e] py-16 md:py-20 border-b border-[#2d3548]">
         <div className="container mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+          <div className="grid grid-cols-4 gap-3 md:gap-8">
             {/* Board Certified */}
             <div className="flex flex-col items-center text-center group">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
-                <Award className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-2 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Award className="w-5 h-5 md:w-8 md:h-8 text-[#c9b896]" />
               </div>
-              <h3 className="text-white text-sm md:text-base font-semibold mb-1">Double Board Certified</h3>
-              <p className="text-gray-400 text-xs md:text-sm leading-tight">American Board of Plastic Surgery & American Board of Otolaryngology</p>
+              <h3 className="text-white text-[11px] md:text-base font-semibold mb-1 leading-tight">Double Board Certified</h3>
+              <p className="text-gray-400 text-[9px] md:text-sm leading-tight"><span className="hidden md:inline">American Board of Plastic Surgery & American Board of Otolaryngology</span><span className="md:hidden">Plastic Surgery</span></p>
             </div>
 
             {/* Years Experience */}
             <div className="flex flex-col items-center text-center group">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
-                <Shield className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-2 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Shield className="w-5 h-5 md:w-8 md:h-8 text-[#c9b896]" />
               </div>
-              <h3 className="text-white text-sm md:text-base font-semibold mb-1">15+ Years</h3>
-              <p className="text-gray-400 text-xs md:text-sm">Experience</p>
+              <h3 className="text-white text-[11px] md:text-base font-semibold mb-1">15+ Years</h3>
+              <p className="text-gray-400 text-[9px] md:text-sm">Experience</p>
             </div>
 
             {/* Procedures */}
             <div className="flex flex-col items-center text-center group">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
-                <Star className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896]" />
+              <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-2 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Star className="w-5 h-5 md:w-8 md:h-8 text-[#c9b896]" />
               </div>
-              <h3 className="text-white text-sm md:text-base font-semibold mb-1">4,000+</h3>
-              <p className="text-gray-400 text-xs md:text-sm">Procedures</p>
+              <h3 className="text-white text-[11px] md:text-base font-semibold mb-1">4,000+</h3>
+              <p className="text-gray-400 text-[9px] md:text-sm">Procedures</p>
             </div>
 
             {/* Patient Reviews */}
             <div className="flex flex-col items-center text-center group">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-3 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
-                <Star className="w-6 h-6 md:w-8 md:h-8 text-[#c9b896] fill-[#c9b896]" />
+              <div className="w-10 h-10 md:w-16 md:h-16 rounded-full bg-[#c9b896]/10 flex items-center justify-center mb-2 md:mb-4 group-hover:bg-[#c9b896]/20 transition-colors">
+                <Star className="w-5 h-5 md:w-8 md:h-8 text-[#c9b896] fill-[#c9b896]" />
               </div>
-              <h3 className="text-white text-sm md:text-base font-semibold mb-1">5 Star</h3>
-              <p className="text-gray-400 text-xs md:text-sm">Patient Reviews</p>
+              <h3 className="text-white text-[11px] md:text-base font-semibold mb-1">5 Star</h3>
+              <p className="text-gray-400 text-[9px] md:text-sm">Patient Reviews</p>
             </div>
           </div>
           
           {/* Certification Logos - Below Stats */}
           <div className="mt-12 pt-10 border-t border-[#2d3548]">
             <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Certified &amp; Accredited</p>
-            <div className="flex flex-nowrap justify-center items-center gap-4 md:gap-8 lg:gap-12 xl:gap-16 overflow-x-auto md:overflow-x-visible pb-4 md:pb-0">
+            <div className="flex flex-nowrap justify-center items-center gap-2 md:gap-8 lg:gap-12 xl:gap-16 overflow-x-auto md:overflow-x-visible pb-4 md:pb-0">
               {/* SESPRS - Blue & Red Symbol */}
               <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                <div className="h-16 md:h-32 w-[21vw] max-w-44 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-1.png"
                     alt="Southeastern Society of Plastic and Reconstructive Surgeons"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    className="h-10 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">Southeastern Society of Plastic and Reconstructive Surgeons</span>
+                <span className="mt-1 md:mt-3 text-[8px] md:text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">SESPRS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight hidden md:block">Southeastern Society of Plastic and Reconstructive Surgeons</span>
               </div>
               
               {/* ASAPS - Triangle Symbol */}
               <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                <div className="h-16 md:h-32 w-[21vw] max-w-44 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-2.png"
                     alt="American Society for Aesthetic Plastic Surgery"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    className="h-10 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society for Aesthetic Plastic Surgery</span>
+                <span className="mt-1 md:mt-3 text-[8px] md:text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASAPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight hidden md:block">American Society for Aesthetic Plastic Surgery</span>
               </div>
               
               {/* ASPS - Circle Image */}
               <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                <div className="h-16 md:h-32 w-[21vw] max-w-44 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/cert-logo-3.png"
                     alt="American Society of Plastic Surgeons"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    className="h-10 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Society of Plastic Surgeons</span>
+                <span className="mt-1 md:mt-3 text-[8px] md:text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ASPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight hidden md:block">American Society of Plastic Surgeons</span>
               </div>
 
               {/* ABPS - American Board of Plastic Surgery */}
               <div className="flex flex-col items-center group cursor-pointer">
-                <div className="h-28 md:h-32 w-36 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
+                <div className="h-16 md:h-32 w-[21vw] max-w-44 md:w-44 flex items-center justify-center rounded-xl bg-[#faf9f7] shadow-lg shadow-black/20 group-hover:shadow-xl group-hover:shadow-[#c9b896]/15 border border-[#c9b896]/20 group-hover:border-[#c9b896]/50 transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]">
                   <img
                     src="/images/certifications/abps-logo.png"
                     alt="American Board of Plastic Surgery"
-                    className="h-20 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                    className="h-10 md:h-24 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
-                <span className="mt-3 text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABPS</span>
-                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight">American Board of Plastic Surgery</span>
+                <span className="mt-1 md:mt-3 text-[8px] md:text-[11px] text-[#c9b896] font-semibold uppercase tracking-wider">ABPS</span>
+                <span className="mt-0.5 text-[10px] text-gray-400 text-center max-w-[140px] leading-tight hidden md:block">American Board of Plastic Surgery</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Skincare Partners */}
+      <section className="bg-[#242938] py-14 md:py-16 border-b border-[#2d3548]">
+        <div className="container mx-auto px-6">
+          <p className="text-center text-[#c9b896] text-xs uppercase tracking-[0.25em] mb-8">Shop Skincare</p>
+          <div className="flex justify-center items-center gap-8 md:gap-16">
+            {/* SkinMedica */}
+            <a
+              href="https://plasticsurgeryinbatonrouge.brilliantconnections.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-center h-16 md:h-20 px-6 rounded-xl bg-[#faf9f7] border border-[#c9b896]/20 hover:border-[#c9b896]/50 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-[#c9b896]/15 transition-all duration-500 ease-out hover:-translate-y-1 hover:scale-[1.03]"
+            >
+              <img
+                src="/images/logos/skinmedica-logo.png"
+                alt="SkinMedica"
+                className="h-8 md:h-10 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+              />
+            </a>
+            {/* ZO Skin Health */}
+            <a
+              href="https://zoskinhealth.com/?practice-ref=6777464&practice-name=Hanemann+Plastic+Surgery"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-center h-16 md:h-20 px-6 rounded-xl bg-[#faf9f7] border border-[#c9b896]/20 hover:border-[#c9b896]/50 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-[#c9b896]/15 transition-all duration-500 ease-out hover:-translate-y-1 hover:scale-[1.03]"
+            >
+              <img
+                src="/images/logos/zo-logo.png"
+                alt="ZO Skin Health"
+                className="h-8 md:h-10 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+              />
+            </a>
           </div>
         </div>
       </section>

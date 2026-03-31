@@ -98,13 +98,7 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               </a>
             </div>
 
-            {/* Right Side: Phone (Mobile Only) */}
-            <div className="lg:hidden flex items-center gap-2 absolute right-12 pt-1">
-              <a href="tel:2257662166" className="flex items-center gap-1 text-white hover:text-[#c9b896] transition-colors">
-                <Phone size={16} className="text-[#c9b896]"/> 
-                <span className="text-xs">(225) 766-2166</span>
-              </a>
-            </div>
+            {/* Phone number moved to hamburger menu on mobile */}
 
             {/* Mobile Toggle */}
             <button 
