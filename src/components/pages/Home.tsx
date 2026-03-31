@@ -98,23 +98,32 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   }, []);
 
   const loadServiceImages = async () => {
-    const imageUrls: Record<string, string> = {};
-    
-    for (const service of serviceCards) {
-      const contentKey = `service_card_${service.title.toLowerCase()}`;
-      try {
+    // Fire all 4 requests in parallel instead of sequentially
+    const results = await Promise.allSettled(
+      serviceCards.map(async (service) => {
+        const contentKey = `service_card_${service.title.toLowerCase()}`;
         const response = await fetch(`${serverUrl}/content/${contentKey}`, {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         });
         const data = await response.json();
-        if (data.content?.value) {
-          imageUrls[service.title] = data.content.value;
-        }
-      } catch (error) {
-        console.error(`Error loading ${service.title} service image:`, error);
+        return { title: service.title, url: data.content?.value };
+      })
+    );
+
+    const imageUrls: Record<string, string> = {};
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.url) {
+        imageUrls[result.value.title] = result.value.url;
+
+        // Preload the image in the browser cache so it renders instantly when React needs it
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = result.value.url;
+        document.head.appendChild(link);
       }
     }
-    
+
     setServiceImages(imageUrls);
     setServiceImagesLoaded(true);
   };
@@ -622,14 +631,17 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       className="flex-shrink-0 w-80 md:w-96 snap-center group relative h-full"
                     >
                       {/* Background Image */}
-                      <div className="absolute inset-0 overflow-hidden bg-gray-400">
+                      <div className="absolute inset-0 overflow-hidden bg-[#2a2f3a]">
                         {resolvedSrc && (
                           <img
                             src={resolvedSrc}
                             alt={service.title}
-                            className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700"
+                            loading="eager"
+                            // @ts-ignore - fetchPriority is valid but not yet in React types
+                            fetchPriority="high"
+                            className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 opacity-0"
+                            onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
                             onError={() => {
-                              // Track failed images in state so ALL instances of this card are consistent
                               setFailedServiceImages(prev => new Set([...prev, service.title]));
                             }}
                           />
@@ -730,12 +742,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                     }}
                   >
                     {/* Background image */}
-                    <div style={{ position: 'absolute', inset: 0, backgroundColor: '#374151' }}>
+                    <div style={{ position: 'absolute', inset: 0, backgroundColor: '#2a2f3a' }}>
                       {resolvedSrc && (
                         <img
                           src={resolvedSrc}
                           alt={service.title}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0, transition: 'opacity 0.5s ease-in-out' }}
+                          onLoad={(e) => { (e.target as HTMLImageElement).style.opacity = '1'; }}
                           onError={() => { setFailedServiceImages(prev => new Set([...prev, service.title])); }}
                         />
                       )}
