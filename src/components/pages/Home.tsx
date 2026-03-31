@@ -608,9 +608,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                   <div className="flex gap-4 overflow-x-hidden scrollbar-hide snap-x snap-mandatory h-full" ref={carouselRef}>
                   {/* Render three sets for seamless infinite loop */}
                   {[...serviceCards, ...serviceCards, ...serviceCards].map((service, index) => {
-                    const resolvedSrc = failedServiceImages.has(service.title) 
-                      ? undefined 
-                      : (serviceImages[service.title] || service.img);
+                    // Only show image after custom images have been checked;
+                    // this prevents the stock photo from flashing before the real one loads
+                    const resolvedSrc = failedServiceImages.has(service.title)
+                      ? undefined
+                      : serviceImagesLoaded
+                        ? (serviceImages[service.title] || service.img)
+                        : undefined;
                     
                     return (
                     <div
@@ -632,24 +636,18 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                         )}
                       </div>
 
-                      {/* Clickable overlay for navigation */}
-                      <div 
-                        className="absolute inset-0 cursor-pointer" 
-                        onClick={() => onNavigate(service.page)}
-                      />
-
                       {/* Dark Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 group-hover:from-black/80 group-hover:via-black/50 group-hover:to-black/20 transition-all duration-500 pointer-events-none" />
 
                       {/* Category Title - Centered */}
-                      <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <h3 className="font-serif text-5xl md:text-6xl text-white italic group-hover:scale-110 transition-transform duration-500">
                           {service.title.toUpperCase()}
                         </h3>
                       </div>
 
                       {/* Hover Content - Bottom */}
-                      <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                      <div className="absolute bottom-0 left-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
                         <div className="space-y-2 mb-4">
                           {service.procedures.map((proc, i) => (
                             <p key={i} className="text-sm text-white/90 tracking-wide">
@@ -664,7 +662,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       </div>
 
                       {/* Bottom Accent Line */}
-                      <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                      <div className="absolute bottom-0 left-0 w-full h-1 bg-secondary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left pointer-events-none" />
+
+                      {/* Clickable overlay for navigation - must be last to sit on top */}
+                      <div
+                        className="absolute inset-0 z-10 cursor-pointer"
+                        onClick={() => onNavigate(service.page)}
+                      />
                     </div>
                     );
                   })}
@@ -709,7 +713,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {serviceCards.map((service) => {
                 const resolvedSrc = failedServiceImages.has(service.title)
                   ? undefined
-                  : (serviceImages[service.title] || service.img);
+                  : serviceImagesLoaded
+                    ? (serviceImages[service.title] || service.img)
+                    : undefined;
                 return (
                   <div
                     key={service.title}
