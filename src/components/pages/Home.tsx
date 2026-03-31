@@ -1220,23 +1220,32 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               href="https://plasticsurgeryinbatonrouge.brilliantconnections.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative flex flex-col items-center p-8 md:p-10 rounded-2xl bg-white border border-[#e8e3da] hover:border-[#c9b896] shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 ease-out hover:-translate-y-1.5"
+              className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-white hover:border-[#c9b896] shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 ease-out hover:-translate-y-1.5 overflow-hidden h-72 md:h-80"
             >
-              <div className="h-16 md:h-20 flex items-center justify-center mb-5">
+              {/* Product photo background */}
+              <img
+                src="/images/logos/skinmedica-products.webp"
+                alt="SkinMedica Products"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
+              {/* White frost overlay for logo legibility */}
+              <div className="absolute inset-0 bg-white/75 group-hover:bg-white/65 transition-colors duration-500"></div>
+              {/* Content on top */}
+              <div className="relative z-10 flex flex-col items-center px-6">
                 <img
                   src="/images/logos/skinmedica-logo.png"
                   alt="SkinMedica"
-                  className="h-full w-auto max-w-[220px] object-contain"
+                  className="h-10 md:h-14 w-auto max-w-[260px] object-contain mb-4 drop-shadow-sm"
                 />
+                <p className="text-gray-600 text-xs md:text-sm text-center mb-6 leading-relaxed max-w-[280px] drop-shadow-sm">Advanced science-backed formulas for rejuvenation, hydration &amp; anti-aging.</p>
+                <span className="inline-flex items-center gap-2 bg-[#1a1f2e] text-white text-xs md:text-sm uppercase tracking-widest px-6 py-3 rounded-full group-hover:bg-[#c9b896] group-hover:text-[#1a1f2e] transition-colors duration-300 shadow-lg">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                  Shop Now
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+                </span>
               </div>
-              <p className="text-gray-500 text-xs md:text-sm text-center mb-6 leading-relaxed">Advanced science-backed formulas for rejuvenation, hydration &amp; anti-aging.</p>
-              <span className="inline-flex items-center gap-2 bg-[#1a1f2e] text-white text-xs md:text-sm uppercase tracking-widest px-6 py-3 rounded-full group-hover:bg-[#c9b896] group-hover:text-[#1a1f2e] transition-colors duration-300">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
-                Shop Now
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
-              </span>
             </a>
 
             {/* ZO Skin Health */}
@@ -1244,23 +1253,32 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               href="https://zoskinhealth.com/?practice-ref=6777464&practice-name=Hanemann+Plastic+Surgery"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative flex flex-col items-center p-8 md:p-10 rounded-2xl bg-white border border-[#e8e3da] hover:border-[#c9b896] shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 ease-out hover:-translate-y-1.5"
+              className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-white hover:border-[#c9b896] shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 ease-out hover:-translate-y-1.5 overflow-hidden h-72 md:h-80"
             >
-              <div className="h-16 md:h-20 flex items-center justify-center mb-5">
+              {/* Product photo background */}
+              <img
+                src="/images/logos/zo-products.webp"
+                alt="ZO Skin Health Products"
+                className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
+              {/* White frost overlay for logo legibility */}
+              <div className="absolute inset-0 bg-white/75 group-hover:bg-white/65 transition-colors duration-500"></div>
+              {/* Content on top */}
+              <div className="relative z-10 flex flex-col items-center px-6">
                 <img
                   src="/images/logos/zo-logo.png"
                   alt="ZO Skin Health"
-                  className="h-full w-auto max-w-[220px] object-contain"
+                  className="h-10 md:h-14 w-auto max-w-[260px] object-contain mb-4 drop-shadow-sm"
                 />
+                <p className="text-gray-600 text-xs md:text-sm text-center mb-6 leading-relaxed max-w-[280px] drop-shadow-sm">Medical-grade skincare by Dr. Zein Obagi — corrective treatments &amp; daily essentials.</p>
+                <span className="inline-flex items-center gap-2 bg-[#1a1f2e] text-white text-xs md:text-sm uppercase tracking-widest px-6 py-3 rounded-full group-hover:bg-[#c9b896] group-hover:text-[#1a1f2e] transition-colors duration-300 shadow-lg">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                  Shop Now
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+                </span>
               </div>
-              <p className="text-gray-500 text-xs md:text-sm text-center mb-6 leading-relaxed">Medical-grade skincare by Dr. Zein Obagi — corrective treatments &amp; daily essentials.</p>
-              <span className="inline-flex items-center gap-2 bg-[#1a1f2e] text-white text-xs md:text-sm uppercase tracking-widest px-6 py-3 rounded-full group-hover:bg-[#c9b896] group-hover:text-[#1a1f2e] transition-colors duration-300">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
-                Shop Now
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
-              </span>
             </a>
           </div>
         </div>
