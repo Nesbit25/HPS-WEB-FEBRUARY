@@ -159,15 +159,15 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
                 <h2 className="text-white text-xl md:text-2xl font-light tracking-wide mb-1">{cat.title}</h2>
                 <p className="text-gray-400 text-[10px] md:text-xs mb-4 hidden md:block">{cat.subtitle}</p>
 
-                {/* Procedure pill buttons — always visible */}
-                <div className="flex flex-wrap gap-1.5 md:gap-2 mb-4">
+                {/* Procedure list — matches service card style */}
+                <div className="space-y-1 md:space-y-1.5 mb-4">
                   {cat.procedures.map((proc) => (
                     <button
                       key={proc.slug}
                       onClick={() => handleProcedureClick(cat.key, proc.slug)}
-                      className="py-1 md:py-1.5 px-2.5 md:px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 hover:border-[#c9b896]/60 hover:bg-[#c9b896]/20 transition-all duration-300 group/proc"
+                      className="block text-left hover:translate-x-1 transition-transform duration-200 group/proc"
                     >
-                      <span className="text-white/80 text-[10px] md:text-xs group-hover/proc:text-[#c9b896] transition-colors duration-200">{proc.label}</span>
+                      <span className="text-white/80 text-[11px] md:text-sm tracking-wide group-hover/proc:text-[#c9b896] transition-colors duration-200">• {proc.label}</span>
                     </button>
                   ))}
                 </div>
