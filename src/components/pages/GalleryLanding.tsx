@@ -119,7 +119,7 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
       />
 
       {/* Hero */}
-      <section className="relative bg-[#1a1f2e] pt-32 pb-12 md:pt-40 md:pb-16 overflow-hidden">
+      <section className="relative bg-[#1a1f2e] pt-32 pb-10 md:pt-40 md:pb-12 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#0f1219] to-[#1a1f2e] pointer-events-none"></div>
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#c9b896]/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
@@ -131,73 +131,59 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
         </div>
       </section>
 
-      {/* Category Sections — each with image + always-visible procedure list */}
-      <section className="bg-[#1a1f2e] pb-20 md:pb-28">
-        <div className="container mx-auto px-6 max-w-5xl space-y-8 md:space-y-10">
-          {GALLERY_CATEGORIES.map((cat, idx) => {
-            const imageSrc = categoryImages[cat.key] || cat.fallbackImage;
-            // Alternate layout: image left / right on desktop
-            const isReversed = idx % 2 === 1;
+      {/* Tile Collage — 4 cards edge-to-edge, no gaps */}
+      <section className="grid grid-cols-2 md:grid-cols-4">
+        {GALLERY_CATEGORIES.map((cat) => {
+          const imageSrc = categoryImages[cat.key] || cat.fallbackImage;
 
-            return (
-              <div
-                key={cat.key}
-                className={`flex flex-col ${isReversed ? 'md:flex-row-reverse' : 'md:flex-row'} rounded-2xl overflow-hidden border border-[#2d3548] hover:border-[#c9b896]/30 transition-all duration-500 bg-[#242938]`}
-              >
-                {/* Image Side */}
-                <div className="relative w-full md:w-1/2 h-56 md:h-auto min-h-[280px] overflow-hidden group cursor-pointer" onClick={() => handleViewAll(cat.key)}>
-                  <img
-                    src={imageSrc}
-                    alt={cat.title}
-                    className={`w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ${
-                      imagesLoaded ? 'opacity-100' : 'opacity-0'
-                    } transition-opacity duration-500`}
-                    onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-                  />
-                  {/* Gradient fade into content side */}
-                  <div className={`absolute inset-0 bg-gradient-to-b md:bg-gradient-to-r ${isReversed ? 'md:bg-gradient-to-l' : ''} from-transparent via-transparent to-[#242938]/80 md:to-[#242938]`}></div>
-                  {/* Mobile: title overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-5 md:hidden bg-gradient-to-t from-[#242938] to-transparent">
-                    <h2 className="text-white text-2xl font-light tracking-wide">{cat.title}</h2>
-                    <p className="text-gray-400 text-xs mt-1">{cat.subtitle}</p>
-                  </div>
+          return (
+            <div
+              key={cat.key}
+              className="relative group overflow-hidden"
+            >
+              {/* Full-bleed background image */}
+              <img
+                src={imageSrc}
+                alt={cat.title}
+                className="w-full h-full object-cover object-center absolute inset-0 group-hover:scale-110 transition-transform duration-700"
+                onLoad={(e) => (e.currentTarget.style.opacity = '1')}
+                style={{ opacity: imagesLoaded ? 1 : 0, transition: 'opacity 0.5s' }}
+              />
+
+              {/* Dark gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0f1219] via-[#0f1219]/70 to-[#0f1219]/30 group-hover:via-[#0f1219]/60 group-hover:to-[#0f1219]/20 transition-all duration-500"></div>
+
+              {/* Content — sits on top */}
+              <div className="relative z-10 flex flex-col justify-end p-5 md:p-7 min-h-[320px] md:min-h-[480px]">
+                {/* Category title */}
+                <h2 className="text-white text-xl md:text-2xl font-light tracking-wide mb-1">{cat.title}</h2>
+                <p className="text-gray-400 text-[10px] md:text-xs mb-4 hidden md:block">{cat.subtitle}</p>
+
+                {/* Procedure pill buttons — always visible */}
+                <div className="flex flex-wrap gap-1.5 md:gap-2 mb-4">
+                  {cat.procedures.map((proc) => (
+                    <button
+                      key={proc.slug}
+                      onClick={() => handleProcedureClick(cat.key, proc.slug)}
+                      className="py-1 md:py-1.5 px-2.5 md:px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/15 hover:border-[#c9b896]/60 hover:bg-[#c9b896]/20 transition-all duration-300 group/proc"
+                    >
+                      <span className="text-white/80 text-[10px] md:text-xs group-hover/proc:text-[#c9b896] transition-colors duration-200">{proc.label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                {/* Procedures Side */}
-                <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center">
-                  {/* Desktop title */}
-                  <div className="hidden md:block mb-6">
-                    <h2 className="text-white text-2xl md:text-3xl font-light tracking-wide mb-1">{cat.title}</h2>
-                    <p className="text-gray-400 text-sm">{cat.subtitle}</p>
-                  </div>
-
-                  {/* Procedure links — always visible */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {cat.procedures.map((proc) => (
-                      <button
-                        key={proc.slug}
-                        onClick={() => handleProcedureClick(cat.key, proc.slug)}
-                        className="flex items-center gap-1.5 py-2 px-4 rounded-full bg-white/5 border border-white/10 hover:border-[#c9b896]/50 hover:bg-[#c9b896]/10 transition-all duration-300 group/proc"
-                      >
-                        <span className="text-gray-300 text-sm group-hover/proc:text-[#c9b896] transition-colors duration-200">{proc.label}</span>
-                        <ArrowRight className="w-3 h-3 text-gray-500 opacity-0 -translate-x-1 group-hover/proc:opacity-100 group-hover/proc:translate-x-0 group-hover/proc:text-[#c9b896] transition-all duration-300" />
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* View All CTA */}
-                  <button
-                    onClick={() => handleViewAll(cat.key)}
-                    className="inline-flex items-center gap-2 self-start bg-[#c9b896]/10 hover:bg-[#c9b896]/20 border border-[#c9b896]/25 hover:border-[#c9b896]/50 text-[#c9b896] text-xs uppercase tracking-widest px-5 py-2.5 rounded-full transition-all duration-300 group/all"
-                  >
-                    View All {cat.title}
-                    <ArrowRight className="w-3.5 h-3.5 group-hover/all:translate-x-1 transition-transform duration-300" />
-                  </button>
-                </div>
+                {/* View All */}
+                <button
+                  onClick={() => handleViewAll(cat.key)}
+                  className="inline-flex items-center gap-1.5 self-start text-[#c9b896] text-[10px] md:text-xs uppercase tracking-widest hover:gap-3 transition-all duration-300"
+                >
+                  View All
+                  <ArrowRight className="w-3 h-3" />
+                </button>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </section>
     </>
   );
