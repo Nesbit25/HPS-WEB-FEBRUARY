@@ -113,7 +113,7 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
               <div className="absolute inset-0 bg-gradient-to-t from-[#0f1219] via-[#0f1219]/70 to-[#0f1219]/30 group-hover:via-[#0f1219]/60 group-hover:to-[#0f1219]/20 transition-all duration-500"></div>
 
               {/* Content — sits on top */}
-              <div className="relative z-10 flex flex-col justify-end p-5 md:p-7 min-h-[320px] md:min-h-[480px]">
+              <div className="relative z-10 flex flex-col justify-end p-5 md:p-7 min-h-[420px] md:min-h-[600px]">
                 {/* Category title */}
                 <h2 className="text-white text-xl md:text-2xl font-light tracking-wide mb-1">{cat.title}</h2>
                 <p className="text-gray-400 text-[10px] md:text-xs mb-4 hidden md:block">{cat.subtitle}</p>
