@@ -1268,7 +1268,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 <img
                   src="/images/logos/zo-logo.png"
                   alt="ZO Skin Health"
-                  className="h-10 md:h-14 w-auto max-w-[260px] object-contain mb-4 drop-shadow-sm"
+                  className="h-12 md:h-[68px] w-auto max-w-[280px] object-contain mb-4 drop-shadow-sm"
                 />
                 <p className="text-gray-600 text-xs md:text-sm text-center mb-6 leading-relaxed max-w-[280px] drop-shadow-sm">Medical-grade skincare by Dr. Zein Obagi — corrective treatments &amp; daily essentials.</p>
                 <span className="inline-flex items-center gap-2 bg-[#1a1f2e] text-white text-xs md:text-sm uppercase tracking-widest px-6 py-3 rounded-full group-hover:bg-[#c9b896] group-hover:text-[#1a1f2e] transition-colors duration-300 shadow-lg">
@@ -1279,6 +1279,35 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
                 </span>
               </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* CareCredit Financing */}
+      <section className="bg-[#1a1f2e] py-14 md:py-16 border-b border-[#2d3548]">
+        <div className="container mx-auto px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-[#c9b896] text-xs uppercase tracking-[0.3em] mb-3">Flexible Financing</p>
+            <h2 className="text-white text-2xl md:text-3xl font-light tracking-wide mb-4">Make Your Goals Affordable</h2>
+            <p className="text-gray-400 text-sm md:text-base mb-8 leading-relaxed">We accept CareCredit so you can move forward with the care you deserve — with convenient monthly payment options.</p>
+            <a
+              href="https://www.carecredit.com/go/KCS498/?dtc=DS7X&sitecode=CCCAPDS7X"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex flex-col items-center"
+            >
+              <div className="bg-white rounded-2xl px-10 py-6 mb-6 border-2 border-white hover:border-[#c9b896] shadow-lg shadow-black/10 hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 ease-out group-hover:-translate-y-1">
+                <img
+                  src="/images/logos/carecredit-logo.png"
+                  alt="CareCredit"
+                  className="h-10 md:h-14 w-auto object-contain"
+                />
+              </div>
+              <span className="inline-flex items-center gap-2 bg-[#c9b896] text-[#1a1f2e] text-xs md:text-sm uppercase tracking-widest px-8 py-3 rounded-full group-hover:bg-white transition-colors duration-300 font-semibold shadow-lg">
+                Apply Now
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-300" />
+              </span>
             </a>
           </div>
         </div>
