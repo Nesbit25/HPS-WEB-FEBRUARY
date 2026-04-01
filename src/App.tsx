@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, useParams } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientAuthProvider, usePatientAuth } from './contexts/PatientAuthContext';
 import { EditModeProvider } from './contexts/EditModeContext';
@@ -13,6 +13,7 @@ import { HomeLuxury } from './components/pages/HomeLuxury';
 import { About } from './components/pages/About';
 import { ProcedurePage } from './components/pages/ProcedurePage';
 import { Gallery } from './components/pages/Gallery';
+import { GalleryLanding } from './components/pages/GalleryLanding';
 import { Resources } from './components/pages/Resources';
 import { BlogPost } from './components/pages/BlogPost';
 import { Contact } from './components/pages/Contact';
@@ -44,6 +45,24 @@ export default function App() {
         </AuthProvider>
       </BrowserRouter>
     </HelmetProvider>
+  );
+}
+
+/** Wrapper that reads URL params and passes them to Gallery */
+function GalleryWithParams({ onNavigate }: { onNavigate: (page: string) => void }) {
+  const { category, procedure } = useParams<{ category: string; procedure?: string }>();
+  // Capitalize first letter to match Gallery's category format (Face, Nose, Breast, Body)
+  const normalizedCategory = category
+    ? category.charAt(0).toUpperCase() + category.slice(1).toLowerCase()
+    : undefined;
+  const decodedProcedure = procedure ? decodeURIComponent(procedure) : undefined;
+  return (
+    <Gallery
+      key={`${normalizedCategory}-${decodedProcedure}`}
+      onNavigate={onNavigate}
+      initialCategory={normalizedCategory}
+      initialProcedure={decodedProcedure}
+    />
   );
 }
 
@@ -157,7 +176,9 @@ function AppContent() {
           <Route path="/procedures/body" element={
             <ProcedurePage data={bodyData} procedureType="body" onNavigate={handleNavigate} />
           } />
-          <Route path="/gallery" element={<Gallery onNavigate={handleNavigate} />} />
+          <Route path="/gallery" element={<GalleryLanding onNavigate={handleNavigate} />} />
+          <Route path="/gallery/:category" element={<GalleryWithParams onNavigate={handleNavigate} />} />
+          <Route path="/gallery/:category/:procedure" element={<GalleryWithParams onNavigate={handleNavigate} />} />
           <Route path="/resources" element={<Resources onNavigate={handleNavigate} />} />
           <Route path="/blog/:slug" element={<BlogPost onNavigate={handleNavigate} />} />
           <Route path="/contact" element={

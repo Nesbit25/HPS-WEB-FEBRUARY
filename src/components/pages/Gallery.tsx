@@ -12,11 +12,12 @@ import { SimpleGalleryEditor } from '../cms/SimpleGalleryEditor';
 import { NewGalleryCaseEditor } from '../cms/NewGalleryCaseEditor';
 import { BulkGalleryUploader } from '../cms/BulkGalleryUploader';
 import { GalleryOrientationManager } from '../cms/GalleryOrientationManager';
-import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon } from 'lucide-react';
+import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { getOptimizedSupabaseUrl } from '../../hooks/useImagePreload';
+import { useParams, useNavigate } from 'react-router';
 
 // ─── Procedure display name maps (derived from repo folder names & filename prefixes) ───
 const PROCEDURE_FOLDER_DISPLAY: Record<string, string> = {
@@ -72,6 +73,8 @@ const getProcedureNameFromPrefix = (prefix: string): string => {
 };
 interface GalleryProps {
   onNavigate: (page: string) => void;
+  initialCategory?: string;
+  initialProcedure?: string;
 }
 
 interface GalleryOrientation {
@@ -100,12 +103,13 @@ interface GalleryItem {
   showOnFace?: boolean;
 }
 
-export function Gallery({ onNavigate }: GalleryProps) {
+export function Gallery({ onNavigate, initialCategory, initialProcedure }: GalleryProps) {
   const { isAdmin, accessToken } = useAuth();
   const { isEditMode } = useEditMode();
+  const routeNavigate = useNavigate();
   const categories = ['All', 'Face', 'Nose', 'Breast', 'Body'];
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedProcedures, setSelectedProcedures] = useState<string[]>([]); // empty array = show all
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'All');
+  const [selectedProcedures, setSelectedProcedures] = useState<string[]>(initialProcedure ? [initialProcedure] : []); // empty array = show all
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxIndex, setCurrentLightboxIndex] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -1180,11 +1184,19 @@ export function Gallery({ onNavigate }: GalleryProps) {
         canonical="/gallery"
       />
       {/* Page Hero */}
-      
+
 
       {/* Gallery Filters */}
       <section className="pt-48 pb-16 bg-[#1a1f2e] border-b border-[#2d3548]">
         <div className="container mx-auto px-6">
+          {/* Back to Gallery Landing */}
+          <button
+            onClick={() => routeNavigate('/gallery')}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#c9b896] transition-colors mb-8 group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-200" />
+            Back to Gallery
+          </button>
           {/* Debug button for admins */}
           {isAdmin && isEditMode && (
             <div className="flex flex-wrap gap-2 mb-6">
