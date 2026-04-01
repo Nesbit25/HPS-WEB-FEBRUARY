@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { SEOHead } from '../seo/SEOHead';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 interface GalleryLandingProps {
   onNavigate: (page: string) => void;
@@ -13,8 +12,7 @@ const GALLERY_CATEGORIES = [
     key: 'Breast',
     title: 'Breast',
     subtitle: 'Augmentation, Lift, Reduction & More',
-    // Fallback — overridden by Supabase image if available
-    fallbackImage: 'https://images.unsplash.com/photo-1768609957045-591c79431f48?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
+    image: '/images/gallery-breast.jpg',
     procedures: [
       { label: 'Breast Augmentation', slug: 'Breast Augmentation' },
       { label: 'Breast Aug + Lift', slug: 'Breast Aug + Lift' },
@@ -31,7 +29,7 @@ const GALLERY_CATEGORIES = [
     key: 'Body',
     title: 'Body',
     subtitle: 'Tummy Tuck, Liposuction, Contouring & More',
-    fallbackImage: 'https://images.unsplash.com/photo-1646932520067-81bdc09af07a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
+    image: '/images/gallery-body.jpg',
     procedures: [
       { label: 'Tummy Tuck', slug: 'Tummy Tuck' },
       { label: 'Liposuction', slug: 'Liposuction' },
@@ -44,7 +42,7 @@ const GALLERY_CATEGORIES = [
     key: 'Face',
     title: 'Face',
     subtitle: 'Facelift, Eyelid Surgery, Chin & More',
-    fallbackImage: 'https://images.unsplash.com/photo-1764265923632-b2126ec0dedc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
+    image: '/images/gallery-face.jpg',
     procedures: [
       { label: 'Facelift / Neck Lift', slug: 'Facelift / Neck Lift' },
       { label: 'Eyelid Surgery', slug: 'Eyelid Surgery' },
@@ -57,7 +55,7 @@ const GALLERY_CATEGORIES = [
     key: 'Nose',
     title: 'Nose',
     subtitle: 'Rhinoplasty & Revision',
-    fallbackImage: 'https://images.unsplash.com/photo-1760341682514-41b5199c6205?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
+    image: '/images/gallery-nose.jpg',
     procedures: [
       { label: 'Rhinoplasty', slug: 'Rhinoplasty' },
     ],
@@ -66,41 +64,6 @@ const GALLERY_CATEGORIES = [
 
 export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
   const navigate = useNavigate();
-  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
-
-  // Load the same service card images from Supabase that Home.tsx uses
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        const results = await Promise.allSettled(
-          GALLERY_CATEGORIES.map(async (cat) => {
-            const contentKey = `service_card_${cat.key.toLowerCase()}`;
-            const response = await fetch(`${serverUrl}/content/${contentKey}`, {
-              headers: { 'Authorization': `Bearer ${publicAnonKey}` }
-            });
-            const data = await response.json();
-            return { key: cat.key, url: data.content?.value };
-          })
-        );
-
-        const imageUrls: Record<string, string> = {};
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value.url) {
-            imageUrls[result.value.key] = result.value.url;
-          }
-        }
-        setCategoryImages(imageUrls);
-      } catch (e) {
-        console.error('[GalleryLanding] Error loading images:', e);
-      }
-      setImagesLoaded(true);
-    };
-
-    loadImages();
-  }, []);
 
   const handleViewAll = (categoryKey: string) => {
     navigate(`/gallery/${categoryKey}`);
@@ -134,27 +97,17 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
       {/* Tile Collage — 4 cards edge-to-edge, no gaps */}
       <section className="grid grid-cols-2 md:grid-cols-4">
         {GALLERY_CATEGORIES.map((cat) => {
-          // Only resolve image src after custom images have been checked;
-          // this prevents the stock photo from flashing before the real one loads
-          const resolvedSrc = imagesLoaded
-            ? (categoryImages[cat.key] || cat.fallbackImage)
-            : undefined;
-
           return (
             <div
               key={cat.key}
-              className="relative group overflow-hidden bg-[#2a2f3a]"
+              className="relative group overflow-hidden"
             >
-              {/* Full-bleed background image — only rendered after Supabase check */}
-              {resolvedSrc && (
-                <img
-                  src={resolvedSrc}
-                  alt={cat.title}
-                  className="w-full h-full object-cover object-center absolute inset-0 group-hover:scale-110 transition-transform duration-700 opacity-0"
-                  onLoad={(e) => { e.currentTarget.classList.remove('opacity-0'); e.currentTarget.classList.add('opacity-100'); }}
-                  style={{ transition: 'opacity 0.5s' }}
-                />
-              )}
+              {/* Full-bleed background image — static asset, instant load */}
+              <img
+                src={cat.image}
+                alt={cat.title}
+                className="w-full h-full object-cover object-center absolute inset-0 group-hover:scale-110 transition-transform duration-700"
+              />
 
               {/* Dark gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#0f1219] via-[#0f1219]/70 to-[#0f1219]/30 group-hover:via-[#0f1219]/60 group-hover:to-[#0f1219]/20 transition-all duration-500"></div>
