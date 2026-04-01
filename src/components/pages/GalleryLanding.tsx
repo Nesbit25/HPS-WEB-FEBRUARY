@@ -50,7 +50,7 @@ const GALLERY_CATEGORIES = [
       { label: 'Eyelid Surgery', slug: 'Eyelid Surgery' },
       { label: 'Chin Augmentation', slug: 'Chin Augmentation' },
       { label: 'Otoplasty', slug: 'Otoplasty' },
-      { label: 'Liposuction (Face)', slug: 'Liposuction (Face)' },
+      { label: 'Liposuction (Face)', slug: 'Liposuction' },
     ],
   },
   {

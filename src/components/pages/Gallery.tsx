@@ -39,7 +39,7 @@ const PROCEDURE_FOLDER_DISPLAY: Record<string, string> = {
   'facelift-necklift-photos':        'Facelift / Neck Lift',
   'chin-augmentation-photos':        'Chin Augmentation',
   'otoplasty-photos':                'Otoplasty',
-  'liposuction-photos':              'Liposuction (Face)',
+  'liposuction-photos':              'Liposuction',
   'rhinoplasty-photos':              'Rhinoplasty',
 };
 
@@ -58,6 +58,7 @@ const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
   'THIGH_LIFT':            'Thigh Lift',
   'BODY_CONTOURING':       'Body Contouring',
   'LIPOSUCTION':           'Liposuction',
+  'BODY_LIPOSUCTION':      'Liposuction',
   'EYELID_SURGERY':        'Eyelid Surgery',
   'FACELIFT_NECKLIFT':     'Facelift / Neck Lift',
   'CHIN_AUGMENTATION':     'Chin Augmentation',
@@ -152,7 +153,17 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       // Check localStorage cache first
       const cacheKey = 'gallery_items_cache';
       const cacheTimestampKey = 'gallery_items_cache_timestamp';
+      const cacheVersionKey = 'gallery_items_cache_version';
+      const CACHE_VERSION = '2'; // Bump to bust stale procedureName data
       const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+      // Bust cache if version mismatch
+      if (localStorage.getItem(cacheVersionKey) !== CACHE_VERSION) {
+        console.log('[Gallery] Cache version mismatch — busting cache');
+        localStorage.removeItem(cacheKey);
+        localStorage.removeItem(cacheTimestampKey);
+        localStorage.setItem(cacheVersionKey, CACHE_VERSION);
+      }
       
       const cachedData = localStorage.getItem(cacheKey);
       const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
@@ -545,14 +556,39 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
 
   const CATEGORY_ORDER: Record<string, number> = { Breast: 0, Body: 1, Face: 2, Nose: 3 };
 
+  // Helper: check if an item matches any of the selected procedure filters.
+  // Checks procedureName first, then falls back to matching the slug or title
+  // (handles cases where procedureName wasn't populated or cache is stale).
+  const matchesProcedure = (item: GalleryItem, procedures: string[]): boolean => {
+    // Direct match on procedureName
+    if (item.procedureName && procedures.includes(item.procedureName)) return true;
+    // Fallback: derive a name from the slug (e.g. "BREAST_AUGMENTATION_Patient01" → "Breast Augmentation")
+    if (item.slug) {
+      const prefix = item.slug.replace(/_Patient\d+$/, '');
+      const derived = getProcedureNameFromPrefix(prefix);
+      if (procedures.includes(derived)) return true;
+    }
+    // Fallback: check title (e.g. "Breast Augmentation — Patient 1")
+    if (item.title) {
+      for (const proc of procedures) {
+        if (item.title.toLowerCase().includes(proc.toLowerCase())) return true;
+      }
+    }
+    return false;
+  };
+
   const filteredItems = galleryItems
     .filter(item => {
       // Always exclude orphan KV stubs (no slug AND no images)
       if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-      // Category filter
-      if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
-      // Procedure filter (multi-select: empty array = show all)
-      if (selectedProcedures.length > 0 && !selectedProcedures.includes(item.procedureName || '')) return false;
+      // When a specific procedure is selected, use it as the primary filter
+      // (skip category check — the procedure name is already specific enough)
+      if (selectedProcedures.length > 0) {
+        if (!matchesProcedure(item, selectedProcedures)) return false;
+      } else {
+        // Category filter (only when no specific procedure is selected)
+        if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+      }
       // Admins in edit mode can see real items even without images
       if (isAdmin && isEditMode) return true;
       // Public users only see items with images
