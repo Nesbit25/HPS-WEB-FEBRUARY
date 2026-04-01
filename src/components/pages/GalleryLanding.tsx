@@ -172,15 +172,15 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
                   </div>
 
                   {/* Procedure links — always visible */}
-                  <div className="space-y-1 mb-6">
+                  <div className="flex flex-wrap gap-2 mb-6">
                     {cat.procedures.map((proc) => (
                       <button
                         key={proc.slug}
                         onClick={() => handleProcedureClick(cat.key, proc.slug)}
-                        className="w-full flex items-center justify-between py-2.5 px-4 rounded-lg hover:bg-white/5 transition-colors duration-200 group/proc"
+                        className="flex items-center gap-1.5 py-2 px-4 rounded-full bg-white/5 border border-white/10 hover:border-[#c9b896]/50 hover:bg-[#c9b896]/10 transition-all duration-300 group/proc"
                       >
                         <span className="text-gray-300 text-sm group-hover/proc:text-[#c9b896] transition-colors duration-200">{proc.label}</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-500 group-hover/proc:text-[#c9b896] group-hover/proc:translate-x-0.5 transition-all duration-200" />
+                        <ArrowRight className="w-3 h-3 text-gray-500 opacity-0 -translate-x-1 group-hover/proc:opacity-100 group-hover/proc:translate-x-0 group-hover/proc:text-[#c9b896] transition-all duration-300" />
                       </button>
                     ))}
                   </div>
