@@ -134,21 +134,27 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
       {/* Tile Collage — 4 cards edge-to-edge, no gaps */}
       <section className="grid grid-cols-2 md:grid-cols-4">
         {GALLERY_CATEGORIES.map((cat) => {
-          const imageSrc = categoryImages[cat.key] || cat.fallbackImage;
+          // Only resolve image src after custom images have been checked;
+          // this prevents the stock photo from flashing before the real one loads
+          const resolvedSrc = imagesLoaded
+            ? (categoryImages[cat.key] || cat.fallbackImage)
+            : undefined;
 
           return (
             <div
               key={cat.key}
-              className="relative group overflow-hidden"
+              className="relative group overflow-hidden bg-[#2a2f3a]"
             >
-              {/* Full-bleed background image */}
-              <img
-                src={imageSrc}
-                alt={cat.title}
-                className="w-full h-full object-cover object-center absolute inset-0 group-hover:scale-110 transition-transform duration-700"
-                onLoad={(e) => (e.currentTarget.style.opacity = '1')}
-                style={{ opacity: imagesLoaded ? 1 : 0, transition: 'opacity 0.5s' }}
-              />
+              {/* Full-bleed background image — only rendered after Supabase check */}
+              {resolvedSrc && (
+                <img
+                  src={resolvedSrc}
+                  alt={cat.title}
+                  className="w-full h-full object-cover object-center absolute inset-0 group-hover:scale-110 transition-transform duration-700 opacity-0"
+                  onLoad={(e) => { e.currentTarget.classList.remove('opacity-0'); e.currentTarget.classList.add('opacity-100'); }}
+                  style={{ transition: 'opacity 0.5s' }}
+                />
+              )}
 
               {/* Dark gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-[#0f1219] via-[#0f1219]/70 to-[#0f1219]/30 group-hover:via-[#0f1219]/60 group-hover:to-[#0f1219]/20 transition-all duration-500"></div>
