@@ -1612,8 +1612,25 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
 
                     const isPriority = index < 6;
 
+                    // Fixed aspect ratio for uniform card sizing (3:4 portrait per half = ~1.5 wide)
+                    const FIXED_ASPECT = 1.5;
+
                     return (
                       <div className="w-full">
+                        {/* Single Before / After header above all views */}
+                        <div className="flex bg-[#1a1f2e] border-b border-[#2d3548]">
+                          <div className="w-1/2 flex justify-center py-2">
+                            <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
+                              <span className="text-[10px] text-secondary font-medium">Before</span>
+                            </div>
+                          </div>
+                          <div className="w-px bg-secondary/10 flex-shrink-0" />
+                          <div className="w-1/2 flex justify-center py-2">
+                            <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
+                              <span className="text-[10px] text-secondary font-medium">After</span>
+                            </div>
+                          </div>
+                        </div>
                         {orientations.map((orientation, oIdx) => {
                           const beforeUrl = orientation.beforeImage || item.beforeImage;
                           const afterUrl = orientation.afterImage || item.afterImage;
@@ -1621,12 +1638,12 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                             <div key={oIdx}>
                               {/* Orientation label (if multiple views) */}
                               {orientations.length > 1 && orientation.name && (
-                                <div className="bg-[#1a1f2e] text-center py-1.5 border-b border-[#2d3548]">
+                                <div className="bg-[#1a1f2e] text-center py-1 border-b border-[#2d3548]">
                                   <span className="text-[10px] text-gray-400 uppercase tracking-widest">{orientation.name}</span>
                                 </div>
                               )}
-                              {/* Before / After side by side */}
-                              <div className="w-full bg-[#1a1f2e] relative overflow-hidden" style={{ aspectRatio: imageAspectRatios[item.id] ?? 0.75 }}>
+                              {/* Before / After side by side — fixed aspect ratio for uniform sizing */}
+                              <div className="w-full bg-[#1a1f2e] relative overflow-hidden" style={{ aspectRatio: FIXED_ASPECT }}>
                                 {/* Gold accent corner (first orientation only) */}
                                 {oIdx === 0 && (
                                   <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
@@ -1644,14 +1661,6 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                         loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
                                         fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
                                         className="w-full h-full object-cover object-center"
-                                        onLoad={(e) => {
-                                          if (imageAspectRatios[item.id]) return;
-                                          const img = e.currentTarget;
-                                          setImageAspectRatios(prev => ({
-                                            ...prev,
-                                            [item.id]: (img.naturalWidth * 2) / img.naturalHeight
-                                          }));
-                                        }}
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
@@ -1683,20 +1692,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                 {/* Hover overlay */}
                                 <div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
                               </div>
-                              {/* B&A labels — below photo in navy strip */}
-                              <div className="flex bg-[#1a1f2e] border-b border-[#2d3548]">
-                                <div className="w-1/2 flex justify-center py-2">
-                                  <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
-                                    <span className="text-[10px] text-secondary font-medium">Before</span>
-                                  </div>
-                                </div>
-                                <div className="w-px bg-secondary/10 flex-shrink-0" />
-                                <div className="w-1/2 flex justify-center py-2">
-                                  <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
-                                    <span className="text-[10px] text-secondary font-medium">After</span>
-                                  </div>
-                                </div>
-                              </div>
+                              {/* Thin separator between orientation views */}
+                              {oIdx < orientations.length - 1 && (
+                                <div className="h-px bg-[#2d3548]" />
+                              )}
                             </div>
                           );
                         })}
