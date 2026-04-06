@@ -66,6 +66,52 @@ const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
   'RHINOPLASTY':           'Rhinoplasty',
 };
 
+// ─── Custom subcategory order per category (matches current live site) ───
+const PROCEDURE_ORDER: Record<string, string[]> = {
+  Breast: [
+    'Breast Augmentation',
+    'Tuberous Breast',
+    'Breast Aug + Lift',
+    'Breast Lift',
+    'Explant / Mastopexy',
+    'Breast Reduction',
+    'Asymmetrical Breast',
+    'Gynecomastia',
+    'FTM Top Surgery',
+  ],
+  Body: [
+    'Tummy Tuck',
+    'Arm Lift',
+    'Thigh Lift',
+    'Body Contouring',
+    'Liposuction',
+  ],
+  Face: [
+    'Eyelid Surgery',
+    'Facelift / Neck Lift',
+    'Chin Augmentation',
+    'Otoplasty',
+    'Liposuction',
+  ],
+  Nose: [
+    'Rhinoplasty',
+  ],
+};
+
+// ─── Display label overrides (rename for public display only) ───
+const PROCEDURE_DISPLAY_LABEL: Record<string, string> = {
+  'Breast Lift':           'Breast Lift (Mastopexy)',
+  'Breast Aug + Lift':     'Breast Aug w/ Lift',
+  'Tummy Tuck':            'Tummy Tuck (Abdominoplasty)',
+  'Arm Lift':              'Arm Lift (Brachioplasty)',
+  'Eyelid Surgery':        'Eyelid Rejuvenation',
+  'Facelift / Neck Lift':  'Facelift / Necklift',
+};
+
+/** Get the display label for a procedure (applies rename overrides). */
+const getProcedureDisplayLabel = (proc: string): string =>
+  PROCEDURE_DISPLAY_LABEL[proc] || proc;
+
 /** Derive a human-readable procedure name from a filename prefix (e.g. "BREAST_AUGMENTATION"). */
 const getProcedureNameFromPrefix = (prefix: string): string => {
   const key = prefix.toUpperCase();
@@ -605,7 +651,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       return (a.title || '').localeCompare(b.title || '');
     });
 
-  // Sorted list of procedures available within the current category selection
+  // Ordered list of procedures available within the current category selection
   const availableProcedures = useMemo(() => {
     const baseItems = selectedCategory === 'All'
       ? galleryItems
@@ -614,6 +660,14 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       (isAdmin && isEditMode) || i.beforeImage || i.afterImage
     );
     const names = new Set(withImages.map(i => i.procedureName).filter(Boolean) as string[]);
+    // Use custom order if a single category is selected; fall back to alphabetical for "All"
+    const order = PROCEDURE_ORDER[selectedCategory];
+    if (order) {
+      // Return procedures in the defined order, then append any extras alphabetically
+      const ordered = order.filter(p => names.has(p));
+      const extras = Array.from(names).filter(p => !order.includes(p)).sort((a, b) => a.localeCompare(b));
+      return [...ordered, ...extras];
+    }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [galleryItems, selectedCategory, isAdmin, isEditMode]);
 
@@ -1384,23 +1438,24 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
             })}
           </div>
 
-          {/* ── Procedure Filter Pills ── multi-select, wrapping, inline styles to survive Tailwind purge */}
-          {availableProcedures.length > 1 && (
+          {/* ── Procedure Filter Pills ── single-select, wrapping, inline styles to survive Tailwind purge */}
+          {availableProcedures.length > 0 && (
             <div style={{ marginTop: '24px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', padding: '4px 8px' }}>
                 {/* "All" clear pill — active when nothing is selected */}
                 <button
                   onClick={() => setSelectedProcedures([])}
                   style={{
-                    padding: '6px 16px',
+                    padding: '8px 16px',
                     borderRadius: '9999px',
-                    fontSize: '0.875rem',
+                    fontSize: '0.8125rem',
                     fontWeight: 500,
                     border: selectedProcedures.length === 0 ? '1px solid #b8976a' : '1px solid #2d3548',
                     backgroundColor: selectedProcedures.length === 0 ? '#b8976a' : 'transparent',
                     color: selectedProcedures.length === 0 ? '#1a1f2e' : '#9ca3af',
                     transition: 'all 0.2s',
                     cursor: 'pointer',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   All Procedures
@@ -1415,23 +1470,24 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                       onClick={() => {
                         setSelectedProcedures(prev =>
                           prev.includes(proc)
-                            ? prev.filter(p => p !== proc)   // deselect
-                            : [...prev, proc]                 // add to selection
+                            ? []                               // deselect → show all
+                            : [proc]                           // single-select only
                         );
                       }}
                       style={{
-                        padding: '6px 16px',
+                        padding: '8px 16px',
                         borderRadius: '9999px',
-                        fontSize: '0.875rem',
+                        fontSize: '0.8125rem',
                         fontWeight: 500,
                         border: isSelected ? '1px solid #b8976a' : '1px solid #2d3548',
                         backgroundColor: isSelected ? '#b8976a' : 'transparent',
                         color: isSelected ? '#1a1f2e' : '#9ca3af',
                         transition: 'all 0.2s',
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {proc}
+                      {getProcedureDisplayLabel(proc)}
                     </button>
                   );
                 })}
@@ -1451,7 +1507,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                       textUnderlineOffset: '2px',
                     }}
                   >
-                    Clear {selectedProcedures.length} filter{selectedProcedures.length > 1 ? 's' : ''}
+                    Clear filter
                   </button>
                 </div>
               )}
@@ -1534,121 +1590,123 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                   </div>
                 )}
 
-                <Card 
+                <Card
                   className="border-[#2d3548] bg-[#242938]/50 backdrop-blur rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-[#c9b896]/10 transition-all duration-500 cursor-pointer group"
                   onClick={() => handleOpenLightbox(index)}
                 >
-                  <div
-                    className="w-full bg-[#1a1f2e] flex items-center justify-center relative overflow-hidden"
-                    style={{ aspectRatio: imageAspectRatios[item.id] ?? 0.75 }}
-                  >
-                    {/* Gold accent corner */}
-                    <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
-                      <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
-                      <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-secondary/30 to-transparent"></div>
-                    </div>
-                    
-                    {/* Dissolving Before/After Images */}
-                    {item.beforeImage || item.afterImage ? (() => {
-                      const state = activeImages[item.id] || { orientationIndex: 0, type: 'before' };
-                      const currentOrientation = item.orientations?.[state.orientationIndex] || { beforeImage: item.beforeImage, afterImage: item.afterImage };
-                      const displayBeforeImage = currentOrientation.beforeImage || item.beforeImage;
-                      const displayAfterImage = currentOrientation.afterImage || item.afterImage;
-                      
-                      // Helper function to optimize Supabase URLs
-                      const getOptimizedUrl = (url: string) => {
-                        if (!url) return url;
-                        
-                        // Check if it's a Supabase storage URL
-                        if (url.includes('supabase.co/storage/v1/object/public/')) {
-                          // Add optimization parameters for faster loading
-                          return `${url}?width=800&quality=80&format=webp`;
-                        }
-                        
-                        // Return original URL for non-Supabase URLs (like GitHub)
-                        return url;
-                      };
-                      
-                      // Prioritize first 6 images (above the fold on desktop)
-                      const isPriority = index < 6;
-                      
-                      return (
-                        <div className="w-full h-full flex">
-                          {/* Before — left half */}
-                          <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                            {displayBeforeImage ? (
-                              <img
-                                src={getOptimizedUrl(displayBeforeImage)}
-                                alt="Before"
-                                loading={isPriority ? 'eager' : 'lazy'}
-                                fetchpriority={isPriority ? 'high' : 'auto'}
-                                className="w-full h-full object-cover object-center"
-                                onLoad={(e) => {
-                                  if (imageAspectRatios[item.id]) return;
-                                  const img = e.currentTarget;
-                                  // Card = two halves side by side, so total ratio = 2 * (imageW/imageH)
-                                  setImageAspectRatios(prev => ({
-                                    ...prev,
-                                    [item.id]: (img.naturalWidth * 2) / img.naturalHeight
-                                  }));
-                                }}
-                                onError={(e) => {
-                                  console.error('[Gallery] ❌ Before image failed to load:', displayBeforeImage);
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No image</span>
-                            )}
-                            <div className="absolute bottom-2 left-0 right-0 flex justify-center z-10">
-                              <div className="bg-card/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-secondary/20">
-                                <span className="text-[10px] text-secondary">Before</span>
+                  {/* All orientation views stacked vertically */}
+                  {item.beforeImage || item.afterImage ? (() => {
+                    // Build array of all orientations to display
+                    const orientations = item.orientations && item.orientations.length > 0
+                      ? item.orientations
+                      : [{ name: '', beforeImage: item.beforeImage, afterImage: item.afterImage }];
+
+                    // Helper function to optimize Supabase URLs
+                    const getOptimizedUrl = (url: string) => {
+                      if (!url) return url;
+                      if (url.includes('supabase.co/storage/v1/object/public/')) {
+                        return `${url}?width=800&quality=80&format=webp`;
+                      }
+                      return url;
+                    };
+
+                    const isPriority = index < 6;
+
+                    return (
+                      <div className="w-full">
+                        {orientations.map((orientation, oIdx) => {
+                          const beforeUrl = orientation.beforeImage || item.beforeImage;
+                          const afterUrl = orientation.afterImage || item.afterImage;
+                          return (
+                            <div key={oIdx}>
+                              {/* Orientation label (if multiple views) */}
+                              {orientations.length > 1 && orientation.name && (
+                                <div className="bg-[#1a1f2e] text-center py-1.5 border-b border-[#2d3548]">
+                                  <span className="text-[10px] text-gray-400 uppercase tracking-widest">{orientation.name}</span>
+                                </div>
+                              )}
+                              {/* Before / After side by side */}
+                              <div className="w-full bg-[#1a1f2e] relative overflow-hidden" style={{ aspectRatio: imageAspectRatios[item.id] ?? 0.75 }}>
+                                {/* Gold accent corner (first orientation only) */}
+                                {oIdx === 0 && (
+                                  <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none overflow-hidden rounded-tr-2xl z-10">
+                                    <div className="absolute top-0 right-0 w-full h-px bg-gradient-to-l from-secondary/30 to-transparent"></div>
+                                    <div className="absolute top-0 right-0 w-px h-full bg-gradient-to-b from-secondary/30 to-transparent"></div>
+                                  </div>
+                                )}
+                                <div className="w-full h-full flex">
+                                  {/* Before — left half */}
+                                  <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                                    {beforeUrl ? (
+                                      <img
+                                        src={getOptimizedUrl(beforeUrl)}
+                                        alt={`Before${orientation.name ? ` — ${orientation.name}` : ''}`}
+                                        loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
+                                        fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
+                                        className="w-full h-full object-cover object-center"
+                                        onLoad={(e) => {
+                                          if (imageAspectRatios[item.id]) return;
+                                          const img = e.currentTarget;
+                                          setImageAspectRatios(prev => ({
+                                            ...prev,
+                                            [item.id]: (img.naturalWidth * 2) / img.naturalHeight
+                                          }));
+                                        }}
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">No image</span>
+                                    )}
+                                  </div>
+                                  {/* Vertical divider */}
+                                  <div className="w-px bg-secondary/20 flex-shrink-0 z-10" />
+                                  {/* After — right half */}
+                                  <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                                    {afterUrl ? (
+                                      <img
+                                        src={getOptimizedUrl(afterUrl)}
+                                        alt={`After${orientation.name ? ` — ${orientation.name}` : ''}`}
+                                        loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
+                                        fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
+                                        className="w-full h-full object-cover object-center"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">No image</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Hover overlay */}
+                                <div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                              </div>
+                              {/* B&A labels — below photo in navy strip */}
+                              <div className="flex bg-[#1a1f2e] border-b border-[#2d3548]">
+                                <div className="w-1/2 flex justify-center py-2">
+                                  <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
+                                    <span className="text-[10px] text-secondary font-medium">Before</span>
+                                  </div>
+                                </div>
+                                <div className="w-px bg-secondary/10 flex-shrink-0" />
+                                <div className="w-1/2 flex justify-center py-2">
+                                  <div className="bg-card/90 backdrop-blur-sm px-3 py-0.5 rounded-full border border-secondary/20">
+                                    <span className="text-[10px] text-secondary font-medium">After</span>
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-
-                          {/* Vertical divider */}
-                          <div className="w-px bg-secondary/20 flex-shrink-0 z-10" />
-
-                          {/* After — right half */}
-                          <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                            {displayAfterImage ? (
-                              <img
-                                src={getOptimizedUrl(displayAfterImage)}
-                                alt="After"
-                                loading={isPriority ? 'eager' : 'lazy'}
-                                fetchpriority={isPriority ? 'high' : 'auto'}
-                                className="w-full h-full object-cover object-center"
-                                onError={(e) => {
-                                  console.error('[Gallery] ❌ After image failed to load:', displayAfterImage);
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No image</span>
-                            )}
-                            <div className="absolute bottom-2 left-0 right-0 flex justify-center z-10">
-                              <div className="bg-card/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-secondary/20">
-                                <span className="text-[10px] text-secondary">
-                                  After
-                                  {item.orientations && item.orientations.length > 1 && (
-                                    <span className="ml-1 opacity-60">
-                                      · {state.orientationIndex + 1}/{item.orientations.length}
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })() : (
+                          );
+                        })}
+                      </div>
+                    );
+                  })() : (
+                    <div className="w-full bg-[#1a1f2e] flex items-center justify-center" style={{ aspectRatio: 0.75 }}>
                       <span className="text-muted-foreground">{item.title}</span>
-                    )}
-                    
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  </div>
+                    </div>
+                  )}
                   <div className="p-4 bg-card relative">
                     <div className="flex items-center justify-between">
                       {/* Category display/editor for admins */}
