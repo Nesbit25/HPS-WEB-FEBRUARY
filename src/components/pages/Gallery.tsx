@@ -1660,7 +1660,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                         alt={`Before${orientation.name ? ` — ${orientation.name}` : ''}`}
                                         loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
                                         fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
-                                        className="w-full h-full object-cover object-center"
+                                        className="w-full h-full object-contain object-center"
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
@@ -1679,7 +1679,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                         alt={`After${orientation.name ? ` — ${orientation.name}` : ''}`}
                                         loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
                                         fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
-                                        className="w-full h-full object-cover object-center"
+                                        className="w-full h-full object-contain object-center"
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
