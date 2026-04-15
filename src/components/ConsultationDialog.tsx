@@ -186,7 +186,11 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
   if (submitted) {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md bg-[#2d3548] border-[#c9b896]/20">
+        <DialogContent
+          className="sm:max-w-md bg-[#2d3548] border-[#c9b896]/20"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <div className="text-center py-8">
             <div className="w-20 h-20 bg-[#c9b896]/20 rounded-full flex items-center justify-center mx-auto mb-6 relative">
               <CircleAccent size="lg" className="absolute inset-0 m-auto animate-pulse-subtle" />
@@ -213,7 +217,11 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-[#2d3548] border-[#c9b896]/20">
+      <DialogContent
+        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-[#2d3548] border-[#c9b896]/20"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <div className="flex items-center justify-center mb-2">
             <CircleAccent size="sm" />
