@@ -41,6 +41,8 @@ const PROCEDURE_FOLDER_DISPLAY: Record<string, string> = {
   'otoplasty-photos':                'Otoplasty',
   'liposuction-photos':              'Liposuction',
   'rhinoplasty-photos':              'Rhinoplasty',
+  'revision-rhinoplasty-photos':     'Secondary / Revision Rhinoplasty',
+  'ethnic-rhinoplasty-photos':       'Ethnic Rhinoplasty',
 };
 
 const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
@@ -64,6 +66,9 @@ const PROCEDURE_PREFIX_DISPLAY: Record<string, string> = {
   'CHIN_AUGMENTATION':     'Chin Augmentation',
   'OTOPLASTY':             'Otoplasty',
   'RHINOPLASTY':           'Rhinoplasty',
+  'REVISION_RHINOPLASTY':  'Secondary / Revision Rhinoplasty',
+  'SECONDARY_RHINOPLASTY': 'Secondary / Revision Rhinoplasty',
+  'ETHNIC_RHINOPLASTY':    'Ethnic Rhinoplasty',
 };
 
 // ─── Custom subcategory order per category (matches current live site) ───
@@ -95,6 +100,8 @@ const PROCEDURE_ORDER: Record<string, string[]> = {
   ],
   Nose: [
     'Rhinoplasty',
+    'Secondary / Revision Rhinoplasty',
+    'Ethnic Rhinoplasty',
   ],
 };
 
@@ -117,6 +124,24 @@ const getProcedureNameFromPrefix = (prefix: string): string => {
   const key = prefix.toUpperCase();
   if (PROCEDURE_PREFIX_DISPLAY[key]) return PROCEDURE_PREFIX_DISPLAY[key];
   return prefix.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
+
+/** Extract patient number from slug (e.g. "BREAST_AUGMENTATION_Patient03" → "03") */
+const getPatientNumberFromSlug = (slug?: string): string => {
+  if (!slug) return '';
+  const match = slug.match(/_Patient(\d+)/i);
+  if (!match) return '';
+  // Pad to 2 digits for consistent display
+  return match[1].padStart(2, '0');
+};
+
+/** Build display label for a card: "Procedure Name — Patient NN" (falls back gracefully). */
+const getCaseDisplayLabel = (procedureName?: string, slug?: string, fallbackTitle?: string): string => {
+  const patientNum = getPatientNumberFromSlug(slug);
+  const procLabel = procedureName ? getProcedureDisplayLabel(procedureName) : '';
+  if (procLabel && patientNum) return `${procLabel} — Patient ${patientNum}`;
+  if (procLabel) return procLabel;
+  return fallbackTitle || '';
 };
 interface GalleryProps {
   onNavigate: (page: string) => void;
@@ -1660,7 +1685,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                         alt={`Before${orientation.name ? ` — ${orientation.name}` : ''}`}
                                         loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
                                         fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
-                                        className="w-full h-full object-contain object-center"
+                                        className="w-full h-full object-cover object-top"
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
@@ -1679,7 +1704,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                         alt={`After${orientation.name ? ` — ${orientation.name}` : ''}`}
                                         loading={isPriority && oIdx === 0 ? 'eager' : 'lazy'}
                                         fetchpriority={isPriority && oIdx === 0 ? 'high' : 'auto'}
-                                        className="w-full h-full object-contain object-center"
+                                        className="w-full h-full object-cover object-top"
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
@@ -1707,6 +1732,13 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                     </div>
                   )}
                   <div className="p-4 bg-card relative">
+                    {/* Patient label — "Procedure Name — Patient NN" */}
+                    {(() => {
+                      const label = getCaseDisplayLabel(item.procedureName, item.slug, item.title);
+                      return label ? (
+                        <h3 className="font-serif text-base text-[#faf9f7] mb-1 leading-tight">{label}</h3>
+                      ) : null;
+                    })()}
                     <div className="flex items-center justify-between">
                       {/* Category display/editor for admins */}
                       {isAdmin && isEditMode ? (

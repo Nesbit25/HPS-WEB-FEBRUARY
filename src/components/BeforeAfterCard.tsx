@@ -66,53 +66,59 @@ export function BeforeAfterCard({
     >
       {/* ── Side-by-side layout ── */}
       {!isStacked && (
-        <div className="relative bg-[#1a1f2e] aspect-[2/1] flex overflow-hidden">
-          {!isInView && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
+        <>
+          <div className="relative bg-[#1a1f2e] aspect-[2/1] flex overflow-hidden">
+            {!isInView && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
+              </div>
+            )}
+            {isInView && (
+              <>
+                {/* Before — left */}
+                <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                  {beforeImage ? (
+                    <img
+                      src={beforeFullUrl}
+                      alt="Before"
+                      loading="lazy"
+                      className="w-full h-full"
+                      style={{ objectFit, objectPosition: imagePosition }}
+                    />
+                  ) : (
+                    <span className="text-xs text-[#c9b896]/40">No image</span>
+                  )}
+                </div>
+                <div className="w-px bg-[#2d3548] flex-shrink-0 z-10" />
+                {/* After — right */}
+                <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+                  {afterImage ? (
+                    <img
+                      src={afterFullUrl}
+                      alt="After"
+                      loading="lazy"
+                      className="w-full h-full"
+                      style={{ objectFit, objectPosition: imagePosition }}
+                    />
+                  ) : (
+                    <span className="text-xs text-[#c9b896]/40">No image</span>
+                  )}
+                </div>
+              </>
+            )}
+            <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
+          </div>
+          {/* Before/After labels — below photos in navy strip */}
+          <div className="flex bg-[#1a1f2e] border-t border-[#2d3548]">
+            <div className="w-1/2 flex justify-center py-2">
+              <span className="bg-black/60 backdrop-blur-sm px-3 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
             </div>
-          )}
-          {isInView && (
-            <>
-              {/* Before — left */}
-              <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                {beforeImage ? (
-                  <img
-                    src={beforeFullUrl}
-                    alt="Before"
-                    loading="lazy"
-                    className="w-full h-full"
-                    style={{ objectFit, objectPosition: imagePosition }}
-                  />
-                ) : (
-                  <span className="text-xs text-[#c9b896]/40">No image</span>
-                )}
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
-                </div>
-              </div>
-              <div className="w-px bg-[#2d3548] flex-shrink-0 z-10" />
-              {/* After — right */}
-              <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                {afterImage ? (
-                  <img
-                    src={afterFullUrl}
-                    alt="After"
-                    loading="lazy"
-                    className="w-full h-full"
-                    style={{ objectFit, objectPosition: imagePosition }}
-                  />
-                ) : (
-                  <span className="text-xs text-[#c9b896]/40">No image</span>
-                )}
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
-                </div>
-              </div>
-            </>
-          )}
-          <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
-        </div>
+            <div className="w-px bg-[#2d3548] flex-shrink-0" />
+            <div className="w-1/2 flex justify-center py-2">
+              <span className="bg-black/60 backdrop-blur-sm px-3 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Stacked layout — full image, auto height ── */}

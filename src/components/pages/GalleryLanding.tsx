@@ -58,6 +58,8 @@ const GALLERY_CATEGORIES = [
     image: '/images/gallery-nose.jpg',
     procedures: [
       { label: 'Rhinoplasty', slug: 'Rhinoplasty' },
+      { label: 'Secondary / Revision Rhinoplasty', slug: 'Secondary / Revision Rhinoplasty' },
+      { label: 'Ethnic Rhinoplasty', slug: 'Ethnic Rhinoplasty' },
     ],
   },
 ];
