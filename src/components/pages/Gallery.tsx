@@ -1293,7 +1293,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   return (
     <div>
       <SEOHead
-        title="Before & After Gallery | Real Patient Transformations"
+        title="Photo Gallery | Real Patient Transformations"
         description="View real before and after photos of plastic surgery results by Dr. Hanemann. Browse transformations across rhinoplasty, facelifts, breast augmentation, body contouring, and more."
         keywords="before after photos, plastic surgery results, rhinoplasty before after, facelift results, breast augmentation photos, liposuction results, Dr. Hanemann gallery"
         canonical="/gallery"

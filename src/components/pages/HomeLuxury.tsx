@@ -164,7 +164,7 @@ export function HomeLuxury({ onNavigate, onOpenConsultation }: HomeLuxuryProps) 
                   Schedule Consultation
                 </Button>
                 <Button
-                  onClick={() => onNavigate('Gallery')}
+                  onClick={() => onNavigate('Photo Gallery')}
                   variant="outline"
                   className="border-2 border-[#c9b896] text-[#c9b896] bg-transparent hover:bg-white hover:text-[#1a1f2e] hover:border-white px-10 py-5 text-sm uppercase tracking-wider rounded-none transition-all"
                 >
@@ -251,7 +251,7 @@ export function HomeLuxury({ onNavigate, onOpenConsultation }: HomeLuxuryProps) 
                   whileTap={{ scale: 0.95 }}
                 >
                   <Button
-                    onClick={() => onNavigate('Gallery')}
+                    onClick={() => onNavigate('Photo Gallery')}
                     className="bg-transparent border-2 border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e] px-8 py-6 text-sm uppercase tracking-[0.2em] rounded-none transition-all duration-300"
                   >
                     See Our Results

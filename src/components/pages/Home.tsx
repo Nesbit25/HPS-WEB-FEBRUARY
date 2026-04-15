@@ -521,12 +521,21 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                   <p className="text-gray-200 text-base md:text-lg lg:text-xl mb-6 md:mb-8 font-light max-w-2xl leading-relaxed">
                     <EditableText as="span" contentKey="home_hero_subtitle_1" defaultValue="Recognizing that each patient's goal is unique, Dr. Hanemann offers creative solutions for his patients, utilizing the latest techniques and procedures to achieve desired results" />
                   </p>
-                  <button 
-                    onClick={() => onNavigate('Contact')}
-                    className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
-                  >
-                    Schedule Consultation
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                    <button
+                      onClick={() => onNavigate('Contact')}
+                      className="inline-block bg-secondary text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
+                    >
+                      Schedule Consultation
+                    </button>
+                    <button
+                      onClick={() => onNavigate('Photo Gallery')}
+                      className="inline-flex items-center justify-center gap-2 bg-transparent border-2 border-white text-white px-8 md:px-10 py-3 md:py-4 rounded-full text-sm md:text-base uppercase tracking-widest hover:bg-white hover:text-primary transition-all duration-300"
+                    >
+                      Photo Gallery
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -603,7 +612,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 </p>
                 
                 <button
-                  onClick={() => onNavigate('Gallery')}
+                  onClick={() => onNavigate('Photo Gallery')}
                   className="bg-transparent border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-8 py-3 text-sm uppercase tracking-[0.2em] transition-all duration-300"
                 >
                   See Our Results
@@ -811,19 +820,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="mb-8">
               <div className="flex items-start gap-3">
                 <Shield className="text-secondary mt-1" />
                 <div>
                   <h5 className="font-bold text-primary">Board Certified</h5>
                   <p className="text-sm text-gray-500">American Board of Plastic Surgery</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Award className="text-secondary mt-1" />
-                <div>
-                  <h5 className="font-bold text-primary">Top Doctor</h5>
-                  <p className="text-sm text-gray-500">Board Certified American Board of Otolaryngology</p>
+                  <p className="text-sm text-gray-500">American Board of Otolaryngology</p>
                 </div>
               </div>
             </div>
@@ -906,11 +909,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 <EditableText as="span" contentKey="home_gallery_description" defaultValue="Browse our extensive gallery of patient transformations." />
               </p>
             </div>
-            <button 
-              onClick={() => onNavigate('Gallery')}
+            <button
+              onClick={() => onNavigate('Photo Gallery')}
               className="hidden md:inline-flex items-center gap-2 bg-secondary text-white px-6 py-3 rounded-full hover:bg-white hover:text-primary transition-all duration-300 font-semibold uppercase tracking-wider text-sm"
             >
-              View Full Gallery <ArrowRight size={18}/>
+              View Full Photo Gallery <ArrowRight size={18}/>
             </button>
           </div>
 
@@ -992,11 +995,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           </div>
           
           <div className="mt-12 text-center md:hidden">
-            <button 
-              onClick={() => onNavigate('Gallery')}
+            <button
+              onClick={() => onNavigate('Photo Gallery')}
               className="inline-flex items-center gap-2 bg-secondary text-white px-8 py-3 rounded-full hover:bg-white hover:text-primary transition-all duration-300 font-semibold uppercase tracking-wider text-sm"
             >
-              View Full Gallery <ArrowRight size={18}/>
+              View Full Photo Gallery <ArrowRight size={18}/>
             </button>
           </div>
         </div>

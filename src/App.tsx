@@ -88,7 +88,7 @@ function AppContent() {
       'Face': '/procedures/face',
       'Breast': '/procedures/breast',
       'Body': '/procedures/body',
-      'Gallery': '/gallery',
+      'Photo Gallery': '/gallery',
       'Resources': '/resources',
       'Patient Forms': '/patient-forms',
       'BlogPost': '/blog/:slug',
@@ -122,7 +122,7 @@ function AppContent() {
     if (path === '/procedures/face') return 'Face';
     if (path === '/procedures/breast') return 'Breast';
     if (path === '/procedures/body') return 'Body';
-    if (path === '/gallery') return 'Gallery';
+    if (path === '/gallery') return 'Photo Gallery';
     if (path === '/resources') return 'Resources';
     if (path === '/patient-forms') return 'Patient Forms';
     if (path.startsWith('/patient-forms/')) return 'Patient Forms';

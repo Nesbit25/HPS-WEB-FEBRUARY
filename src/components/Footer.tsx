@@ -26,7 +26,7 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
 
   const quickLinks = [
     { label: 'About Dr. Hanemann', page: 'About' },
-    { label: 'Before & After Gallery', page: 'Gallery' },
+    { label: 'Photo Gallery', page: 'Photo Gallery' },
     { label: 'Contact Us', page: 'Contact' },
     { label: 'Patient Forms', page: 'PatientForms' },
   ];

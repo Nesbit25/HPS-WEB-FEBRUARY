@@ -16,7 +16,7 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
   const [scrolled, setScrolled] = useState(false);
   const { user } = usePatientAuth();
   // Removed 'Resources' from navigation tabs
-  const navigationTabs = ['Home', 'About', 'Nose', 'Face', 'Breast', 'Body', 'Gallery', 'Contact'];
+  const navigationTabs = ['Home', 'About', 'Nose', 'Face', 'Breast', 'Body', 'Photo Gallery', 'Contact'];
   
   // Determine if we're on the home page (should be transparent at top)
   const isHomePage = currentPage === 'Home';
@@ -176,8 +176,18 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               (225) 766-2166
             </a>
             
-            <Button 
-              className="bg-[#c9b896] text-[#1a1f2e] px-6 py-2 rounded-none text-sm uppercase tracking-wider hover:bg-[#b8976a] transition-colors mt-2"
+            <Button
+              className="bg-transparent border border-[#c9b896] text-[#c9b896] px-6 py-2 rounded-none text-sm uppercase tracking-wider hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors mt-2"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onNavigate('Photo Gallery');
+              }}
+            >
+              View Photo Gallery
+            </Button>
+
+            <Button
+              className="bg-[#c9b896] text-[#1a1f2e] px-6 py-2 rounded-none text-sm uppercase tracking-wider hover:bg-[#b8976a] transition-colors"
               onClick={() => {
                 setMobileMenuOpen(false);
                 onNavigate('Contact');

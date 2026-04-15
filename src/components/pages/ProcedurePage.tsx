@@ -410,12 +410,12 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             </p>
 
             <motion.button
-              onClick={() => onNavigate('Gallery')}
+              onClick={() => onNavigate('Photo Gallery')}
               className="group inline-flex items-center gap-3 bg-[#c9b896] text-[#1a1f2e] font-semibold px-10 py-4 rounded-full text-base hover:bg-[#d4c4a8] transition-all duration-300 shadow-lg shadow-[#c9b896]/20"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
             >
-              View Full Before &amp; After Gallery
+              View Full Photo Gallery
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
