@@ -117,7 +117,7 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
               {/* Content — sits on top */}
               <div className="relative z-10 flex flex-col justify-end p-5 md:p-7 min-h-[420px] md:min-h-[600px]">
                 {/* Category title */}
-                <h2 className="text-white text-xl md:text-2xl font-light tracking-wide mb-1">{cat.title}</h2>
+                <h2 className="text-white text-2xl md:text-3xl font-semibold tracking-wide mb-1">{cat.title}</h2>
                 <p className="text-gray-400 text-[10px] md:text-xs mb-4 hidden md:block">{cat.subtitle}</p>
 
                 {/* Procedure list — matches service card style */}
