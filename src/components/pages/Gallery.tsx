@@ -1736,7 +1736,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                     {(() => {
                       const label = getCaseDisplayLabel(item.procedureName, item.slug, item.title);
                       return label ? (
-                        <h3 className="font-serif text-base text-[#faf9f7] mb-1 leading-tight">{label}</h3>
+                        <h3 className="font-serif text-base text-[#1a1f2e] font-semibold mb-1 leading-tight">{label}</h3>
                       ) : null;
                     })()}
                     <div className="flex items-center justify-between">
