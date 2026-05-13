@@ -12,7 +12,7 @@ import { SimpleGalleryEditor } from '../cms/SimpleGalleryEditor';
 import { NewGalleryCaseEditor } from '../cms/NewGalleryCaseEditor';
 import { BulkGalleryUploader } from '../cms/BulkGalleryUploader';
 import { GalleryOrientationManager } from '../cms/GalleryOrientationManager';
-import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon, ArrowLeft, GripVertical } from 'lucide-react';
 import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -173,6 +173,7 @@ interface GalleryItem {
   showOnBreast?: boolean;
   showOnBody?: boolean;
   showOnFace?: boolean;
+  sortOrder?: number;
 }
 
 export function Gallery({ onNavigate, initialCategory, initialProcedure }: GalleryProps) {
@@ -202,6 +203,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   // Stores the computed card aspect ratio per item: (naturalWidth * 2) / naturalHeight
   // Multiplied by 2 because the card shows Before + After side by side
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<number, number>>({});
+  // Admin drag-and-drop reorder state
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [reordering, setReordering] = useState(false);
 
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
@@ -338,7 +343,8 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         showOnBreast: dbCase.showOnBreast || false,
         showOnBody: dbCase.showOnBody || false,
         createdBy: dbCase.createdBy,
-        createdAt: dbCase.createdAt
+        createdAt: dbCase.createdAt,
+        sortOrder: typeof dbCase.sortOrder === 'number' ? dbCase.sortOrder : undefined
       });});
       
       console.log('[Gallery] Mapped to', galleryItems.length, 'gallery items');
@@ -577,6 +583,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
               item.showOnBody = dbCase.showOnBody || false;
               item.createdBy = dbCase.createdBy;
               item.createdAt = dbCase.createdAt;
+              if (typeof dbCase.sortOrder === 'number') item.sortOrder = dbCase.sortOrder;
             }
           });
         }
@@ -672,7 +679,17 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         const catB = CATEGORY_ORDER[b.category] ?? 99;
         if (catA !== catB) return catA - catB;
       }
-      // Within a category, sort by title
+      // Admin-defined sortOrder wins when present on either item
+      const aHas = typeof a.sortOrder === 'number';
+      const bHas = typeof b.sortOrder === 'number';
+      if (aHas && bHas) {
+        if (a.sortOrder! !== b.sortOrder!) return a.sortOrder! - b.sortOrder!;
+      } else if (aHas) {
+        return -1;
+      } else if (bHas) {
+        return 1;
+      }
+      // Fallback: alphabetical by title
       return (a.title || '').localeCompare(b.title || '');
     });
 
@@ -744,6 +761,51 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   const handleOpenLightbox = (index: number) => {
     setCurrentLightboxIndex(index);
     setLightboxOpen(true);
+  };
+
+  // Admin drag-and-drop: reorder the currently filtered cards and persist sortOrder.
+  // Visible items are reassigned sortOrder = 0..n-1; hidden items keep their existing order.
+  const handleReorderDrop = async (targetId: number) => {
+    if (!isAdmin || !isEditMode) return;
+    const dragId = draggedId;
+    setDraggedId(null);
+    setDragOverId(null);
+    if (!dragId || dragId === targetId) return;
+
+    const visibleIds = filteredItems.map(i => i.id);
+    const fromIdx = visibleIds.indexOf(dragId);
+    const toIdx = visibleIds.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const newOrder = [...visibleIds];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, dragId);
+
+    // Optimistic local update
+    const indexMap = new Map<number, number>(newOrder.map((id, idx) => [id, idx]));
+    setGalleryItems(prev => prev.map(item =>
+      indexMap.has(item.id) ? { ...item, sortOrder: indexMap.get(item.id)! } : item
+    ));
+
+    setReordering(true);
+    try {
+      const response = await fetch(`${serverUrl}/gallery/cases/reorder`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order: newOrder }),
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[Gallery] Reorder failed:', response.status, errText);
+      }
+    } catch (err) {
+      console.error('[Gallery] Reorder error:', err);
+    } finally {
+      setReordering(false);
+    }
   };
 
   const handleNextImage = () => {
@@ -1552,13 +1614,58 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
             {filteredItems.map((item, index) => (
               <motion.div
                 key={item.id}
-                className="relative"
+                className={`relative ${
+                  isAdmin && isEditMode
+                    ? `transition-opacity ${draggedId === item.id ? 'opacity-40' : ''} ${
+                        dragOverId === item.id && draggedId !== null && draggedId !== item.id
+                          ? 'ring-2 ring-[#c9b896] ring-offset-2 ring-offset-[#1a1f2e] rounded-2xl'
+                          : ''
+                      }`
+                    : ''
+                }`}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.05 }}
-                whileHover={{ y: -8 }}
+                whileHover={isAdmin && isEditMode ? undefined : { y: -8 }}
+                draggable={isAdmin && isEditMode}
+                onDragStart={(e) => {
+                  if (!isAdmin || !isEditMode) return;
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', String(item.id));
+                  setDraggedId(item.id);
+                }}
+                onDragOver={(e) => {
+                  if (!isAdmin || !isEditMode || draggedId === null) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverId !== item.id) setDragOverId(item.id);
+                }}
+                onDragLeave={() => {
+                  if (dragOverId === item.id) setDragOverId(null);
+                }}
+                onDrop={(e) => {
+                  if (!isAdmin || !isEditMode) return;
+                  e.preventDefault();
+                  handleReorderDrop(item.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedId(null);
+                  setDragOverId(null);
+                }}
               >
+                {/* Drag handle (admin + edit mode only) */}
+                {isAdmin && isEditMode && (
+                  <div
+                    className="absolute top-2 right-2 z-50 flex items-center gap-1 px-2 py-1 rounded-full bg-[#1a1f2e]/90 border border-[#c9b896] text-[#c9b896] text-[10px] uppercase tracking-wider cursor-move select-none shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Drag to reorder"
+                  >
+                    <GripVertical className="w-3 h-3" />
+                    Drag
+                  </div>
+                )}
+
                 {/* Edit buttons (only visible to admins in edit mode) - ALWAYS VISIBLE FOR NOW */}
                 {isAdmin && isEditMode && (
                   <div className="absolute top-2 left-2 z-50 flex gap-2 flex-wrap">

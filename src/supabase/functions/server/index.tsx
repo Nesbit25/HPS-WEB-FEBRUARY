@@ -2312,6 +2312,45 @@ app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
   }
 });
 
+// Reorder gallery cases (protected) - persists sortOrder on each case
+app.post("/make-server-fc862019/gallery/cases/reorder", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+
+    if (!user || error) {
+      console.log('[Gallery Reorder] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await c.req.json();
+    const { order } = body;
+
+    if (!Array.isArray(order) || order.length === 0) {
+      return c.json({ error: 'Missing or invalid order array' }, 400);
+    }
+
+    let updated = 0;
+    let missing = 0;
+    for (let i = 0; i < order.length; i++) {
+      const id = order[i];
+      const existing = await kv.get(`gallery_case_${id}`);
+      if (!existing) {
+        missing++;
+        continue;
+      }
+      await kv.set(`gallery_case_${id}`, { ...existing, sortOrder: i });
+      updated++;
+    }
+
+    console.log(`[Gallery Reorder] Updated sortOrder on ${updated} cases (${missing} missing)`);
+    return c.json({ success: true, updated, missing });
+  } catch (error) {
+    console.log('[Gallery Reorder] Error:', error);
+    return c.json({ error: `Failed to reorder: ${error.message}` }, 500);
+  }
+});
+
 // Fix mismatched gallery case IDs (protected) - migrate images from wrong ID to correct ID
 app.post("/make-server-fc862019/gallery/fix-case-id", async (c) => {
   try {
