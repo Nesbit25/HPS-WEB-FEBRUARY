@@ -1677,21 +1677,9 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                   setDragOverId(null);
                 }}
               >
-                {/* Drag handle (admin + edit mode only) */}
+                {/* Admin toolbar — drag handle + edit buttons in a single wrapping row */}
                 {isAdmin && isEditMode && (
-                  <div
-                    className="absolute top-2 right-2 z-50 flex items-center gap-1 px-2 py-1 rounded-full bg-[#1a1f2e]/90 border border-[#c9b896] text-[#c9b896] text-[10px] uppercase tracking-wider cursor-move select-none shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Drag to reorder"
-                  >
-                    <GripVertical className="w-3 h-3" />
-                    Drag
-                  </div>
-                )}
-
-                {/* Edit buttons (only visible to admins in edit mode) - ALWAYS VISIBLE FOR NOW */}
-                {isAdmin && isEditMode && (
-                  <div className="absolute top-2 left-2 z-50 flex gap-2 flex-wrap">
+                  <div className="absolute top-2 left-2 right-2 z-50 flex flex-wrap items-start gap-2">
                     <Button
                       size="sm"
                       className="rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-2xl border-2 border-white"
@@ -1742,6 +1730,16 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                     >
                       🗑️
                     </Button>
+                    {/* Drag handle — sits on the right end of the toolbar so it
+                        flows with the other pills instead of overlapping them */}
+                    <div
+                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#1a1f2e]/90 border-2 border-[#c9b896] text-[#c9b896] text-[10px] uppercase tracking-wider cursor-move select-none shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Drag to reorder"
+                    >
+                      <GripVertical className="w-3 h-3" />
+                      Drag
+                    </div>
                   </div>
                 )}
 
