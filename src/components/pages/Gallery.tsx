@@ -781,11 +781,15 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     newOrder.splice(fromIdx, 1);
     newOrder.splice(toIdx, 0, dragId);
 
+    // Snapshot for rollback on failure
+    const previousItems = galleryItems;
+
     // Optimistic local update
     const indexMap = new Map<number, number>(newOrder.map((id, idx) => [id, idx]));
-    setGalleryItems(prev => prev.map(item =>
+    const updatedItems = galleryItems.map(item =>
       indexMap.has(item.id) ? { ...item, sortOrder: indexMap.get(item.id)! } : item
-    ));
+    );
+    setGalleryItems(updatedItems);
 
     setReordering(true);
     try {
@@ -797,12 +801,31 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         },
         body: JSON.stringify({ order: newOrder }),
       });
+
       if (!response.ok) {
         const errText = await response.text();
         console.error('[Gallery] Reorder failed:', response.status, errText);
+        setGalleryItems(previousItems);
+        alert(
+          `Could not save the new order (server returned ${response.status}).\n\n` +
+          `The most common cause is that the reorder endpoint hasn't been deployed yet. ` +
+          `Ask your developer to run "supabase functions deploy server".`
+        );
+        return;
+      }
+
+      // Persist optimistic state to localStorage so it survives a reload while
+      // the cache is still considered fresh.
+      try {
+        localStorage.setItem('gallery_items_cache', JSON.stringify(updatedItems));
+        localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+      } catch (cacheErr) {
+        console.warn('[Gallery] Could not update cache after reorder:', cacheErr);
       }
     } catch (err) {
       console.error('[Gallery] Reorder error:', err);
+      setGalleryItems(previousItems);
+      alert(`Could not save the new order: ${err}`);
     } finally {
       setReordering(false);
     }
