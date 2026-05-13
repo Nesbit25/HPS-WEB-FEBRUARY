@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from './ui/sheet';
-import { Facebook, Instagram, Phone, Menu, X, MapPin, User, Video } from 'lucide-react';
-import { usePatientAuth } from '../contexts/PatientAuthContext';
-import { Link } from 'react-router';
+import { Facebook, Instagram, Phone, Menu, X, MapPin, Video } from 'lucide-react';
+// Patient portal is currently hidden — `usePatientAuth` and react-router `Link` imports removed.
 
 interface HeaderProps {
   currentPage: string;
@@ -14,7 +13,6 @@ interface HeaderProps {
 export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { user } = usePatientAuth();
   // Removed 'Resources' from navigation tabs
   const navigationTabs = ['Home', 'About', 'Nose', 'Face', 'Breast', 'Body', 'Photo Gallery', 'Contact'];
   
@@ -80,20 +78,10 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               </button>
             </div>
 
-            {/* Right Side: Patient Portal & Phone (Desktop) */}
+            {/* Right Side: Phone (Desktop) — Patient Portal link hidden */}
             <div className="hidden lg:flex items-center gap-3 w-1/4 justify-end pt-1">
-              <Link 
-                to={user ? '/patient/dashboard' : '/patient/login'} 
-                className="flex items-center gap-1 text-xs text-white hover:text-[#c9b896] transition-colors"
-              >
-                <User size={14} />
-                <span>{user ? `${user.firstName}'s Portal` : 'Patient Portal'}</span>
-              </Link>
-              
-              <div className="h-4 w-px bg-white/20"></div>
-              
               <a href="tel:2257662166" className="flex items-center gap-1.5 text-white hover:text-[#c9b896] transition-colors">
-                <Phone size={14} className="text-[#c9b896]"/> 
+                <Phone size={14} className="text-[#c9b896]"/>
                 <span className="text-xs">(225) 766-2166</span>
               </a>
             </div>
@@ -159,17 +147,10 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
               </button>
             ))}
             
-            <Link 
-              to={user ? '/patient/dashboard' : '/patient/login'}
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 text-sm text-[#c9b896] hover:text-[#b8976a] transition-colors mt-2"
-            >
-              <User size={16} />
-              {user ? `${user.firstName}'s Portal` : 'Patient Portal'}
-            </Link>
+            {/* Patient Portal link hidden in mobile menu */}
 
-            <a 
-              href="tel:2257662166" 
+            <a
+              href="tel:2257662166"
               className="flex items-center gap-2 text-sm text-white hover:text-[#c9b896] transition-colors"
             >
               <Phone size={16} className="text-[#c9b896]"/> 

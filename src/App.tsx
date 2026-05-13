@@ -187,12 +187,10 @@ function AppContent() {
           <Route path="/patient-forms" element={<PatientForms onNavigate={handleNavigate} />} />
           <Route path="/patient-forms/:id" element={<PatientFormDetail onNavigate={handleNavigate} />} />
           
-          {/* Patient Portal Routes */}
-          <Route path="/patient/login" element={
-            <PatientAuth onSuccess={() => navigate('/patient/dashboard')} />
-          } />
-          <Route path="/patient/dashboard" element={<PatientDashboard />} />
-          
+          {/* Patient portal routes intentionally disabled — feature is hidden.
+              Components, context, and edge-function endpoints remain in the
+              codebase; re-enable by restoring the two <Route> elements. */}
+
           {/* Hero Image Preview - Temporary */}
           <Route path="/preview-hero" element={<HeroImagePreview />} />
           
