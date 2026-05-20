@@ -1200,7 +1200,11 @@ app.post("/make-server-fc862019/gallery/sync-from-github", async (c) => {
         await kv.del(entry.key);
         deleted++;
       }
-      console.log(`[Sync GitHub] Deleted ${deleted} existing gallery cases.`);
+      // A "rebuild from scratch" should also clear the deleted-slug tombstone,
+      // otherwise the rebuild won't recreate cases the user explicitly nuked
+      // earlier (the tombstone would block them).
+      await kv.del('gallery_deleted_slugs');
+      console.log(`[Sync GitHub] Deleted ${deleted} existing gallery cases and cleared tombstone.`);
     }
 
     console.log('[Sync GitHub] Starting sync from GitHub...');
@@ -1568,9 +1572,23 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
       return m ? Math.max(max, parseInt(m[1])) : max;
     }, 999);
 
+    // Load tombstone — slugs that were intentionally deleted should not be
+    // resurrected by auto-sync even though the underlying GitHub files still exist.
+    let tombstonedSlugs = new Set<string>();
+    try {
+      const tomb = await kv.get('gallery_deleted_slugs');
+      if (Array.isArray(tomb?.slugs)) tombstonedSlugs = new Set<string>(tomb.slugs);
+      if (tombstonedSlugs.size > 0) {
+        console.log(`[Auto-Sync] Honoring ${tombstonedSlugs.size} tombstoned slug(s)`);
+      }
+    } catch (tErr) {
+      console.warn('[Auto-Sync] Could not load tombstone (non-fatal):', tErr);
+    }
+
     let nextId = maxId + 1;
     let casesCreated = 0;
     let casesSkipped = 0;
+    let casesTombstoned = 0;
 
     const rawUrl = (fullPath: string) => {
       const rel = fullPath.replace(/^(?:public\/)?gallery\//, '');
@@ -1580,6 +1598,10 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
     for (const caseSlug of caseSlugs) {
       if (existingSlugs.has(caseSlug)) {
         casesSkipped++;
+        continue;
+      }
+      if (tombstonedSlugs.has(caseSlug)) {
+        casesTombstoned++;
         continue;
       }
 
@@ -1634,9 +1656,9 @@ app.get("/make-server-fc862019/gallery/auto-sync", async (c) => {
 
     if (casesCreated > 0) clearGalleryCache();
 
-    console.log(`[Auto-Sync] Done. Created: ${casesCreated}, Skipped (already existed): ${casesSkipped}`);
+    console.log(`[Auto-Sync] Done. Created: ${casesCreated}, Skipped (already existed): ${casesSkipped}, Tombstoned (deleted): ${casesTombstoned}`);
     c.header('Cache-Control', 'no-store');
-    return c.json({ success: true, casesCreated, casesSkipped, totalCasesInGitHub: caseSlugs.size });
+    return c.json({ success: true, casesCreated, casesSkipped, casesTombstoned, totalCasesInGitHub: caseSlugs.size });
 
   } catch (error: any) {
     console.error('[Auto-Sync] Unexpected error:', error);
@@ -2176,6 +2198,23 @@ app.delete("/make-server-fc862019/gallery/case/:id", async (c) => {
     
     // Note: We're not deleting from Supabase Storage to keep the files
     // but they won't be linked anymore
+
+    // Tombstone the slug so the GitHub auto-sync doesn't recreate this case
+    // on the next reload. Without this, deleted cases pop back into the list
+    // because /gallery/auto-sync sees the still-present files in the repo.
+    if (caseData && caseData.slug) {
+      try {
+        const tombstoneRecord = await kv.get('gallery_deleted_slugs');
+        const existing: string[] = Array.isArray(tombstoneRecord?.slugs) ? tombstoneRecord.slugs : [];
+        if (!existing.includes(caseData.slug)) {
+          existing.push(caseData.slug);
+          await kv.set('gallery_deleted_slugs', { slugs: existing, updatedAt: new Date().toISOString() });
+          console.log(`[Gallery Delete] Tombstoned slug: ${caseData.slug}`);
+        }
+      } catch (tErr) {
+        console.warn('[Gallery Delete] Could not write tombstone (non-fatal):', tErr);
+      }
+    }
 
     console.log(`[Gallery Delete] Successfully deleted case ID: ${id}`);
 

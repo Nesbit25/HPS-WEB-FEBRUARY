@@ -17,12 +17,27 @@ export function SEOHead({
   keywords,
   canonical,
   ogType = 'website',
-  ogImage = 'https://hanemannplasticsurgery.com/og-image.jpg',
+  ogImage,
   schemaMarkup
 }: SEOHeadProps) {
   const fullTitle = `${title} | Hanemann Plastic Surgery`;
-  const siteUrl = 'https://hanemannplasticsurgery.com';
-  const fullCanonical = canonical ? `${siteUrl}${canonical}` : siteUrl;
+
+  // Use the live origin (and current path) so share/copy actions always
+  // generate a link to the site the visitor is actually on — not the old
+  // production URL. Falls back to the canonical production domain during
+  // SSR or any non-browser context.
+  const PRODUCTION_ORIGIN = 'https://hanemannplasticsurgery.com';
+  const runtimeOrigin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : PRODUCTION_ORIGIN;
+  const runtimePath =
+    canonical ??
+    (typeof window !== 'undefined' && window.location?.pathname
+      ? window.location.pathname
+      : '/');
+  const fullCanonical = `${runtimeOrigin}${runtimePath}`;
+  const resolvedOgImage = ogImage ?? `${runtimeOrigin}/og-image.jpg`;
 
   return (
     <Helmet>
@@ -37,14 +52,14 @@ export function SEOHead({
       <meta property="og:description" content={description} />
       <meta property="og:type" content={ogType} />
       <meta property="og:url" content={fullCanonical} />
-      <meta property="og:image" content={ogImage} />
+      <meta property="og:image" content={resolvedOgImage} />
       <meta property="og:site_name" content="Hanemann Plastic Surgery" />
 
       {/* Twitter Card Tags */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={ogImage} />
+      <meta name="twitter:image" content={resolvedOgImage} />
 
       {/* Medical/Health Specific */}
       <meta name="application-name" content="Hanemann Plastic Surgery" />

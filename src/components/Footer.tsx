@@ -28,7 +28,9 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
     { label: 'About Dr. Hanemann', page: 'About' },
     { label: 'Photo Gallery', page: 'Photo Gallery' },
     { label: 'Contact Us', page: 'Contact' },
-    { label: 'Patient Forms', page: 'PatientForms' },
+    // Patient Forms link removed — was pointing to the now-hidden patient portal
+    // and silently redirecting to the homepage. A proper Patient Forms PDF
+    // download will be added separately (see PDF Manager task).
   ];
 
   return (

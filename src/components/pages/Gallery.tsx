@@ -659,14 +659,13 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     .filter(item => {
       // Always exclude orphan KV stubs (no slug AND no images)
       if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-      // When a specific procedure is selected, use it as the primary filter
-      // (skip category check — the procedure name is already specific enough)
-      if (selectedProcedures.length > 0) {
-        if (!matchesProcedure(item, selectedProcedures)) return false;
-      } else {
-        // Category filter (only when no specific procedure is selected)
-        if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
-      }
+      // Category filter is ALWAYS applied (when not "All"). This prevents
+      // procedure names that exist in multiple categories — most notably
+      // "Liposuction" (Body lipo vs. submental/neck lipo under Face) — from
+      // leaking across category views.
+      if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+      // Procedure filter is layered on top of the category filter.
+      if (selectedProcedures.length > 0 && !matchesProcedure(item, selectedProcedures)) return false;
       // Admins in edit mode can see real items even without images
       if (isAdmin && isEditMode) return true;
       // Public users only see items with images
@@ -1141,6 +1140,21 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   };
 
   const handleDeleteCase = async (id: number) => {
+    // Snapshot for rollback if the server rejects the delete
+    const previousItems = galleryItems;
+
+    // Optimistic removal from local state AND cache.
+    // Updating localStorage here prevents the cached array from "resurrecting"
+    // the deleted card if the user reloads before fresh data is fetched.
+    const remainingItems = galleryItems.filter(item => item.id !== id);
+    setGalleryItems(remainingItems);
+    try {
+      localStorage.setItem('gallery_items_cache', JSON.stringify(remainingItems));
+      localStorage.setItem('gallery_items_cache_timestamp', Date.now().toString());
+    } catch (cacheErr) {
+      console.warn('[Gallery Delete] Could not update cache:', cacheErr);
+    }
+
     try {
       const response = await fetch(`${serverUrl}/gallery/case/${id}`, {
         method: 'DELETE',
@@ -1149,19 +1163,20 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         }
       });
       const data = await response.json();
-      
+
       if (data.success) {
-        alert('Case deleted successfully!');
-        
-        // Clear the cache so fresh data is fetched
-        localStorage.removeItem('gallery_items_cache');
-        localStorage.removeItem('gallery_items_cache_timestamp');
-        
-        loadGalleryImages();
-      } else {
-        alert(`Failed to delete case: ${data.message}`);
+        // Server-side tombstone now prevents auto-sync from recreating this
+        // case on the next reload, so no need to re-fetch / re-trigger sync.
+        return;
       }
+
+      // Server reported failure — roll the UI back
+      setGalleryItems(previousItems);
+      localStorage.setItem('gallery_items_cache', JSON.stringify(previousItems));
+      alert(`Failed to delete case: ${data.error || data.message || 'Unknown error'}`);
     } catch (error) {
+      setGalleryItems(previousItems);
+      localStorage.setItem('gallery_items_cache', JSON.stringify(previousItems));
       alert(`Error deleting case: ${error.message}`);
     }
   };
@@ -1397,7 +1412,13 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-200" />
             Back to Gallery
           </button>
-          {/* Debug button for admins */}
+          {/* Admin toolbar — staff-safe buttons only.
+              Destructive/developer buttons (Clear All Cases, Rebuild All,
+              Sync from GitHub, Force Refresh Cache, Debug Database,
+              Debug Displayed, Diagnose Filenames, Fix Case ID, Test Image
+              Load, Clean Orphans) were intentionally removed for the staff
+              handoff. The handler functions still exist in this file and
+              can be re-wired to a developer-only panel if needed. */}
           {isAdmin && isEditMode && (
             <div className="flex flex-wrap gap-2 mb-6">
               <Button
@@ -1410,70 +1431,6 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                 Create New Case
               </Button>
               <Button
-                variant="default"
-                size="sm"
-                onClick={handleSyncFromGitHub}
-                className="rounded-full bg-green-600 text-white hover:bg-green-700 shadow-lg"
-              >
-                🔄 Sync from GitHub
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleRebuildAllFromGitHub}
-                className="rounded-full bg-red-700 text-white hover:bg-red-800 shadow-lg font-bold"
-              >
-                🔥 Rebuild All Cases
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCleanupOrphans}
-                className="rounded-full border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white"
-              >
-                🧹 Clean Orphans
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDebugGallery}
-                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
-              >
-                🔍 Debug Database
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDebugDisplayed}
-                className="rounded-full border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white"
-              >
-                👁️ Debug Displayed
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleFixCaseId}
-                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
-              >
-                🛠️ Fix Case ID
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTestImageLoad}
-                className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e]"
-              >
-                📸 Test Image Load
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDiagnoseFilenames}
-                className="rounded-full border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-[#1a1f2e]"
-              >
-                🔬 Diagnose Filenames
-              </Button>
-              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setBulkUploaderOpen(true)}
@@ -1481,28 +1438,6 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
               >
                 <UploadIcon className="w-4 h-4 mr-2" />
                 Bulk Upload
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  localStorage.removeItem('gallery_items_cache');
-                  localStorage.removeItem('gallery_items_cache_timestamp');
-                  setLoading(true);
-                  fetchAndUpdateGallery().then(() => console.log('[Gallery] Force refresh complete'));
-                }}
-                className="rounded-full border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
-              >
-                ♻️ Force Refresh Cache
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleClearAllCases}
-                disabled={clearing}
-                className="rounded-full shadow-lg"
-              >
-                {clearing ? 'Clearing...' : '🗑️ Clear All Cases'}
               </Button>
             </div>
           )}
