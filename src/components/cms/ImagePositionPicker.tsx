@@ -32,8 +32,10 @@ const PHONE_W = 300;
 const PHONE_H = 650;
 
 // ─── Desktop: nav bar covers this fraction of the viewport ──────────────────
-// Hero uses h-screen -mt-[180px] ≈ 20% of a ~900px viewport
-const DESKTOP_NAV_RATIO = 0.20;
+// On the live site the nav is ~115px tall and the viewport is ~800–1080px,
+// so the real ratio sits around 0.11–0.14. Use 0.13 as a representative
+// value for the preview's simulated nav strip.
+const DESKTOP_NAV_RATIO = 0.13;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export function ImagePositionPicker({
