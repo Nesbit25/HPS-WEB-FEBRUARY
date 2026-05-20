@@ -2816,6 +2816,11 @@ app.get('/make-server-fc862019/content-test', async (c) => {
 // Get content by key (public endpoint - no auth required)
 app.get('/make-server-fc862019/content/:key', async (c) => {
   const key = c.req.param('key');
+  // Prevent browsers/CDNs from caching the response — without this header the
+  // hero image (and other editable content) keeps showing a stale value for
+  // up to several hours after an admin updates it.
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+  c.header('Pragma', 'no-cache');
   console.log(`[PUBLIC GET] === REQUEST FOR KEY: ${key} ===`);
   console.log('[PUBLIC GET] Headers:', Object.fromEntries(c.req.raw.headers));
   

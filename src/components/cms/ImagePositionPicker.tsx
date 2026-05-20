@@ -56,6 +56,7 @@ export function ImagePositionPicker({
   // static repo file under /images/hero/{type}/hero-slide-N.jpg.
   const [slideImageUrls, setSlideImageUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
   const [uploading, setUploading] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const dragRef = useRef({ startX: 0, startY: 0, startXPct: 50, startYPct: 50 });
   const frameRef = useRef<HTMLDivElement>(null);
@@ -81,16 +82,19 @@ export function ImagePositionPicker({
 
   // Load the current CMS-stored image for each slide whenever the dialog opens
   // so the picker shows the photo that's actually live on the site (instead of
-  // the original static repo file).
+  // the original static repo file). Cache-busting query string + no-store so
+  // the browser doesn't return a stale response.
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     (async () => {
+      const ts = Date.now();
       const results = await Promise.all(
         [1, 2, 3].map(async (n) => {
           try {
-            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}`, {
+            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}?t=${ts}`, {
               headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
             });
             if (!res.ok) return [n, null] as const;
             const data = await res.json();
@@ -187,9 +191,26 @@ export function ImagePositionPicker({
         const err = await saveRes.text();
         throw new Error(`Could not save image URL (${saveRes.status}): ${err}`);
       }
+      const saveJson = await saveRes.json().catch(() => null);
+      console.log('[ImagePositionPicker] Save response:', saveJson);
+
+      // Verify the write actually landed by reading it back fresh.
+      try {
+        const verify = await fetch(
+          `${serverUrl}/content/home_hero_image_${activeSlide}?t=${Date.now()}`,
+          { headers: { 'Authorization': `Bearer ${publicAnonKey}` }, cache: 'no-store' }
+        );
+        const verifyData = await verify.json();
+        console.log('[ImagePositionPicker] Verify read:', verifyData?.content?.value);
+      } catch (vErr) {
+        console.warn('[ImagePositionPicker] Verify read failed:', vErr);
+      }
+
       // Reflect in the picker immediately.
       setSlideImageUrls(prev => ({ ...prev, [activeSlide]: uploadData.publicUrl }));
       setImgNatural({ w: 0, h: 0 }); // force re-measure on next load
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
     } catch (err: any) {
       console.error('[ImagePositionPicker] Upload error:', err);
       alert(err?.message || 'Failed to upload image.');
@@ -701,6 +722,12 @@ export function ImagePositionPicker({
                 <Upload className="w-3.5 h-3.5" />
                 {uploading ? 'Uploading…' : (slideImageUrls[activeSlide] ? 'Replace Photo' : 'Upload Photo')}
               </button>
+              {savedFlash && (
+                <div className="mt-2 px-2 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Saved! Close this dialog to see it on the page.
+                </div>
+              )}
               <p className="text-gray-600 text-[9px] mt-2 leading-relaxed">
                 Pick a wide (landscape) photo. One image covers both desktop and mobile — the position controls below let you fine-tune the crop for each device.
               </p>

@@ -154,16 +154,20 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     }
   };
 
-  // Fetch any custom hero slide images uploaded via Photos tab.
+  // Fetch any custom hero slide images uploaded via the editor.
   // CMS keys: home_hero_image_1, home_hero_image_2, home_hero_image_3.
   // Each falls back to the static repo file if nothing has been uploaded.
+  // Cache-busting query string + cache:'no-store' so the browser doesn't hold
+  // an old response after an upload.
   const loadHeroSlideUrls = async () => {
     try {
+      const ts = Date.now();
       const results = await Promise.all(
         [1, 2, 3].map(async (n) => {
           try {
-            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}`, {
-              headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}?t=${ts}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
             });
             if (!res.ok) return [n, null] as const;
             const data = await res.json();
@@ -1395,7 +1399,12 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         <ImagePositionPicker
           isOpen={true}
           type={positionPickerOpen}
-          onClose={() => setPositionPickerOpen(null)}
+          onClose={() => {
+            setPositionPickerOpen(null);
+            // Re-fetch any photos that were uploaded inside the picker so the
+            // hero on this page reflects them immediately (no manual refresh).
+            loadHeroSlideUrls();
+          }}
           onSave={(position) => {
             if (positionPickerOpen === 'desktop') {
               setHeroDesktopPosition(position);
