@@ -107,6 +107,19 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
                     </button>
                   </li>
                 ))}
+                {/* Patient Forms PDF — staff drop the file at /public/patient-forms.pdf
+                    or replace via the PDF Manager (link target can be updated). */}
+                <li>
+                  <a
+                    href="/patient-forms.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-gray-400 hover:text-[#c9b896] transition-colors flex items-center gap-2 group"
+                  >
+                    <span className="w-3 h-px bg-[#c9b896]/40 group-hover:w-4 group-hover:bg-[#c9b896] transition-all duration-200 inline-block"></span>
+                    Patient Forms (PDF)
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

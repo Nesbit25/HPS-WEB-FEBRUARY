@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 
 export interface BeforeAfterCardProps {
   beforeImage?: string;
@@ -26,24 +26,12 @@ export function BeforeAfterCard({
   objectFit = 'cover',
   layout = 'side-by-side',
 }: BeforeAfterCardProps) {
-  const [isInView, setIsInView] = useState(false);
+  // Note: a previous IntersectionObserver-based lazy render was removed
+  // because it left images stuck in the loading spinner on certain iOS
+  // Safari versions (iPhone 12 in particular). The native loading="lazy"
+  // attribute on the <img> elements below already defers off-screen image
+  // loading, so the JS gate was redundant.
   const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            observer.disconnect();
-          }
-        });
-      },
-      { rootMargin: '100px', threshold: 0.01 }
-    );
-    if (cardRef.current) observer.observe(cardRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   const getOptimizedUrl = (url?: string) => {
     if (!url) return '';
@@ -68,44 +56,37 @@ export function BeforeAfterCard({
       {!isStacked && (
         <>
           <div className="relative bg-[#1a1f2e] aspect-[2/1] flex overflow-hidden">
-            {!isInView && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
-              </div>
-            )}
-            {isInView && (
-              <>
-                {/* Before — left */}
-                <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                  {beforeImage ? (
-                    <img
-                      src={beforeFullUrl}
-                      alt="Before"
-                      loading="lazy"
-                      className="w-full h-full"
-                      style={{ objectFit, objectPosition: imagePosition }}
-                    />
-                  ) : (
-                    <span className="text-xs text-[#c9b896]/40">No image</span>
-                  )}
-                </div>
-                <div className="w-px bg-[#2d3548] flex-shrink-0 z-10" />
-                {/* After — right */}
-                <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
-                  {afterImage ? (
-                    <img
-                      src={afterFullUrl}
-                      alt="After"
-                      loading="lazy"
-                      className="w-full h-full"
-                      style={{ objectFit, objectPosition: imagePosition }}
-                    />
-                  ) : (
-                    <span className="text-xs text-[#c9b896]/40">No image</span>
-                  )}
-                </div>
-              </>
-            )}
+            {/* Before — left */}
+            <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+              {beforeImage ? (
+                <img
+                  src={beforeFullUrl}
+                  alt="Before"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full"
+                  style={{ objectFit, objectPosition: imagePosition }}
+                />
+              ) : (
+                <span className="text-xs text-[#c9b896]/40">No image</span>
+              )}
+            </div>
+            <div className="w-px bg-[#2d3548] flex-shrink-0 z-10" />
+            {/* After — right */}
+            <div className="w-1/2 relative overflow-hidden flex items-center justify-center bg-[#1a1f2e]">
+              {afterImage ? (
+                <img
+                  src={afterFullUrl}
+                  alt="After"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full"
+                  style={{ objectFit, objectPosition: imagePosition }}
+                />
+              ) : (
+                <span className="text-xs text-[#c9b896]/40">No image</span>
+              )}
+            </div>
             <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
           </div>
           {/* Before/After labels — below photos in navy strip */}
@@ -124,55 +105,48 @@ export function BeforeAfterCard({
       {/* ── Stacked layout — full image, auto height ── */}
       {isStacked && (
         <div className="relative bg-[#1a1f2e] flex flex-col overflow-hidden">
-          {!isInView && (
-            <div className="h-40 flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-[#c9b896]/30 border-t-[#c9b896] rounded-full animate-spin"></div>
+          {/* Before — top, natural height */}
+          <div className="relative w-full bg-[#1a1f2e]">
+            {beforeImage ? (
+              <img
+                src={beforeFullUrl}
+                alt="Before"
+                loading="lazy"
+                decoding="async"
+                className="w-full block"
+                style={{ objectFit: 'contain' }}
+              />
+            ) : (
+              <div className="h-32 flex items-center justify-center">
+                <span className="text-xs text-[#c9b896]/40">No image</span>
+              </div>
+            )}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+              <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
             </div>
-          )}
-          {isInView && (
-            <>
-              {/* Before — top, natural height */}
-              <div className="relative w-full bg-[#1a1f2e]">
-                {beforeImage ? (
-                  <img
-                    src={beforeFullUrl}
-                    alt="Before"
-                    loading="lazy"
-                    className="w-full block"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div className="h-32 flex items-center justify-center">
-                    <span className="text-xs text-[#c9b896]/40">No image</span>
-                  </div>
-                )}
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">Before</span>
-                </div>
+          </div>
+          {/* Horizontal divider */}
+          <div className="h-px w-full bg-[#2d3548]" />
+          {/* After — bottom, natural height */}
+          <div className="relative w-full bg-[#1a1f2e]">
+            {afterImage ? (
+              <img
+                src={afterFullUrl}
+                alt="After"
+                loading="lazy"
+                decoding="async"
+                className="w-full block"
+                style={{ objectFit: 'contain' }}
+              />
+            ) : (
+              <div className="h-32 flex items-center justify-center">
+                <span className="text-xs text-[#c9b896]/40">No image</span>
               </div>
-              {/* Horizontal divider */}
-              <div className="h-px w-full bg-[#2d3548]" />
-              {/* After — bottom, natural height */}
-              <div className="relative w-full bg-[#1a1f2e]">
-                {afterImage ? (
-                  <img
-                    src={afterFullUrl}
-                    alt="After"
-                    loading="lazy"
-                    className="w-full block"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div className="h-32 flex items-center justify-center">
-                    <span className="text-xs text-[#c9b896]/40">No image</span>
-                  </div>
-                )}
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center">
-                  <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
-                </div>
-              </div>
-            </>
-          )}
+            )}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+              <span className="bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] text-[#c9b896] rounded-full border border-white/10">After</span>
+            </div>
+          </div>
           <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-2xl group-hover:border-[#c9b896]/30 transition-colors" />
         </div>
       )}

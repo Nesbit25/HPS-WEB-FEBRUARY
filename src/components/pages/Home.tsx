@@ -75,6 +75,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const [uploaderOpen, setUploaderOpen] = useState<'desktop' | 'mobile' | null>(null);
   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
   const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
+  // Hero slide URLs sourced from the CMS (Photos tab → Hero Carousel Slide 1/2/3).
+  // Falls back to the static repo files in /public/images/hero/* when no upload exists.
+  const [heroSlideUrls, setHeroSlideUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
 
   // Service card images state - loaded from database
   const [serviceImages, setServiceImages] = useState<Record<string, string>>({});
@@ -95,6 +98,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   useEffect(() => {
     loadHeroPositions();
     loadServiceImages();
+    loadHeroSlideUrls();
   }, []);
 
   const loadServiceImages = async () => {
@@ -147,6 +151,34 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       }
     } catch (error) {
       console.error('Error loading hero positions:', error);
+    }
+  };
+
+  // Fetch any custom hero slide images uploaded via Photos tab.
+  // CMS keys: home_hero_image_1, home_hero_image_2, home_hero_image_3.
+  // Each falls back to the static repo file if nothing has been uploaded.
+  const loadHeroSlideUrls = async () => {
+    try {
+      const results = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+            });
+            if (!res.ok) return [n, null] as const;
+            const data = await res.json();
+            const value = data?.content?.value;
+            return [n, typeof value === 'string' && value.length > 0 ? value : null] as const;
+          } catch {
+            return [n, null] as const;
+          }
+        })
+      );
+      const next: Record<number, string | null> = { 1: null, 2: null, 3: null };
+      for (const [n, url] of results) next[n] = url;
+      setHeroSlideUrls(next);
+    } catch (error) {
+      console.error('Error loading hero slide URLs:', error);
     }
   };
 
@@ -458,48 +490,66 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           {/* Single hero image - absolutely positioned to fill entire container */}
           <div className="absolute inset-0">
             
-            {/* Desktop slides - crossfade through 3 images */}
+            {/* Desktop slides - crossfade through 3 images.
+                Source priority: CMS upload (home_hero_image_N) → static repo file. */}
             <div className="hidden md:block absolute inset-0 w-full h-full z-0 bg-gray-900">
-              {[1, 2, 3].map((n, i) => (
-                <img
-                  key={`desktop-${n}`}
-                  src={`/images/hero/desktop/hero-slide-${n}.jpg`}
-                  alt={`Hanemann Plastic Surgery Hero ${n}`}
-                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                  style={{
-                    objectPosition: heroDesktopPosition,
-                    opacity: activeSlide === i ? 1 : 0,
-                  }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ))}
+              {[1, 2, 3].map((n, i) => {
+                const cmsUrl = heroSlideUrls[n];
+                const src = cmsUrl || `/images/hero/desktop/hero-slide-${n}.jpg`;
+                return (
+                  <img
+                    key={`desktop-${n}-${src}`}
+                    src={src}
+                    alt={`Hanemann Plastic Surgery Hero ${n}`}
+                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                    style={{
+                      objectPosition: heroDesktopPosition,
+                      opacity: activeSlide === i ? 1 : 0,
+                    }}
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      // If the CMS URL failed, fall back to the static file
+                      if (cmsUrl && img.src === cmsUrl) {
+                        img.src = `/images/hero/desktop/hero-slide-${n}.jpg`;
+                      } else {
+                        img.style.display = 'none';
+                      }
+                    }}
+                  />
+                );
+              })}
             </div>
 
-            {/* Mobile slides - portrait optimized */}
+            {/* Mobile slides - portrait optimized.
+                Source priority: CMS upload (home_hero_image_N) → static repo file. */}
             <div className="md:hidden absolute inset-0 w-full h-full z-0 bg-gray-900">
-              {[1, 2, 3].map((n, i) => (
-                <img
-                  key={`mobile-${n}`}
-                  src={`/images/hero/mobile/hero-slide-${n}.jpg`}
-                  alt={`Hanemann Plastic Surgery Hero Mobile ${n}`}
-                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                  style={{
-                    objectPosition: heroMobilePosition,
-                    opacity: activeSlide === i ? 1 : 0,
-                  }}
-                  onError={(e) => {
-                    const img = e.target as HTMLImageElement;
-                    // Try .png if .jpg fails, then hide if that fails too
-                    if (img.src.endsWith('.jpg')) {
-                      img.src = img.src.replace('.jpg', '.png');
-                    } else {
-                      img.style.display = 'none';
-                    }
-                  }}
-                />
-              ))}
+              {[1, 2, 3].map((n, i) => {
+                const cmsUrl = heroSlideUrls[n];
+                const src = cmsUrl || `/images/hero/mobile/hero-slide-${n}.jpg`;
+                return (
+                  <img
+                    key={`mobile-${n}-${src}`}
+                    src={src}
+                    alt={`Hanemann Plastic Surgery Hero Mobile ${n}`}
+                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                    style={{
+                      objectPosition: heroMobilePosition,
+                      opacity: activeSlide === i ? 1 : 0,
+                    }}
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      // CMS upload failed → static jpg → static png → hide
+                      if (cmsUrl && img.src === cmsUrl) {
+                        img.src = `/images/hero/mobile/hero-slide-${n}.jpg`;
+                      } else if (img.src.endsWith('.jpg')) {
+                        img.src = img.src.replace('.jpg', '.png');
+                      } else {
+                        img.style.display = 'none';
+                      }
+                    }}
+                  />
+                );
+              })}
             </div>
 
             {/* Dark gradient overlay - allow pointer events to pass through in edit mode */}

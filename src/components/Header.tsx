@@ -149,11 +149,22 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
             
             {/* Patient Portal link hidden in mobile menu */}
 
+            {/* Patient Forms PDF — staff drop the file at /public/patient-forms.pdf */}
+            <a
+              href="/patient-forms.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 text-sm text-[#c9b896] hover:text-[#b8976a] transition-colors mt-2"
+            >
+              Patient Forms (PDF)
+            </a>
+
             <a
               href="tel:2257662166"
               className="flex items-center gap-2 text-sm text-white hover:text-[#c9b896] transition-colors"
             >
-              <Phone size={16} className="text-[#c9b896]"/> 
+              <Phone size={16} className="text-[#c9b896]"/>
               (225) 766-2166
             </a>
             

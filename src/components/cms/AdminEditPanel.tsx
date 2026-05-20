@@ -129,40 +129,21 @@ export function AdminEditPanel({ onNavigateToPortal, onNavigateHome, onAdjustHer
                   </>
                 )}
 
-                {/* Hero Image Upload Controls */}
+                {/* Hero Image Upload guidance — direct staff to the Photos tab.
+                    The previous "Upload Desktop/Mobile Hero Image" buttons wrote
+                    to KV keys that the hero never reads, so they appeared to
+                    succeed but nothing changed on the site. The Photos tab in
+                    the Admin Dashboard is the canonical place to swap hero
+                    images (display locations: Hero Carousel - Slide 1/2/3). */}
                 {onUploadHeroImage && (
-                  <>
-                    <Button
-                      onClick={() => {
-                        onUploadHeroImage('desktop');
-                        setOpen(false);
-                      }}
-                      variant="outline"
-                      className="w-full justify-start rounded-xl border-secondary/30 hover:bg-secondary/10 hover:border-secondary"
-                      size="lg"
-                    >
-                      <Upload className="w-5 h-5 mr-3 text-secondary" />
-                      <div className="text-left">
-                        <div className="font-medium">Upload Desktop Hero Image</div>
-                        <div className="text-xs text-muted-foreground font-normal">Replace current image</div>
-                      </div>
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        onUploadHeroImage('mobile');
-                        setOpen(false);
-                      }}
-                      variant="outline"
-                      className="w-full justify-start rounded-xl border-secondary/30 hover:bg-secondary/10 hover:border-secondary"
-                      size="lg"
-                    >
-                      <Upload className="w-5 h-5 mr-3 text-secondary" />
-                      <div className="text-left">
-                        <div className="font-medium">Upload Mobile Hero Image</div>
-                        <div className="text-xs text-muted-foreground font-normal">Replace current image</div>
-                      </div>
-                    </Button>
-                  </>
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900">
+                    <p className="font-medium mb-1">Need to swap a hero photo?</p>
+                    <p>
+                      Use the <span className="font-medium">Admin Dashboard → Photos</span> tab.
+                      Upload your image and pick <span className="font-medium">Hero Carousel - Slide 1, 2, or 3</span>
+                      &nbsp;as the display location. One high-quality landscape image works for both desktop and mobile.
+                    </p>
+                  </div>
                 )}
 
                 {/* Info Card */}

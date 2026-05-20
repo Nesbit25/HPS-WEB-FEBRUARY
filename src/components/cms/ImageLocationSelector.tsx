@@ -13,11 +13,15 @@ const IMAGE_LOCATIONS = {
   home: {
     label: 'Home Page',
     sections: {
-      'home_hero_image_1': 'Hero Carousel - Slide 1',
-      'home_hero_image_2': 'Hero Carousel - Slide 2',
-      'home_hero_image_3': 'Hero Carousel - Slide 3',
-      'home_hero_image_4': 'Hero Carousel - Slide 4',
-      'home_hero_image_5': 'Hero Carousel - Slide 5',
+      // Hero slides 1–3 are what's currently rendered on the home page.
+      // Slides 4–5 are reserved and will only display once Home.tsx is
+      // extended to include them. Upload a wide (landscape) photo —
+      // ideally ~1920×1080 — and the site auto-crops it for mobile.
+      'home_hero_image_1': 'Hero Carousel - Slide 1 (wide / landscape)',
+      'home_hero_image_2': 'Hero Carousel - Slide 2 (wide / landscape)',
+      'home_hero_image_3': 'Hero Carousel - Slide 3 (wide / landscape)',
+      'home_hero_image_4': 'Hero Carousel - Slide 4 (reserved — not yet shown on site)',
+      'home_hero_image_5': 'Hero Carousel - Slide 5 (reserved — not yet shown on site)',
     }
   },
   about: {
