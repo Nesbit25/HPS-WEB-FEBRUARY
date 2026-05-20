@@ -646,6 +646,10 @@ export function ImagePositionPicker({
                     {heroImage}
                     {edgeBleed}
                     {gradient}
+                    {/* Top-down fade — mirrors the live hero so the admin sees
+                        the dark gradient that runs from the top of the page
+                        into the photo (where the logo / nav sit). */}
+                    <div className="absolute top-0 left-0 right-0 h-[26%] pointer-events-none z-[6] bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
 
                     {/* Status bar */}
                     <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 pt-3 pb-1 pointer-events-none z-10">
@@ -745,56 +749,46 @@ export function ImagePositionPicker({
                   onTouchStart={(e) => { const t = e.touches[0]; onDragStart(t.clientX, t.clientY); }}
                 >
                   {heroImage}
+                  {edgeBleed}
                   {gradient}
 
-                  {/* ── Nav bar overlay (non-interactive, visual only) ─────
-                      Represents the fixed header that covers the top ~20% of
-                      the hero. Image shows through (semi-transparent) so the
-                      admin can still adjust, but the dashed edge makes it
-                      crystal-clear where the visible hero actually begins.  */}
-                  <div
-                    className="absolute top-0 left-0 right-0 pointer-events-none z-30"
-                    style={{ height: `${DESKTOP_NAV_RATIO * 100}%` }}
-                  >
-                    {/* Nav background — matches the site's transparent-to-navy gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-[#1a1f2e]/85 via-[#1a1f2e]/70 to-transparent" />
+                  {/* ── Top-down fade ───────────────────────────────────────
+                      Mirrors the live hero's top gradient. The photo extends
+                      all the way to the top of the frame; this gradient just
+                      darkens the upper portion so the transparent nav stays
+                      legible. */}
+                  <div className="absolute top-0 left-0 right-0 h-[28%] pointer-events-none z-[6] bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
 
-                    {/* Simplified nav content */}
-                    <div className="relative h-full flex items-center justify-between px-5">
+                  {/* ── Nav content (transparent header) ────────────────────
+                      Renders DIRECTLY OVER the photo + top fade — exactly
+                      like the live home page where the header has no
+                      background of its own. */}
+                  <div className="absolute top-0 left-0 right-0 pointer-events-none z-30">
+                    <div className="relative flex items-center justify-between px-5 pt-3 pb-2">
                       {/* Left: social icon placeholders */}
                       <div className="flex gap-1.5 items-center">
                         {[0,1,2].map(i => (
-                          <div key={i} className="w-3 h-3 rounded-full bg-white/20" />
+                          <div key={i} className="w-3 h-3 rounded-full bg-white/30" />
                         ))}
                       </div>
 
                       {/* Center: Logo wordmark */}
                       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
                         <span className="text-[#c9b896] font-serif text-sm tracking-[0.2em] leading-none">HANEMANN</span>
-                        <span className="text-white/50 text-[6px] uppercase tracking-[0.3em]">Plastic Surgery</span>
+                        <span className="text-white/60 text-[6px] uppercase tracking-[0.3em]">Plastic Surgery</span>
                       </div>
 
                       {/* Right: CTA button placeholder */}
-                      <div className="bg-[#c9b896]/30 rounded-full px-2 py-0.5">
+                      <div className="bg-[#c9b896]/40 rounded-full px-2 py-0.5">
                         <span className="text-[#c9b896] text-[7px] uppercase tracking-wider">Consult</span>
                       </div>
                     </div>
 
-                    {/* Nav tabs row at the bottom of the nav area */}
-                    <div className="absolute bottom-0 left-0 right-0 flex items-center gap-3 px-5 pb-1">
+                    {/* Nav tabs row */}
+                    <div className="flex items-center justify-center gap-3 px-5 pb-2">
                       {['About', 'Procedures', 'Gallery', 'Before & After', 'Contact'].map(tab => (
-                        <span key={tab} className="text-white/30 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
+                        <span key={tab} className="text-white/40 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
                       ))}
-                    </div>
-
-                    {/* ── Visible-area edge marker ─────────────────────────
-                        Gold dashed line + label at the exact bottom of the
-                        nav bar — this is where the visible hero begins.     */}
-                    <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-[#c9b896]/80" />
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full pt-0.5 flex items-center gap-1 pointer-events-none">
-                      <div className="bg-[#c9b896] text-[#1a1f2e] text-[7px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-b whitespace-nowrap shadow-lg">
-                        ↓ Visible hero starts here
-                      </div>
                     </div>
                   </div>
 
@@ -836,16 +830,9 @@ export function ImagePositionPicker({
                 </div>
 
                 {/* Legend below the frame */}
-                <div className="mt-2 flex items-center gap-2 px-1">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-0.5 border-t-2 border-dashed border-[#c9b896]/70" />
-                    <span className="text-gray-600 text-[9px]">Nav bar boundary (image shows through)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 ml-3">
-                    <div className="w-3 h-3 rounded-sm bg-[#c9b896]/20 border border-[#c9b896]/40" />
-                    <span className="text-gray-600 text-[9px]">Draggable area (full viewport)</span>
-                  </div>
-                </div>
+                <p className="mt-2 text-gray-600 text-[9px] text-center">
+                  The photo extends to the top of the page. The dark gradient at the top is what makes the nav legible.
+                </p>
               </div>
             )}
           </div>

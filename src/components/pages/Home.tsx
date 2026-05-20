@@ -614,6 +614,11 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       />
       {/* Hero Section - Full Screen */}
       <section className="relative w-full overflow-hidden">
+        {/* Top-down fade — pinned to the section's actual top edge (the very
+            top of the page on the home view) so the transparent nav / logo
+            always sit on a dark-enough background to stay legible, while the
+            photo itself extends all the way up underneath them. */}
+        <div className="absolute top-0 left-0 right-0 h-44 lg:h-52 z-[6] pointer-events-none bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
         {/* Full viewport height container - starts at very top edge */}
         <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
           {/* Single hero image - absolutely positioned to fill entire container */}
