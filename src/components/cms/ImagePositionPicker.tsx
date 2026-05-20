@@ -328,9 +328,11 @@ export function ImagePositionPicker({
   // object-position has to work with. When zoom === 1 and the image's aspect
   // matches the frame's, both ox and oy are zero — drag falls through to the
   // bleed branch.
+  // The desktop preview reserves the top DESKTOP_NAV_RATIO of the frame for a
+  // solid navy nav strip (no photo), so the usable photo height is reduced.
   const getOverflow = useCallback(() => {
     const fw = type === 'mobile' ? PHONE_W : frameRect.w;
-    const fh = type === 'mobile' ? PHONE_H : frameRect.h;
+    const fh = type === 'mobile' ? PHONE_H : frameRect.h * (1 - DESKTOP_NAV_RATIO);
     if (!imgNatural.w || !imgNatural.h || !fw || !fh) return { ox: 0, oy: 0 };
 
     const imgR = imgNatural.w / imgNatural.h;
@@ -748,54 +750,53 @@ export function ImagePositionPicker({
                   onMouseDown={(e) => { e.preventDefault(); onDragStart(e.clientX, e.clientY); }}
                   onTouchStart={(e) => { const t = e.touches[0]; onDragStart(t.clientX, t.clientY); }}
                 >
-                  {heroImage}
-                  {edgeBleed}
-                  {gradient}
-
-                  {/* ── Top-down fade ───────────────────────────────────────
-                      Mirrors the live hero's top gradient. The photo extends
-                      all the way to the top of the frame; this gradient just
-                      darkens the upper portion so the transparent nav stays
-                      legible. */}
-                  <div className="absolute top-0 left-0 right-0 h-[28%] pointer-events-none z-[6] bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
-
-                  {/* ── Nav content (transparent header) ────────────────────
-                      Renders DIRECTLY OVER the photo + top fade — exactly
-                      like the live home page where the header has no
-                      background of its own. */}
-                  <div className="absolute top-0 left-0 right-0 pointer-events-none z-30">
-                    <div className="relative flex items-center justify-between px-5 pt-3 pb-2">
-                      {/* Left: social icon placeholders */}
-                      <div className="flex gap-1.5 items-center">
-                        {[0,1,2].map(i => (
-                          <div key={i} className="w-3 h-3 rounded-full bg-white/30" />
+                  {/* ── Solid navy nav strip ────────────────────────────────
+                      Sits at the top of the frame BEFORE the photo, so the
+                      preview reflects the live layout where the photo
+                      begins right under the nav wording (not behind it). */}
+                  <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none bg-[#1a1f2e]" style={{ height: `${DESKTOP_NAV_RATIO * 100}%` }}>
+                    <div className="relative h-full flex flex-col">
+                      <div className="flex-1 relative flex items-center justify-between px-5">
+                        {/* Left: social icon placeholders */}
+                        <div className="flex gap-1.5 items-center">
+                          {[0,1,2].map(i => (
+                            <div key={i} className="w-3 h-3 rounded-full bg-white/30" />
+                          ))}
+                        </div>
+                        {/* Center: Logo wordmark */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
+                          <span className="text-[#c9b896] font-serif text-sm tracking-[0.2em] leading-none">HANEMANN</span>
+                          <span className="text-white/60 text-[6px] uppercase tracking-[0.3em]">Plastic Surgery</span>
+                        </div>
+                        {/* Right: CTA button placeholder */}
+                        <div className="bg-[#c9b896]/40 rounded-full px-2 py-0.5">
+                          <span className="text-[#c9b896] text-[7px] uppercase tracking-wider">Consult</span>
+                        </div>
+                      </div>
+                      {/* Nav tabs row */}
+                      <div className="flex items-center justify-center gap-3 px-5 pb-1">
+                        {['About', 'Procedures', 'Gallery', 'Before & After', 'Contact'].map(tab => (
+                          <span key={tab} className="text-white/50 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
                         ))}
                       </div>
-
-                      {/* Center: Logo wordmark */}
-                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
-                        <span className="text-[#c9b896] font-serif text-sm tracking-[0.2em] leading-none">HANEMANN</span>
-                        <span className="text-white/60 text-[6px] uppercase tracking-[0.3em]">Plastic Surgery</span>
-                      </div>
-
-                      {/* Right: CTA button placeholder */}
-                      <div className="bg-[#c9b896]/40 rounded-full px-2 py-0.5">
-                        <span className="text-[#c9b896] text-[7px] uppercase tracking-wider">Consult</span>
-                      </div>
-                    </div>
-
-                    {/* Nav tabs row */}
-                    <div className="flex items-center justify-center gap-3 px-5 pb-2">
-                      {['About', 'Procedures', 'Gallery', 'Before & After', 'Contact'].map(tab => (
-                        <span key={tab} className="text-white/40 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
-                      ))}
                     </div>
                   </div>
 
-                  {/* Desktop text overlay — positioned below the nav bar */}
+                  {/* Photo area sits BELOW the nav strip */}
+                  <div className="absolute left-0 right-0 bottom-0 overflow-hidden" style={{ top: `${DESKTOP_NAV_RATIO * 100}%` }}>
+                    <div className="relative w-full h-full">
+                      {heroImage}
+                      {edgeBleed}
+                      {gradient}
+                    </div>
+                  </div>
+
+                  {/* Desktop text overlay — sits inside the photo area, which
+                      already starts below the nav strip. A small top padding
+                      gives it breathing room from the nav. */}
                   <div
-                    className="absolute inset-0 flex items-start px-12 pointer-events-none z-10"
-                    style={{ paddingTop: `${(DESKTOP_NAV_RATIO + 0.06) * 100}%` }}
+                    className="absolute inset-0 flex items-center px-12 pointer-events-none z-10"
+                    style={{ paddingTop: `${DESKTOP_NAV_RATIO * 100}%` }}
                   >
                     <div className="max-w-lg">
                       <p className="text-[#c9b896] text-[11px] uppercase tracking-[0.3em] mb-2 font-bold">

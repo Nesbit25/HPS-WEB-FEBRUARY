@@ -613,14 +613,13 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         canonical="/"
       />
       {/* Hero Section - Full Screen */}
-      <section className="relative w-full overflow-hidden">
-        {/* Top-down fade — pinned to the section's actual top edge (the very
-            top of the page on the home view) so the transparent nav / logo
-            always sit on a dark-enough background to stay legible, while the
-            photo itself extends all the way up underneath them. */}
-        <div className="absolute top-0 left-0 right-0 h-44 lg:h-52 z-[6] pointer-events-none bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
-        {/* Full viewport height container - starts at very top edge */}
-        <div className="relative w-full h-screen -mt-[180px] min-h-[600px]">
+      <section className="relative w-full overflow-hidden bg-[#1a1f2e]">
+        {/* Solid navy band sized to match the fixed header. The transparent
+            nav renders over this strip, so the photo below it starts
+            cleanly right under the menu wording — no photo behind the nav. */}
+        <div className="h-[75px] lg:h-[145px]" aria-hidden="true" />
+        {/* Hero photo container — fills the remaining viewport height */}
+        <div className="relative w-full h-[calc(100vh-75px)] lg:h-[calc(100vh-145px)] min-h-[520px]">
           {/* Single hero image - absolutely positioned to fill entire container */}
           <div className="absolute inset-0">
             
@@ -742,8 +741,10 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent z-5 pointer-events-none" />
           </div>
           
-          {/* Content Overlay - positioned over images */}
-          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pt-[220px] md:pt-[240px] pointer-events-none">
+          {/* Content Overlay - positioned over images.
+              Now that the photo starts below the nav (no longer extends up
+              under it), the heavy pt-[220px] is no longer needed. */}
+          <div className="absolute inset-0 z-20 flex items-center px-4 md:px-6 pointer-events-none">
             <div className="container mx-auto pointer-events-auto">
               <div className="max-w-3xl">
                 {/* Hero Content */}
