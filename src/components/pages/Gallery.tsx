@@ -135,9 +135,16 @@ const getPatientNumberFromSlug = (slug?: string): string => {
   return match[1].padStart(2, '0');
 };
 
-/** Build display label for a card: "Procedure Name — Patient NN" (falls back gracefully). */
-const getCaseDisplayLabel = (procedureName?: string, slug?: string, fallbackTitle?: string): string => {
-  const patientNum = getPatientNumberFromSlug(slug);
+/** Build display label for a card: "Procedure Name — Patient NN" (falls back gracefully).
+    `overrideNumber`, when provided, replaces the slug-derived patient number — used
+    for the "Body / Liposuction" view, where neck-lipo cases continue Body's sequence. */
+const getCaseDisplayLabel = (
+  procedureName?: string,
+  slug?: string,
+  fallbackTitle?: string,
+  overrideNumber?: string
+): string => {
+  const patientNum = overrideNumber || getPatientNumberFromSlug(slug);
   const procLabel = procedureName ? getProcedureDisplayLabel(procedureName) : '';
   if (procLabel && patientNum) return `${procLabel} — Patient ${patientNum}`;
   if (procLabel) return procLabel;
@@ -655,17 +662,28 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     return false;
   };
 
+  // Special-case view: "Body / Liposuction" should ALSO surface the submental
+  // (neck) liposuction cases that live under the Face category. The reverse
+  // (Face / Liposuction including body lipo) is NOT desired.
+  const isBodyLipoView =
+    selectedCategory === 'Body' && selectedProcedures.includes('Liposuction');
+
   const filteredItems = galleryItems
     .filter(item => {
       // Always exclude orphan KV stubs (no slug AND no images)
       if (!item.slug && !item.beforeImage && !item.afterImage) return false;
-      // Category filter is ALWAYS applied (when not "All"). This prevents
-      // procedure names that exist in multiple categories — most notably
-      // "Liposuction" (Body lipo vs. submental/neck lipo under Face) — from
-      // leaking across category views.
-      if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
-      // Procedure filter is layered on top of the category filter.
+      // Procedure filter
       if (selectedProcedures.length > 0 && !matchesProcedure(item, selectedProcedures)) return false;
+      // Category filter — strict, except: Body/Liposuction also includes
+      // Face-categorized Liposuction cases (submental/neck lipo).
+      if (selectedCategory !== 'All') {
+        const matchesCategory = item.category === selectedCategory;
+        const isNeckLipoInBodyView =
+          isBodyLipoView &&
+          item.category === 'Face' &&
+          matchesProcedure(item, ['Liposuction']);
+        if (!matchesCategory && !isNeckLipoInBodyView) return false;
+      }
       // Admins in edit mode can see real items even without images
       if (isAdmin && isEditMode) return true;
       // Public users only see items with images
@@ -677,6 +695,13 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         const catA = CATEGORY_ORDER[a.category] ?? 99;
         const catB = CATEGORY_ORDER[b.category] ?? 99;
         if (catA !== catB) return catA - catB;
+      }
+      // Body/Liposuction special view: body-categorized cases come first, then
+      // the appended neck-lipo (Face) cases — so the renumber sequence below
+      // reads cleanly top-to-bottom on the page.
+      if (isBodyLipoView && a.category !== b.category) {
+        if (a.category === 'Body') return -1;
+        if (b.category === 'Body') return 1;
       }
       // Admin-defined sortOrder wins when present on either item
       const aHas = typeof a.sortOrder === 'number';
@@ -691,6 +716,22 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       // Fallback: alphabetical by title
       return (a.title || '').localeCompare(b.title || '');
     });
+
+  // Display-only patient-number overrides for the Body/Liposuction view: the
+  // appended neck-lipo cases get numbers that continue from where body lipo
+  // ends, so the visible sequence reads as a single set (e.g., 01..19 body,
+  // 20+ neck) — the underlying slugs and IDs are unchanged.
+  const displayPatientNumberOverrides: Record<number, string> = {};
+  if (isBodyLipoView) {
+    const bodyLipoCount = filteredItems.filter(i => i.category === 'Body').length;
+    let neckIdx = 0;
+    for (const item of filteredItems) {
+      if (item.category === 'Face') {
+        neckIdx++;
+        displayPatientNumberOverrides[item.id] = String(bodyLipoCount + neckIdx).padStart(2, '0');
+      }
+    }
+  }
 
   // Ordered list of procedures available within the current category selection
   const availableProcedures = useMemo(() => {
@@ -1797,7 +1838,12 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                   <div className="p-4 bg-card relative">
                     {/* Patient label — "Procedure Name — Patient NN" */}
                     {(() => {
-                      const label = getCaseDisplayLabel(item.procedureName, item.slug, item.title);
+                      const label = getCaseDisplayLabel(
+                        item.procedureName,
+                        item.slug,
+                        item.title,
+                        displayPatientNumberOverrides[item.id]
+                      );
                       return label ? (
                         <h3 className="font-serif text-base text-[#b8976a] font-semibold mb-1 leading-tight">{label}</h3>
                       ) : null;
@@ -2055,7 +2101,17 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       <GalleryLightbox
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
-        currentItem={filteredItems[currentLightboxIndex]}
+        currentItem={(() => {
+          const raw = filteredItems[currentLightboxIndex];
+          if (!raw) return raw;
+          // Apply the same display-number override used on the cards so the
+          // lightbox heading stays in sync (Body/Lipo view renumbers neck-lipo
+          // cases to continue the sequence).
+          const override = displayPatientNumberOverrides[raw.id];
+          if (!override || !raw.title) return raw;
+          const newTitle = raw.title.replace(/Patient\s+\d+/i, `Patient ${override}`);
+          return { ...raw, title: newTitle };
+        })()}
         currentIndex={currentLightboxIndex}
         totalImages={filteredItems.length}
         onNext={handleNextImage}
