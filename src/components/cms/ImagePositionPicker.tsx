@@ -55,8 +55,27 @@ export function ImagePositionPicker({
   // CMS-stored image URL for each slide. Loaded on open; null falls back to the
   // static repo file under /images/hero/{type}/hero-slide-N.jpg.
   const [slideImageUrls, setSlideImageUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
+  // Per-slide edge "crop" — a dark gradient bleed from each edge so the admin
+  // can simulate a crop on photos where the subject is centered and the image
+  // has no pan freedom. Values are 0–50 (percent of frame width).
+  const [slideCrops, setSlideCrops] = useState<Record<number, { left: number; right: number }>>({
+    1: { left: 0, right: 0 },
+    2: { left: 0, right: 0 },
+    3: { left: 0, right: 0 },
+  });
   const [uploading, setUploading] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+
+  const currentCrop = slideCrops[activeSlide] ?? { left: 0, right: 0 };
+  const setCropForActiveSlide = (next: Partial<{ left: number; right: number }>) => {
+    setSlideCrops(prev => ({
+      ...prev,
+      [activeSlide]: {
+        left: typeof next.left === 'number' ? clamp(next.left, 0, 50) : prev[activeSlide]?.left ?? 0,
+        right: typeof next.right === 'number' ? clamp(next.right, 0, 50) : prev[activeSlide]?.right ?? 0,
+      },
+    }));
+  };
 
   const dragRef = useRef({ startX: 0, startY: 0, startXPct: 50, startYPct: 50 });
   const frameRef = useRef<HTMLDivElement>(null);
@@ -80,16 +99,18 @@ export function ImagePositionPicker({
     return () => clearTimeout(hintTimer.current);
   }, [isOpen, currentPosition]);
 
-  // Load the current CMS-stored image for each slide whenever the dialog opens
-  // so the picker shows the photo that's actually live on the site (instead of
-  // the original static repo file). Cache-busting query string + no-store so
-  // the browser doesn't return a stale response.
+  // Load the current CMS-stored image AND crop values for each slide whenever
+  // the dialog opens so the picker reflects what's actually live on the site.
+  // Cache-busting query string + no-store so the browser doesn't return a
+  // stale response.
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     (async () => {
       const ts = Date.now();
-      const results = await Promise.all(
+
+      // Slide image URLs
+      const imageResults = await Promise.all(
         [1, 2, 3].map(async (n) => {
           try {
             const res = await fetch(`${serverUrl}/content/home_hero_image_${n}?t=${ts}`, {
@@ -105,10 +126,44 @@ export function ImagePositionPicker({
           }
         })
       );
+
+      // Slide crop overlays (left / right bleed)
+      const cropResults = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_crop_${n}?t=${ts}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
+            });
+            if (!res.ok) return [n, { left: 0, right: 0 }] as const;
+            const data = await res.json();
+            const v = data?.content?.value;
+            let parsed: any = v;
+            if (typeof v === 'string') {
+              try { parsed = JSON.parse(v); } catch { parsed = null; }
+            }
+            if (parsed && typeof parsed.left === 'number' && typeof parsed.right === 'number') {
+              return [n, {
+                left: clamp(parsed.left, 0, 50),
+                right: clamp(parsed.right, 0, 50),
+              }] as const;
+            }
+          } catch { /* fall through */ }
+          return [n, { left: 0, right: 0 }] as const;
+        })
+      );
+
       if (cancelled) return;
-      const next: Record<number, string | null> = { 1: null, 2: null, 3: null };
-      for (const [n, url] of results) next[n] = url;
-      setSlideImageUrls(next);
+
+      const nextImages: Record<number, string | null> = { 1: null, 2: null, 3: null };
+      for (const [n, url] of imageResults) nextImages[n] = url;
+      setSlideImageUrls(nextImages);
+
+      const nextCrops: Record<number, { left: number; right: number }> = {
+        1: { left: 0, right: 0 }, 2: { left: 0, right: 0 }, 3: { left: 0, right: 0 }
+      };
+      for (const [n, c] of cropResults) nextCrops[n] = c;
+      setSlideCrops(nextCrops);
     })();
     return () => { cancelled = true; };
   }, [isOpen, serverUrl]);
@@ -257,6 +312,8 @@ export function ImagePositionPicker({
   }, [imgNatural, frameRect, type]);
 
   // ─── Drag logic ───────────────────────────────────────────────────────────
+  const dragStartCropRef = useRef({ left: 0, right: 0 });
+
   const applyDrag = useCallback((clientX: number, clientY: number) => {
     const dx = clientX - dragRef.current.startX;
     const dy = clientY - dragRef.current.startY;
@@ -266,17 +323,43 @@ export function ImagePositionPicker({
     let newY = dragRef.current.startYPct;
 
     // Dragging right → image moves right → revealing left side → X decreases
-    if (ox > 0) newX = clamp(newX - (dx / ox) * 100, 0, 100);
+    if (ox > 0) {
+      newX = clamp(newX - (dx / ox) * 100, 0, 100);
+    } else {
+      // No horizontal pan freedom — translate the gesture into an edge-bleed
+      // crop instead, so the admin can still nudge the visible composition.
+      // Drag RIGHT (dx > 0) → bleed grows on the LEFT (covering the now
+      // less-important area). Drag LEFT (dx < 0) → bleed grows on the RIGHT.
+      const frameW = type === 'mobile' ? PHONE_W : frameRect.w || 1;
+      const deltaPct = (dx / frameW) * 100;
+      const startLeft = dragStartCropRef.current.left;
+      const startRight = dragStartCropRef.current.right;
+      if (dx >= 0) {
+        setCropForActiveSlide({
+          left: clamp(startLeft + deltaPct, 0, 50),
+          right: Math.max(0, startRight - deltaPct), // ease the opposing side back down
+        });
+      } else {
+        setCropForActiveSlide({
+          right: clamp(startRight + Math.abs(deltaPct), 0, 50),
+          left: Math.max(0, startLeft - Math.abs(deltaPct)),
+        });
+      }
+    }
     if (oy > 0) newY = clamp(newY - (dy / oy) * 100, 0, 100);
 
     setXPct(newX);
     setYPct(newY);
-  }, [getOverflow]);
+  }, [getOverflow, type, frameRect.w]);
 
   const onDragStart = (clientX: number, clientY: number) => {
     setIsDragging(true);
     setShowHint(false);
     dragRef.current = { startX: clientX, startY: clientY, startXPct: xPct, startYPct: yPct };
+    dragStartCropRef.current = {
+      left: currentCrop.left,
+      right: currentCrop.right,
+    };
   };
 
   useEffect(() => {
@@ -324,16 +407,35 @@ export function ImagePositionPicker({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const contentKey = type === 'desktop' ? 'hero_desktop_position' : 'hero_mobile_position';
-      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
-      await fetch(`${serverUrl}/content/${contentKey}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken ?? publicAnonKey}`,
-        },
-        body: JSON.stringify({ value: positionString }),
-      });
+      const positionKey = type === 'desktop' ? 'hero_desktop_position' : 'hero_mobile_position';
+
+      // Persist the position for the current device and the crop values for
+      // every slide (so any slide whose crop was tweaked in this session is
+      // saved together).
+      const writes: Promise<Response>[] = [];
+      writes.push(
+        fetch(`${serverUrl}/content/${positionKey}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken ?? publicAnonKey}`,
+          },
+          body: JSON.stringify({ value: positionString }),
+        })
+      );
+      for (const n of [1, 2, 3]) {
+        writes.push(
+          fetch(`${serverUrl}/content/home_hero_crop_${n}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken ?? publicAnonKey}`,
+            },
+            body: JSON.stringify({ value: slideCrops[n] || { left: 0, right: 0 } }),
+          })
+        );
+      }
+      await Promise.all(writes);
       onSave(positionString);
       onClose();
     } catch (err) {
@@ -377,6 +479,31 @@ export function ImagePositionPicker({
 
   const gradient = (
     <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent pointer-events-none" />
+  );
+
+  // Edge-bleed crop overlays. Sit ABOVE the hero image but BELOW the text
+  // overlay so the existing dark gradient + text still drape on top.
+  const edgeBleed = (
+    <>
+      {currentCrop.left > 0 && (
+        <div
+          className="absolute inset-y-0 left-0 pointer-events-none z-[4]"
+          style={{
+            width: `${currentCrop.left}%`,
+            background: 'linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+          }}
+        />
+      )}
+      {currentCrop.right > 0 && (
+        <div
+          className="absolute inset-y-0 right-0 pointer-events-none z-[4]"
+          style={{
+            width: `${currentCrop.right}%`,
+            background: 'linear-gradient(to left, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+          }}
+        />
+      )}
+    </>
   );
 
   const dragHint = showHint ? (
@@ -461,6 +588,7 @@ export function ImagePositionPicker({
                     onTouchStart={(e) => { const t = e.touches[0]; onDragStart(t.clientX, t.clientY); }}
                   >
                     {heroImage}
+                    {edgeBleed}
                     {gradient}
 
                     {/* Status bar */}
@@ -774,6 +902,54 @@ export function ImagePositionPicker({
                   <span className="text-gray-700 text-[9px]">Bottom</span>
                 </div>
               </div>
+            </div>
+
+            {/* Edge crop bleeds */}
+            <div className="p-4 border-b border-white/8 space-y-4">
+              <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-1 font-semibold">Edge Crop (Bleed)</p>
+              <p className="text-gray-600 text-[9px] leading-relaxed -mt-2">
+                Darken either edge to visually re-center a subject when the photo can't be panned.
+              </p>
+
+              {/* Left bleed */}
+              <div>
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-gray-500 text-xs">← Left Bleed</span>
+                  <span className="text-[#c9b896] text-xs font-mono">{Math.round(currentCrop.left)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="50" step="1"
+                  value={Math.round(currentCrop.left)}
+                  onChange={e => setCropForActiveSlide({ left: Number(e.target.value) })}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#c9b896' }}
+                />
+              </div>
+
+              {/* Right bleed */}
+              <div>
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-gray-500 text-xs">Right Bleed →</span>
+                  <span className="text-[#c9b896] text-xs font-mono">{Math.round(currentCrop.right)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="50" step="1"
+                  value={Math.round(currentCrop.right)}
+                  onChange={e => setCropForActiveSlide({ right: Number(e.target.value) })}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#c9b896' }}
+                />
+              </div>
+
+              {(currentCrop.left > 0 || currentCrop.right > 0) && (
+                <button
+                  type="button"
+                  onClick={() => setCropForActiveSlide({ left: 0, right: 0 })}
+                  className="w-full text-[10px] text-gray-500 hover:text-white hover:bg-white/8 py-1.5 rounded transition-colors"
+                >
+                  Reset bleeds
+                </button>
+              )}
             </div>
 
             {/* CSS value */}

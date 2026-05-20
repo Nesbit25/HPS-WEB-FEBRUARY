@@ -78,6 +78,12 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   // Hero slide URLs sourced from the CMS (Photos tab → Hero Carousel Slide 1/2/3).
   // Falls back to the static repo files in /public/images/hero/* when no upload exists.
   const [heroSlideUrls, setHeroSlideUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
+  // Per-slide edge-crop bleeds (left/right) set by the admin in the hero editor.
+  const [heroSlideCrops, setHeroSlideCrops] = useState<Record<number, { left: number; right: number }>>({
+    1: { left: 0, right: 0 },
+    2: { left: 0, right: 0 },
+    3: { left: 0, right: 0 },
+  });
 
   // Service card images state - loaded from database
   const [serviceImages, setServiceImages] = useState<Record<string, string>>({});
@@ -162,7 +168,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const loadHeroSlideUrls = async () => {
     try {
       const ts = Date.now();
-      const results = await Promise.all(
+
+      // Slide images
+      const imageResults = await Promise.all(
         [1, 2, 3].map(async (n) => {
           try {
             const res = await fetch(`${serverUrl}/content/home_hero_image_${n}?t=${ts}`, {
@@ -178,9 +186,37 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
           }
         })
       );
-      const next: Record<number, string | null> = { 1: null, 2: null, 3: null };
-      for (const [n, url] of results) next[n] = url;
-      setHeroSlideUrls(next);
+      const nextImages: Record<number, string | null> = { 1: null, 2: null, 3: null };
+      for (const [n, url] of imageResults) nextImages[n] = url;
+      setHeroSlideUrls(nextImages);
+
+      // Slide crop bleeds
+      const cropResults = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_crop_${n}?t=${ts}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
+            });
+            if (!res.ok) return [n, { left: 0, right: 0 }] as const;
+            const data = await res.json();
+            let v: any = data?.content?.value;
+            if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
+            if (v && typeof v.left === 'number' && typeof v.right === 'number') {
+              return [n, {
+                left: Math.max(0, Math.min(50, v.left)),
+                right: Math.max(0, Math.min(50, v.right)),
+              }] as const;
+            }
+          } catch { /* fall through */ }
+          return [n, { left: 0, right: 0 }] as const;
+        })
+      );
+      const nextCrops: Record<number, { left: number; right: number }> = {
+        1: { left: 0, right: 0 }, 2: { left: 0, right: 0 }, 3: { left: 0, right: 0 }
+      };
+      for (const [n, c] of cropResults) nextCrops[n] = c;
+      setHeroSlideCrops(nextCrops);
     } catch (error) {
       console.error('Error loading hero slide URLs:', error);
     }
@@ -500,26 +536,50 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {[1, 2, 3].map((n, i) => {
                 const cmsUrl = heroSlideUrls[n];
                 const src = cmsUrl || `/images/hero/desktop/hero-slide-${n}.jpg`;
+                const crop = heroSlideCrops[n] || { left: 0, right: 0 };
+                const isActive = activeSlide === i;
                 return (
-                  <img
-                    key={`desktop-${n}-${src}`}
-                    src={src}
-                    alt={`Hanemann Plastic Surgery Hero ${n}`}
-                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                    style={{
-                      objectPosition: heroDesktopPosition,
-                      opacity: activeSlide === i ? 1 : 0,
-                    }}
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      // If the CMS URL failed, fall back to the static file
-                      if (cmsUrl && img.src === cmsUrl) {
-                        img.src = `/images/hero/desktop/hero-slide-${n}.jpg`;
-                      } else {
-                        img.style.display = 'none';
-                      }
-                    }}
-                  />
+                  <React.Fragment key={`desktop-${n}-${src}`}>
+                    <img
+                      src={src}
+                      alt={`Hanemann Plastic Surgery Hero ${n}`}
+                      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                      style={{
+                        objectPosition: heroDesktopPosition,
+                        opacity: isActive ? 1 : 0,
+                      }}
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        if (cmsUrl && img.src === cmsUrl) {
+                          img.src = `/images/hero/desktop/hero-slide-${n}.jpg`;
+                        } else {
+                          img.style.display = 'none';
+                        }
+                      }}
+                    />
+                    {/* Per-slide edge-crop bleeds (admin-controlled). Live on the
+                        same z-layer as the image so they fade in/out with it. */}
+                    {crop.left > 0 && (
+                      <div
+                        className="absolute inset-y-0 left-0 pointer-events-none transition-opacity duration-1000"
+                        style={{
+                          width: `${crop.left}%`,
+                          opacity: isActive ? 1 : 0,
+                          background: 'linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+                        }}
+                      />
+                    )}
+                    {crop.right > 0 && (
+                      <div
+                        className="absolute inset-y-0 right-0 pointer-events-none transition-opacity duration-1000"
+                        style={{
+                          width: `${crop.right}%`,
+                          opacity: isActive ? 1 : 0,
+                          background: 'linear-gradient(to left, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+                        }}
+                      />
+                    )}
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -530,28 +590,50 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
               {[1, 2, 3].map((n, i) => {
                 const cmsUrl = heroSlideUrls[n];
                 const src = cmsUrl || `/images/hero/mobile/hero-slide-${n}.jpg`;
+                const crop = heroSlideCrops[n] || { left: 0, right: 0 };
+                const isActive = activeSlide === i;
                 return (
-                  <img
-                    key={`mobile-${n}-${src}`}
-                    src={src}
-                    alt={`Hanemann Plastic Surgery Hero Mobile ${n}`}
-                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
-                    style={{
-                      objectPosition: heroMobilePosition,
-                      opacity: activeSlide === i ? 1 : 0,
-                    }}
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      // CMS upload failed → static jpg → static png → hide
-                      if (cmsUrl && img.src === cmsUrl) {
-                        img.src = `/images/hero/mobile/hero-slide-${n}.jpg`;
-                      } else if (img.src.endsWith('.jpg')) {
-                        img.src = img.src.replace('.jpg', '.png');
-                      } else {
-                        img.style.display = 'none';
-                      }
-                    }}
-                  />
+                  <React.Fragment key={`mobile-${n}-${src}`}>
+                    <img
+                      src={src}
+                      alt={`Hanemann Plastic Surgery Hero Mobile ${n}`}
+                      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+                      style={{
+                        objectPosition: heroMobilePosition,
+                        opacity: isActive ? 1 : 0,
+                      }}
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        if (cmsUrl && img.src === cmsUrl) {
+                          img.src = `/images/hero/mobile/hero-slide-${n}.jpg`;
+                        } else if (img.src.endsWith('.jpg')) {
+                          img.src = img.src.replace('.jpg', '.png');
+                        } else {
+                          img.style.display = 'none';
+                        }
+                      }}
+                    />
+                    {crop.left > 0 && (
+                      <div
+                        className="absolute inset-y-0 left-0 pointer-events-none transition-opacity duration-1000"
+                        style={{
+                          width: `${crop.left}%`,
+                          opacity: isActive ? 1 : 0,
+                          background: 'linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+                        }}
+                      />
+                    )}
+                    {crop.right > 0 && (
+                      <div
+                        className="absolute inset-y-0 right-0 pointer-events-none transition-opacity duration-1000"
+                        style={{
+                          width: `${crop.right}%`,
+                          opacity: isActive ? 1 : 0,
+                          background: 'linear-gradient(to left, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%)',
+                        }}
+                      />
+                    )}
+                  </React.Fragment>
                 );
               })}
             </div>
