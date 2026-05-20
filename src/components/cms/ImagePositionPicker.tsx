@@ -330,11 +330,13 @@ export function ImagePositionPicker({
   // object-position has to work with. When zoom === 1 and the image's aspect
   // matches the frame's, both ox and oy are zero — drag falls through to the
   // bleed branch.
-  // The desktop preview reserves the top DESKTOP_NAV_RATIO of the frame for a
-  // solid navy nav strip (no photo), so the usable photo height is reduced.
+  // The photo on the live home page fills the full viewport behind the
+  // opaque header. The preview mirrors that: the photo fills the full
+  // frame, and the navy nav strip is a simple overlay on top — it does
+  // NOT reduce the usable photo area.
   const getOverflow = useCallback(() => {
     const fw = type === 'mobile' ? PHONE_W : frameRect.w;
-    const fh = type === 'mobile' ? PHONE_H : frameRect.h * (1 - DESKTOP_NAV_RATIO);
+    const fh = type === 'mobile' ? PHONE_H : frameRect.h;
     if (!imgNatural.w || !imgNatural.h || !fw || !fh) return { ox: 0, oy: 0 };
 
     const imgR = imgNatural.w / imgNatural.h;
@@ -752,10 +754,16 @@ export function ImagePositionPicker({
                   onMouseDown={(e) => { e.preventDefault(); onDragStart(e.clientX, e.clientY); }}
                   onTouchStart={(e) => { const t = e.touches[0]; onDragStart(t.clientX, t.clientY); }}
                 >
-                  {/* ── Solid navy nav strip ────────────────────────────────
-                      Sits at the top of the frame BEFORE the photo, so the
-                      preview reflects the live layout where the photo
-                      begins right under the nav wording (not behind it). */}
+                  {/* Photo fills the FULL preview frame (matches live: the
+                      hero photo is h-screen behind the fixed header). */}
+                  {heroImage}
+                  {edgeBleed}
+                  {gradient}
+
+                  {/* ── Solid navy nav bar OVERLAY ──────────────────────────
+                      Sits on top of the photo at z-30 — mirrors the opaque
+                      header on the live site. The photo continues behind it
+                      but is covered cleanly by the navy strip. */}
                   <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none bg-[#1a1f2e]" style={{ height: `${DESKTOP_NAV_RATIO * 100}%` }}>
                     <div className="relative h-full flex flex-col">
                       <div className="flex-1 relative flex items-center justify-between px-5">
@@ -781,15 +789,6 @@ export function ImagePositionPicker({
                           <span key={tab} className="text-white/50 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
                         ))}
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Photo area sits BELOW the nav strip */}
-                  <div className="absolute left-0 right-0 bottom-0 overflow-hidden" style={{ top: `${DESKTOP_NAV_RATIO * 100}%` }}>
-                    <div className="relative w-full h-full">
-                      {heroImage}
-                      {edgeBleed}
-                      {gradient}
                     </div>
                   </div>
 

@@ -33,9 +33,12 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
     setMobileMenuOpen(false);
   };
 
-  // Header background class based on scroll state and page
+  // Header background class. Solid navy on the home page so the nav is its
+  // own independent navy bar — the photo lives behind it but is fully covered
+  // up there. On other pages and on scroll, fall back to the semi-transparent
+  // backdrop-blur treatment.
   const headerBgClass = isHomePage && !scrolled
-    ? 'bg-transparent'
+    ? 'bg-[#1a1f2e]'
     : 'bg-[#1a1f2e]/40 backdrop-blur-md shadow-lg';
 
   return (
