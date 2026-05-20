@@ -75,6 +75,37 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const [uploaderOpen, setUploaderOpen] = useState<'desktop' | 'mobile' | null>(null);
   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
   const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
+  // Live-measured height of the fixed <Header /> so the hero photo can
+  // start CLEANLY right under it (not behind it). Default 120 covers the
+  // typical desktop first-paint case; the measure callback fires within a
+  // few ms and snaps to the actual value with minimal visible shift.
+  const [headerHeight, setHeaderHeight] = useState<number>(() => {
+    if (typeof window === 'undefined') return 120;
+    return window.innerWidth >= 1024 ? 120 : window.innerWidth >= 768 ? 75 : 65;
+  });
+  useEffect(() => {
+    const measure = () => {
+      const el = document.querySelector('header');
+      if (el) {
+        const h = el.getBoundingClientRect().height;
+        if (h > 0) setHeaderHeight(h);
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro) {
+      const el = document.querySelector('header');
+      if (el) ro.observe(el);
+    }
+    const t = window.setTimeout(measure, 300);
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (ro) ro.disconnect();
+      window.clearTimeout(t);
+    };
+  }, []);
+
   // Hero slide URLs and crop bleeds. Lazy-init from localStorage so first
   // paint uses the right photo (no "flash" of the old static fallback before
   // the network fetch completes). Background-refreshed in loadHeroSlideUrls.
@@ -613,11 +644,16 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
         canonical="/"
       />
       {/* Hero Section - Full Screen
-          The fixed <Header /> renders a solid navy bar at the top on the
-          home page, so this section is just the photo: it fills the full
-          viewport, and the opaque nav bar naturally covers the top portion. */}
-      <section className="relative w-full overflow-hidden">
-        <div className="relative w-full h-screen min-h-[600px]">
+          Photo is placed BELOW the navy header — not behind it. A real
+          spacer sized to the measured header height pushes the photo
+          container down, and the container itself spans the remaining
+          viewport. Section bg-navy fills any seam below the fixed header. */}
+      <section className="relative w-full overflow-hidden bg-[#1a1f2e]">
+        <div style={{ height: `${headerHeight}px` }} aria-hidden="true" />
+        <div
+          className="relative w-full min-h-[500px]"
+          style={{ height: `calc(100vh - ${headerHeight}px)` }}
+        >
           {/* Single hero image - absolutely positioned to fill entire container */}
           <div className="absolute inset-0">
             

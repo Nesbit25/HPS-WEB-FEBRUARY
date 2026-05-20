@@ -330,13 +330,12 @@ export function ImagePositionPicker({
   // object-position has to work with. When zoom === 1 and the image's aspect
   // matches the frame's, both ox and oy are zero — drag falls through to the
   // bleed branch.
-  // The photo on the live home page fills the full viewport behind the
-  // opaque header. The preview mirrors that: the photo fills the full
-  // frame, and the navy nav strip is a simple overlay on top — it does
-  // NOT reduce the usable photo area.
+  // The live home photo lives in a container that starts BELOW the navy
+  // header. The preview mirrors that: the photo area is the frame minus
+  // the navy strip at top.
   const getOverflow = useCallback(() => {
     const fw = type === 'mobile' ? PHONE_W : frameRect.w;
-    const fh = type === 'mobile' ? PHONE_H : frameRect.h;
+    const fh = type === 'mobile' ? PHONE_H : frameRect.h * (1 - DESKTOP_NAV_RATIO);
     if (!imgNatural.w || !imgNatural.h || !fw || !fh) return { ox: 0, oy: 0 };
 
     const imgR = imgNatural.w / imgNatural.h;
@@ -754,41 +753,42 @@ export function ImagePositionPicker({
                   onMouseDown={(e) => { e.preventDefault(); onDragStart(e.clientX, e.clientY); }}
                   onTouchStart={(e) => { const t = e.touches[0]; onDragStart(t.clientX, t.clientY); }}
                 >
-                  {/* Photo fills the FULL preview frame (matches live: the
-                      hero photo is h-screen behind the fixed header). */}
-                  {heroImage}
-                  {edgeBleed}
-                  {gradient}
-
-                  {/* ── Solid navy nav bar OVERLAY ──────────────────────────
-                      Sits on top of the photo at z-30 — mirrors the opaque
-                      header on the live site. The photo continues behind it
-                      but is covered cleanly by the navy strip. */}
+                  {/* ── Solid navy nav strip ────────────────────────────────
+                      Sits at the top of the frame, OUTSIDE the photo area.
+                      Matches the live page: the photo container starts BELOW
+                      the header — the photo is not behind it. */}
                   <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none bg-[#1a1f2e]" style={{ height: `${DESKTOP_NAV_RATIO * 100}%` }}>
                     <div className="relative h-full flex flex-col">
                       <div className="flex-1 relative flex items-center justify-between px-5">
-                        {/* Left: social icon placeholders */}
                         <div className="flex gap-1.5 items-center">
                           {[0,1,2].map(i => (
                             <div key={i} className="w-3 h-3 rounded-full bg-white/30" />
                           ))}
                         </div>
-                        {/* Center: Logo wordmark */}
                         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
                           <span className="text-[#c9b896] font-serif text-sm tracking-[0.2em] leading-none">HANEMANN</span>
                           <span className="text-white/60 text-[6px] uppercase tracking-[0.3em]">Plastic Surgery</span>
                         </div>
-                        {/* Right: CTA button placeholder */}
                         <div className="bg-[#c9b896]/40 rounded-full px-2 py-0.5">
                           <span className="text-[#c9b896] text-[7px] uppercase tracking-wider">Consult</span>
                         </div>
                       </div>
-                      {/* Nav tabs row */}
                       <div className="flex items-center justify-center gap-3 px-5 pb-1">
                         {['About', 'Procedures', 'Gallery', 'Before & After', 'Contact'].map(tab => (
                           <span key={tab} className="text-white/50 text-[6px] uppercase tracking-wider whitespace-nowrap">{tab}</span>
                         ))}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Photo area — bounded BELOW the navy strip. The photo's
+                      object-position / zoom / bleed all live inside this
+                      smaller box, matching the live site exactly. */}
+                  <div className="absolute left-0 right-0 bottom-0 overflow-hidden" style={{ top: `${DESKTOP_NAV_RATIO * 100}%` }}>
+                    <div className="relative w-full h-full">
+                      {heroImage}
+                      {edgeBleed}
+                      {gradient}
                     </div>
                   </div>
 
