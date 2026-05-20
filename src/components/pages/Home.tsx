@@ -75,14 +75,49 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
   const [uploaderOpen, setUploaderOpen] = useState<'desktop' | 'mobile' | null>(null);
   const [heroDesktopPosition, setHeroDesktopPosition] = useState('center center');
   const [heroMobilePosition, setHeroMobilePosition] = useState('center 30%');
-  // Hero slide URLs sourced from the CMS (Photos tab → Hero Carousel Slide 1/2/3).
-  // Falls back to the static repo files in /public/images/hero/* when no upload exists.
-  const [heroSlideUrls, setHeroSlideUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
-  // Per-slide edge-crop bleeds (left/right) set by the admin in the hero editor.
-  const [heroSlideCrops, setHeroSlideCrops] = useState<Record<number, { left: number; right: number }>>({
-    1: { left: 0, right: 0 },
-    2: { left: 0, right: 0 },
-    3: { left: 0, right: 0 },
+  // Hero slide URLs and crop bleeds. Lazy-init from localStorage so first
+  // paint uses the right photo (no "flash" of the old static fallback before
+  // the network fetch completes). Background-refreshed in loadHeroSlideUrls.
+  const [heroSlideUrls, setHeroSlideUrls] = useState<Record<number, string | null>>(() => {
+    if (typeof window === 'undefined') return { 1: null, 2: null, 3: null };
+    try {
+      const raw = localStorage.getItem('home_hero_slide_urls');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            1: typeof parsed['1'] === 'string' ? parsed['1'] : null,
+            2: typeof parsed['2'] === 'string' ? parsed['2'] : null,
+            3: typeof parsed['3'] === 'string' ? parsed['3'] : null,
+          };
+        }
+      }
+    } catch { /* ignore */ }
+    return { 1: null, 2: null, 3: null };
+  });
+  const [heroSlideCrops, setHeroSlideCrops] = useState<Record<number, { left: number; right: number }>>(() => {
+    const empty = { 1: { left: 0, right: 0 }, 2: { left: 0, right: 0 }, 3: { left: 0, right: 0 } };
+    if (typeof window === 'undefined') return empty;
+    try {
+      const raw = localStorage.getItem('home_hero_slide_crops');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const out: Record<number, { left: number; right: number }> = { ...empty };
+          for (const n of [1, 2, 3]) {
+            const c = parsed[String(n)];
+            if (c && typeof c.left === 'number' && typeof c.right === 'number') {
+              out[n] = {
+                left: Math.max(0, Math.min(50, c.left)),
+                right: Math.max(0, Math.min(50, c.right)),
+              };
+            }
+          }
+          return out;
+        }
+      }
+    } catch { /* ignore */ }
+    return empty;
   });
 
   // Service card images state - loaded from database
@@ -189,6 +224,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       const nextImages: Record<number, string | null> = { 1: null, 2: null, 3: null };
       for (const [n, url] of imageResults) nextImages[n] = url;
       setHeroSlideUrls(nextImages);
+      try {
+        localStorage.setItem('home_hero_slide_urls', JSON.stringify(nextImages));
+      } catch { /* quota / private mode — non-fatal */ }
 
       // Slide crop bleeds
       const cropResults = await Promise.all(
@@ -217,6 +255,9 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       };
       for (const [n, c] of cropResults) nextCrops[n] = c;
       setHeroSlideCrops(nextCrops);
+      try {
+        localStorage.setItem('home_hero_slide_crops', JSON.stringify(nextCrops));
+      } catch { /* quota / private mode — non-fatal */ }
     } catch (error) {
       console.error('Error loading hero slide URLs:', error);
     }
