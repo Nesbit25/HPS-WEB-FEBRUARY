@@ -93,7 +93,7 @@ export function AdminEditPanel({ onNavigateToPortal, onNavigateHome, onAdjustHer
                   </div>
                 </div>
 
-                {/* Hero Image Position Controls */}
+                {/* Hero Image Controls — upload + position in one dialog, per slide */}
                 {onAdjustHeroPosition && (
                   <>
                     <Button
@@ -107,8 +107,8 @@ export function AdminEditPanel({ onNavigateToPortal, onNavigateHome, onAdjustHer
                     >
                       <Image className="w-5 h-5 mr-3 text-secondary" />
                       <div className="text-left">
-                        <div className="font-medium">Adjust Desktop Hero Image</div>
-                        <div className="text-xs text-muted-foreground font-normal">Change position & focal point</div>
+                        <div className="font-medium">Edit Desktop Hero</div>
+                        <div className="text-xs text-muted-foreground font-normal">Upload or reposition each slide</div>
                       </div>
                     </Button>
                     <Button
@@ -122,29 +122,15 @@ export function AdminEditPanel({ onNavigateToPortal, onNavigateHome, onAdjustHer
                     >
                       <Image className="w-5 h-5 mr-3 text-secondary" />
                       <div className="text-left">
-                        <div className="font-medium">Adjust Mobile Hero Image</div>
-                        <div className="text-xs text-muted-foreground font-normal">Change position & focal point</div>
+                        <div className="font-medium">Edit Mobile Hero</div>
+                        <div className="text-xs text-muted-foreground font-normal">Upload or reposition each slide</div>
                       </div>
                     </Button>
                   </>
                 )}
 
-                {/* Hero Image Upload guidance — direct staff to the Photos tab.
-                    The previous "Upload Desktop/Mobile Hero Image" buttons wrote
-                    to KV keys that the hero never reads, so they appeared to
-                    succeed but nothing changed on the site. The Photos tab in
-                    the Admin Dashboard is the canonical place to swap hero
-                    images (display locations: Hero Carousel - Slide 1/2/3). */}
-                {onUploadHeroImage && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900">
-                    <p className="font-medium mb-1">Need to swap a hero photo?</p>
-                    <p>
-                      Use the <span className="font-medium">Admin Dashboard → Photos</span> tab.
-                      Upload your image and pick <span className="font-medium">Hero Carousel - Slide 1, 2, or 3</span>
-                      &nbsp;as the display location. One high-quality landscape image works for both desktop and mobile.
-                    </p>
-                  </div>
-                )}
+                {/* Hero photo uploads now happen inside the Edit Desktop/Mobile
+                    Hero dialogs above (each slide has its own upload button). */}
 
                 {/* Info Card */}
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">

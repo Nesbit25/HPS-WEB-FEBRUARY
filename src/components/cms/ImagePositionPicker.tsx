@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Save, RotateCcw, Monitor, Smartphone } from 'lucide-react';
+import { X, Save, RotateCcw, Monitor, Smartphone, Upload } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -52,12 +52,19 @@ export function ImagePositionPicker({
   const [showHint, setShowHint] = useState(true);
   const [imgNatural, setImgNatural] = useState({ w: 0, h: 0 });
   const [frameRect, setFrameRect] = useState({ w: 0, h: 0 });
+  // CMS-stored image URL for each slide. Loaded on open; null falls back to the
+  // static repo file under /images/hero/{type}/hero-slide-N.jpg.
+  const [slideImageUrls, setSlideImageUrls] = useState<Record<number, string | null>>({ 1: null, 2: null, 3: null });
+  const [uploading, setUploading] = useState(false);
 
   const dragRef = useRef({ startX: 0, startY: 0, startXPct: 50, startYPct: 50 });
   const frameRef = useRef<HTMLDivElement>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout>>();
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
-  const imageSrc = `/images/hero/${type}/hero-slide-${activeSlide}.jpg`;
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
+  const staticFallback = `/images/hero/${type}/hero-slide-${activeSlide}.jpg`;
+  const imageSrc = slideImageUrls[activeSlide] || staticFallback;
 
   // Sync from prop on open
   useEffect(() => {
@@ -71,6 +78,125 @@ export function ImagePositionPicker({
     }
     return () => clearTimeout(hintTimer.current);
   }, [isOpen, currentPosition]);
+
+  // Load the current CMS-stored image for each slide whenever the dialog opens
+  // so the picker shows the photo that's actually live on the site (instead of
+  // the original static repo file).
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_image_${n}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+            });
+            if (!res.ok) return [n, null] as const;
+            const data = await res.json();
+            const value = data?.content?.value;
+            return [n, typeof value === 'string' && value.length > 0 ? value : null] as const;
+          } catch {
+            return [n, null] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      const next: Record<number, string | null> = { 1: null, 2: null, 3: null };
+      for (const [n, url] of results) next[n] = url;
+      setSlideImageUrls(next);
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, serverUrl]);
+
+  // Compress an image to a reasonable size before upload.
+  const compressImage = (file: File, maxW = 1920, maxH = 1280, quality = 0.82): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > maxW || h > maxH) {
+            const r = w / h;
+            if (r > maxW / maxH) { w = maxW; h = Math.round(w / r); }
+            else { h = maxH; w = Math.round(h * r); }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('No canvas context'));
+          ctx.drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL('image/jpeg', quality);
+          resolve(base64.split(',')[1]);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Upload a photo for the currently-selected slide and immediately reflect it
+  // in the preview. The site picks up the change on next reload (or now if the
+  // user just opens the page again).
+  const handleUploadForSlide = async (file: File) => {
+    if (!file || !accessToken) {
+      alert('You need to be signed in as an admin to upload.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const base64Data = await compressImage(file);
+      const uploadRes = await fetch(`${serverUrl}/photos/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName: `hero-slide-${activeSlide}-${Date.now()}.jpg`,
+          fileData: base64Data,
+          category: 'facility',
+          title: `Hero Slide ${activeSlide}`,
+          caption: `Uploaded for hero carousel slide ${activeSlide}`,
+          displayLocation: `home_hero_image_${activeSlide}`,
+          status: 'published',
+          featured: false,
+        }),
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.text();
+        throw new Error(`Upload failed (${uploadRes.status}): ${err}`);
+      }
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success || !uploadData.publicUrl) {
+        throw new Error('Upload response missing publicUrl');
+      }
+      // Persist the new URL to the content key the home hero reads from.
+      const saveRes = await fetch(`${serverUrl}/content/home_hero_image_${activeSlide}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ value: uploadData.publicUrl }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.text();
+        throw new Error(`Could not save image URL (${saveRes.status}): ${err}`);
+      }
+      // Reflect in the picker immediately.
+      setSlideImageUrls(prev => ({ ...prev, [activeSlide]: uploadData.publicUrl }));
+      setImgNatural({ w: 0, h: 0 }); // force re-measure on next load
+    } catch (err: any) {
+      console.error('[ImagePositionPicker] Upload error:', err);
+      alert(err?.message || 'Failed to upload image.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Measure frame after render (needed for desktop responsive width)
   useEffect(() => {
@@ -202,8 +328,11 @@ export function ImagePositionPicker({
   const { ox, oy } = getOverflow();
 
   // ─── Shared image / overlay JSX ──────────────────────────────────────────
+  // `key` forces a fresh load when the source URL changes (slide switch or
+  // upload completion) so we get a correct natural-size measurement.
   const heroImage = (
     <img
+      key={imageSrc}
       src={imageSrc}
       alt="Hero preview"
       className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
@@ -215,7 +344,12 @@ export function ImagePositionPicker({
       }}
       onError={(e) => {
         const img = e.target as HTMLImageElement;
-        if (img.src.endsWith('.jpg')) img.src = img.src.replace('.jpg', '.png');
+        // CMS URL failed → fall back to the static repo file.
+        if (slideImageUrls[activeSlide] && img.src === slideImageUrls[activeSlide]) {
+          img.src = staticFallback;
+        } else if (img.src.endsWith('.jpg')) {
+          img.src = img.src.replace('.jpg', '.png');
+        }
       }}
     />
   );
@@ -522,16 +656,54 @@ export function ImagePositionPicker({
                   <button
                     key={n}
                     onClick={() => setActiveSlide(n)}
-                    className="py-2 rounded-lg text-sm font-medium transition-all duration-200"
+                    className="py-2 rounded-lg text-sm font-medium transition-all duration-200 relative"
                     style={{
                       background: activeSlide === n ? '#c9b896' : 'rgba(255,255,255,0.05)',
                       color: activeSlide === n ? '#fff' : 'rgba(255,255,255,0.45)',
                     }}
                   >
                     {n}
+                    {slideImageUrls[n] && (
+                      <span
+                        className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        title="Custom image uploaded"
+                      />
+                    )}
                   </button>
                 ))}
               </div>
+              <p className="text-gray-600 text-[9px] mt-2">
+                Green dot = custom uploaded image. No dot = default image from the site files.
+              </p>
+            </div>
+
+            {/* Upload new image for this slide */}
+            <div className="p-4 border-b border-white/8">
+              <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-2.5 font-semibold">
+                Photo for Slide {activeSlide}
+              </p>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadForSlide(file);
+                  if (e.target) e.target.value = '';
+                }}
+              />
+              <button
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#c9b896]/15 hover:bg-[#c9b896]/25 text-[#c9b896] text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {uploading ? 'Uploading…' : (slideImageUrls[activeSlide] ? 'Replace Photo' : 'Upload Photo')}
+              </button>
+              <p className="text-gray-600 text-[9px] mt-2 leading-relaxed">
+                Pick a wide (landscape) photo. One image covers both desktop and mobile — the position controls below let you fine-tune the crop for each device.
+              </p>
             </div>
 
             {/* Sliders */}
