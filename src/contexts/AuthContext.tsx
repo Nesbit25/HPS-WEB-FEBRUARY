@@ -5,7 +5,13 @@ interface AuthContextType {
   isAdmin: boolean;
   user: any | null;
   accessToken: string | null;
+  /** Legacy password sign-in — kept for the test account and any account
+      that hasn't moved to OTP yet. */
   login: (email: string, password: string) => Promise<void>;
+  /** Send a 6-digit one-time code to the given email address. */
+  sendLoginCode: (email: string) => Promise<void>;
+  /** Verify the 6-digit code returned by `sendLoginCode`. */
+  verifyLoginCode: (email: string, code: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -15,6 +21,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   accessToken: null,
   login: async () => {},
+  sendLoginCode: async () => {},
+  verifyLoginCode: async () => {},
   logout: () => {},
   loading: true,
 });
@@ -117,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         setAccessToken(session.access_token);
         setIsAdmin(true);
-        
+
         // Store in localStorage
         localStorage.setItem('admin_token', session.access_token);
         localStorage.setItem('admin_user', JSON.stringify(session.user));
@@ -125,6 +133,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Login error:', error);
       throw error;
+    }
+  };
+
+  /** Send a 6-digit one-time code to the given email.
+      `shouldCreateUser: false` prevents random people from registering
+      themselves by guessing an email — only emails that already exist
+      in Supabase Auth will receive a code. */
+  const sendLoginCode = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    if (error) {
+      console.error('OTP send error:', error);
+      throw error;
+    }
+  };
+
+  /** Verify the 6-digit code returned by `sendLoginCode`. On success the
+      onAuthStateChange listener above flips isAdmin / accessToken / user. */
+  const verifyLoginCode = async (email: string, code: string) => {
+    const { data: { session }, error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'email',
+    });
+    if (error) {
+      console.error('OTP verify error:', error);
+      throw error;
+    }
+    if (session) {
+      setUser(session.user);
+      setAccessToken(session.access_token);
+      setIsAdmin(true);
+      localStorage.setItem('admin_token', session.access_token);
+      localStorage.setItem('admin_user', JSON.stringify(session.user));
     }
   };
 
@@ -144,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAdmin, user, accessToken, login, logout, loading }}>
+    <AuthContext.Provider value={{ isAdmin, user, accessToken, login, sendLoginCode, verifyLoginCode, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

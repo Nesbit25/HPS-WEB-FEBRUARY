@@ -10,7 +10,8 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Checkbox } from '../ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
-import { usePatientAuth } from '../../contexts/PatientAuthContext';
+// Patient portal removed — form submissions are now fully anonymous (no
+// user prefill). The previous usePatientAuth integration is gone.
 
 interface PatientFormDetailProps {
   onNavigate: (page: string) => void;
@@ -18,7 +19,6 @@ interface PatientFormDetailProps {
 
 export function PatientFormDetail({ onNavigate }: PatientFormDetailProps) {
   const { id: formId } = useParams<{ id: string }>();
-  const { user } = usePatientAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -154,17 +154,8 @@ export function PatientFormDetail({ onNavigate }: PatientFormDetailProps) {
         formTitle: currentForm.title
       };
       
-      // Add user ID if logged in
-      if (user) {
-        data.userId = user.id;
-        // Auto-fill firstName and lastName from user profile if not in form
-        if (!formData.has('firstName') && user.firstName) {
-          data.firstName = user.firstName;
-        }
-        if (!formData.has('lastName') && user.lastName) {
-          data.lastName = user.lastName;
-        }
-      }
+      // (Previously prefilled from the logged-in patient user — the patient
+      // portal has been removed, so all submissions are now anonymous.)
       
       // Convert FormData to object
       formData.forEach((value, key) => {

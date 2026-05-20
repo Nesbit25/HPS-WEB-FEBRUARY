@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, useParams } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { PatientAuthProvider, usePatientAuth } from './contexts/PatientAuthContext';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { HelmetProvider } from 'react-helmet-async';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -21,8 +20,7 @@ import { PatientForms } from './components/pages/PatientForms';
 import { PatientFormDetail } from './components/pages/PatientFormDetail';
 import { AdminLogin } from './components/pages/AdminLogin';
 import { AdminDashboard } from './components/pages/AdminDashboard';
-import { PatientAuth } from './components/patient/PatientAuth';
-import { PatientDashboard } from './components/patient/PatientDashboard';
+// Patient portal removed entirely — components, context, and routes deleted.
 import { ConsultationDialog } from './components/ConsultationDialog';
 import { NewsletterDialog } from './components/NewsletterDialog';
 import { QuickContactDialog } from './components/QuickContactDialog';
@@ -37,11 +35,9 @@ export default function App() {
     <HelmetProvider>
       <BrowserRouter>
         <AuthProvider>
-          <PatientAuthProvider>
-            <EditModeProvider>
-              <AppContent />
-            </EditModeProvider>
-          </PatientAuthProvider>
+          <EditModeProvider>
+            <AppContent />
+          </EditModeProvider>
         </AuthProvider>
       </BrowserRouter>
     </HelmetProvider>
@@ -68,7 +64,6 @@ function GalleryWithParams({ onNavigate }: { onNavigate: (page: string) => void 
 
 function AppContent() {
   const { isAdmin, user, accessToken, logout } = useAuth();
-  const { user: patientUser } = usePatientAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [consultationOpen, setConsultationOpen] = useState(false);
@@ -76,9 +71,9 @@ function AppContent() {
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [heroPositionRequest, setHeroPositionRequest] = useState<'desktop' | 'mobile' | null>(null);
   const [heroUploadRequest, setHeroUploadRequest] = useState<'desktop' | 'mobile' | null>(null);
-  
-  // Initialize analytics tracking (will use patient user ID if available)
-  const { trackClick } = useAnalytics(patientUser?.id);
+
+  // Analytics now tracks against the admin user (if signed in) or anonymously.
+  const { trackClick } = useAnalytics(user?.id);
   
   const handleNavigate = (page: string) => {
     const routeMap: Record<string, string> = {

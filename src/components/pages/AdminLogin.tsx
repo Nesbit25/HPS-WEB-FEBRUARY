@@ -5,9 +5,8 @@ import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Alert } from '../ui/alert';
 import { CircleAccent, GeometricPattern, AccentLine } from '../DecorativeElements';
-import { Lock, Mail, UserPlus, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, ArrowLeft, KeyRound } from 'lucide-react';
 import { getSupabaseClient } from '../../utils/supabase/client';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface AdminLoginProps {
@@ -15,74 +14,72 @@ interface AdminLoginProps {
   onBackToWebsite?: () => void;
 }
 
+type Mode = 'otp-email' | 'otp-code' | 'password';
+
 export function AdminLogin({ onLoginSuccess, onBackToWebsite }: AdminLoginProps) {
-  const { login } = useAuth();
+  const { login, sendLoginCode, verifyLoginCode } = useAuth();
+  const [mode, setMode] = useState<Mode>('otp-email');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleCreateTestUser = async () => {
+  const finishLogin = async () => {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      onLoginSuccess(session.access_token, session.user);
+    }
+  };
+
+  const handleSendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    setSuccessMessage('');
+    setInfo('');
     setLoading(true);
-
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-fc862019/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({
-          email: 'test@hanemannplasticsurgery.com',
-          password: 'Password',
-          name: 'Test User'
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.error?.includes('already registered') || data.error?.includes('already been registered')) {
-          setSuccessMessage('Test user already exists! You can now log in.');
-        } else {
-          setError(data.error || 'Failed to create test user');
-        }
-      } else {
-        setSuccessMessage('Test user created successfully! You can now log in.');
-      }
+      await sendLoginCode(email.trim());
+      setInfo(`We sent a 6-digit code to ${email.trim()}. Check your inbox (and spam folder).`);
+      setMode('otp-code');
     } catch (err: any) {
-      console.error('Create user error:', err);
-      setError('Failed to create test user');
+      console.error('Send code error:', err);
+      const msg = err?.message || 'Could not send a code to that address.';
+      if (/signups not allowed|user not found|not allowed/i.test(msg)) {
+        setError("That email isn't set up for admin access yet. Contact your administrator.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      console.log('Attempting login with:', { email, password: '***' });
+      await verifyLoginCode(email.trim(), code.trim());
+      await finishLogin();
+    } catch (err: any) {
+      console.error('Verify code error:', err);
+      setError(err?.message || 'That code didn’t work. Try again or request a new one.');
+      setLoading(false);
+    }
+  };
 
-      await login(email, password);
-      
-      console.log('Login successful via Auth context');
-      
-      // Get the session to pass to the callback
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        onLoginSuccess(session.access_token, session.user);
-      }
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await login(email.trim(), password);
+      await finishLogin();
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please try again.');
+      setError(err?.message || 'Login failed. Please try again.');
       setLoading(false);
     }
   };
@@ -90,8 +87,7 @@ export function AdminLogin({ onLoginSuccess, onBackToWebsite }: AdminLoginProps)
   return (
     <div className="min-h-screen bg-gradient-to-br from-muted via-secondary/10 to-muted flex items-center justify-center p-6 relative overflow-hidden">
       <GeometricPattern opacity={0.04} />
-      
-      {/* Back to Website Button */}
+
       {onBackToWebsite && (
         <Button
           variant="ghost"
@@ -102,7 +98,7 @@ export function AdminLogin({ onLoginSuccess, onBackToWebsite }: AdminLoginProps)
           Back to Website
         </Button>
       )}
-      
+
       <div className="w-full max-w-md relative">
         <div className="text-center mb-8">
           <CircleAccent size="md" className="mx-auto mb-4" />
@@ -112,7 +108,6 @@ export function AdminLogin({ onLoginSuccess, onBackToWebsite }: AdminLoginProps)
         </div>
 
         <Card className="border-2 border-secondary/20 rounded-2xl overflow-hidden shadow-2xl relative">
-          {/* Gold accent corners */}
           <div className="absolute top-0 left-0 w-16 h-16 pointer-events-none">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary to-transparent"></div>
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-secondary to-transparent"></div>
@@ -125,94 +120,177 @@ export function AdminLogin({ onLoginSuccess, onBackToWebsite }: AdminLoginProps)
           <CardHeader className="p-8 pb-4">
             <div className="flex items-center justify-center mb-2">
               <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
-                <Lock className="w-6 h-6 text-secondary" />
-              </div>
-            </div>
-            <h2 className="text-center mb-2">Sign In</h2>
-            <p className="text-center text-muted-foreground text-sm">Enter your credentials to access the portal</p>
-          </CardHeader>
-
-          <CardContent className="p-8 pt-4">
-            <form onSubmit={handleLogin} className="space-y-6">
-              {error && (
-                <Alert className="bg-red-50 border-red-200 text-red-800">
-                  <p className="text-sm">{error}</p>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="admin@hanemannplasticsurgery.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 rounded-xl border-border focus:border-secondary"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-foreground">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 rounded-xl border-border focus:border-secondary"
-                    required
-                  />
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full rounded-full bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-105 relative group overflow-hidden"
-                disabled={loading}
-              >
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-card/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" style={{ transitionDuration: '1s' }}></span>
-                <span className="relative">{loading ? 'Signing In...' : 'Sign In'}</span>
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-xs text-muted-foreground">
-                For security purposes, please contact IT if you need access credentials.
-              </p>
-              <div className="mt-3 p-3 bg-secondary/10 rounded-lg border border-secondary/20">
-                <p className="text-xs font-medium text-secondary mb-1">Demo Account</p>
-                <p className="text-xs text-muted-foreground">
-                  Email: <span className="font-mono">test@hanemannplasticsurgery.com</span><br />
-                  Password: <span className="font-mono">Password</span>
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-2 w-full rounded-full bg-secondary hover:bg-secondary/90 transition-all duration-300 hover:scale-105 relative group overflow-hidden"
-                  disabled={loading}
-                  onClick={handleCreateTestUser}
-                >
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-card/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" style={{ transitionDuration: '1s' }}></span>
-                  <span className="relative flex items-center">
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    {loading ? 'Creating...' : 'Create Test User'}
-                  </span>
-                </Button>
-                {successMessage && (
-                  <Alert className="bg-green-50 border-green-200 text-green-800 mt-2">
-                    <p className="text-sm">{successMessage}</p>
-                  </Alert>
+                {mode === 'password' ? (
+                  <Lock className="w-6 h-6 text-secondary" />
+                ) : (
+                  <KeyRound className="w-6 h-6 text-secondary" />
                 )}
               </div>
             </div>
+            <h2 className="text-center mb-2">
+              {mode === 'otp-email' && 'Sign In'}
+              {mode === 'otp-code' && 'Enter Your Code'}
+              {mode === 'password' && 'Sign In with Password'}
+            </h2>
+            <p className="text-center text-muted-foreground text-sm">
+              {mode === 'otp-email' && "We'll email you a 6-digit code."}
+              {mode === 'otp-code' && 'Type the 6-digit code we just emailed you.'}
+              {mode === 'password' && 'Enter your email and password.'}
+            </p>
+          </CardHeader>
+
+          <CardContent className="p-8 pt-4">
+            {error && (
+              <Alert className="bg-red-50 border-red-200 text-red-800 mb-4">
+                <p className="text-sm">{error}</p>
+              </Alert>
+            )}
+            {info && (
+              <Alert className="bg-green-50 border-green-200 text-green-800 mb-4">
+                <p className="text-sm">{info}</p>
+              </Alert>
+            )}
+
+            {mode === 'otp-email' && (
+              <form onSubmit={handleSendCode} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-foreground">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@hanemannplasticsurgery.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 rounded-xl border-border focus:border-secondary"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full rounded-full bg-primary hover:bg-primary/90 transition-all duration-300"
+                  disabled={loading || !email.trim()}
+                >
+                  {loading ? 'Sending code…' : 'Send me a code'}
+                </Button>
+              </form>
+            )}
+
+            {mode === 'otp-code' && (
+              <form onSubmit={handleVerifyCode} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="code" className="text-foreground">6-Digit Code</Label>
+                  <Input
+                    id="code"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    className="text-center text-2xl tracking-[0.5em] rounded-xl border-border focus:border-secondary"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sent to <span className="font-medium">{email}</span>.{' '}
+                    <button
+                      type="button"
+                      className="underline hover:text-secondary"
+                      onClick={() => {
+                        setCode('');
+                        setError('');
+                        setInfo('');
+                        setMode('otp-email');
+                      }}
+                    >
+                      Use a different email
+                    </button>
+                  </p>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full rounded-full bg-primary hover:bg-primary/90 transition-all duration-300"
+                  disabled={loading || code.length !== 6}
+                >
+                  {loading ? 'Verifying…' : 'Verify & Sign In'}
+                </Button>
+              </form>
+            )}
+
+            {mode === 'password' && (
+              <form onSubmit={handlePasswordLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-foreground">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@hanemannplasticsurgery.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-10 rounded-xl border-border focus:border-secondary"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-foreground">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-10 rounded-xl border-border focus:border-secondary"
+                      autoComplete="current-password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full rounded-full bg-primary hover:bg-primary/90 transition-all duration-300"
+                  disabled={loading || !email.trim() || !password}
+                >
+                  {loading ? 'Signing In…' : 'Sign In'}
+                </Button>
+              </form>
+            )}
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-secondary underline"
+                onClick={() => {
+                  setError('');
+                  setInfo('');
+                  setCode('');
+                  setPassword('');
+                  setMode(mode === 'password' ? 'otp-email' : 'password');
+                }}
+              >
+                {mode === 'password' ? 'Use a 6-digit code instead' : 'Use a password instead'}
+              </button>
+            </div>
+
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Need access? Contact your administrator.
+            </p>
           </CardContent>
         </Card>
 
