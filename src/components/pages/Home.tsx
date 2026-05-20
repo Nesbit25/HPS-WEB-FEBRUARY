@@ -119,6 +119,27 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
     } catch { /* ignore */ }
     return empty;
   });
+  // Per-slide zoom (1.0–1.6). > 1 means the image is rendered larger than the
+  // frame so the focal-point position actually shifts the image.
+  const [heroSlideZooms, setHeroSlideZooms] = useState<Record<number, number>>(() => {
+    const empty = { 1: 1, 2: 1, 3: 1 };
+    if (typeof window === 'undefined') return empty;
+    try {
+      const raw = localStorage.getItem('home_hero_slide_zooms');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const out: Record<number, number> = { ...empty };
+          for (const n of [1, 2, 3]) {
+            const v = parsed[String(n)];
+            if (typeof v === 'number' && v >= 1 && v <= 1.6) out[n] = v;
+          }
+          return out;
+        }
+      }
+    } catch { /* ignore */ }
+    return empty;
+  });
 
   // Service card images state - loaded from database
   const [serviceImages, setServiceImages] = useState<Record<string, string>>({});
@@ -257,6 +278,33 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
       setHeroSlideCrops(nextCrops);
       try {
         localStorage.setItem('home_hero_slide_crops', JSON.stringify(nextCrops));
+      } catch { /* quota / private mode — non-fatal */ }
+
+      // Slide zoom levels
+      const zoomResults = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_zoom_${n}?t=${ts}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
+            });
+            if (!res.ok) return [n, 1] as const;
+            const data = await res.json();
+            let v: any = data?.content?.value;
+            if (typeof v === 'string') {
+              const parsed = parseFloat(v);
+              if (!isNaN(parsed)) v = parsed;
+            }
+            if (typeof v === 'number' && v >= 1 && v <= 1.6) return [n, v] as const;
+          } catch { /* fall through */ }
+          return [n, 1] as const;
+        })
+      );
+      const nextZooms: Record<number, number> = { 1: 1, 2: 1, 3: 1 };
+      for (const [n, z] of zoomResults) nextZooms[n] = z;
+      setHeroSlideZooms(nextZooms);
+      try {
+        localStorage.setItem('home_hero_slide_zooms', JSON.stringify(nextZooms));
       } catch { /* quota / private mode — non-fatal */ }
     } catch (error) {
       console.error('Error loading hero slide URLs:', error);
@@ -578,6 +626,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 const cmsUrl = heroSlideUrls[n];
                 const src = cmsUrl || `/images/hero/desktop/hero-slide-${n}.jpg`;
                 const crop = heroSlideCrops[n] || { left: 0, right: 0 };
+                const zoom = heroSlideZooms[n] || 1;
                 const isActive = activeSlide === i;
                 return (
                   <React.Fragment key={`desktop-${n}-${src}`}>
@@ -587,6 +636,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                       style={{
                         objectPosition: heroDesktopPosition,
+                        transform: `scale(${zoom})`,
+                        transformOrigin: heroDesktopPosition,
                         opacity: isActive ? 1 : 0,
                       }}
                       onError={(e) => {
@@ -632,6 +683,7 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                 const cmsUrl = heroSlideUrls[n];
                 const src = cmsUrl || `/images/hero/mobile/hero-slide-${n}.jpg`;
                 const crop = heroSlideCrops[n] || { left: 0, right: 0 };
+                const zoom = heroSlideZooms[n] || 1;
                 const isActive = activeSlide === i;
                 return (
                   <React.Fragment key={`mobile-${n}-${src}`}>
@@ -641,6 +693,8 @@ export function Home({ onNavigate, onOpenConsultation, heroPositionRequest, onHe
                       className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
                       style={{
                         objectPosition: heroMobilePosition,
+                        transform: `scale(${zoom})`,
+                        transformOrigin: heroMobilePosition,
                         opacity: isActive ? 1 : 0,
                       }}
                       onError={(e) => {

@@ -63,6 +63,11 @@ export function ImagePositionPicker({
     2: { left: 0, right: 0 },
     3: { left: 0, right: 0 },
   });
+  // Per-slide zoom (1.0–1.6). > 1.0 scales the photo larger than the frame,
+  // which creates the overflow that lets the position controls (drag + sliders)
+  // actually move the image around when its native aspect ratio matches the
+  // frame.
+  const [slideZooms, setSlideZooms] = useState<Record<number, number>>({ 1: 1, 2: 1, 3: 1 });
   const [uploading, setUploading] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -75,6 +80,10 @@ export function ImagePositionPicker({
         right: typeof next.right === 'number' ? clamp(next.right, 0, 50) : prev[activeSlide]?.right ?? 0,
       },
     }));
+  };
+  const currentZoom = slideZooms[activeSlide] ?? 1;
+  const setZoomForActiveSlide = (z: number) => {
+    setSlideZooms(prev => ({ ...prev, [activeSlide]: clamp(z, 1, 1.6) }));
   };
 
   const dragRef = useRef({ startX: 0, startY: 0, startXPct: 50, startYPct: 50 });
@@ -153,6 +162,27 @@ export function ImagePositionPicker({
         })
       );
 
+      // Per-slide zoom (1.0–1.6)
+      const zoomResults = await Promise.all(
+        [1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`${serverUrl}/content/home_hero_zoom_${n}?t=${ts}`, {
+              headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+              cache: 'no-store',
+            });
+            if (!res.ok) return [n, 1] as const;
+            const data = await res.json();
+            let v: any = data?.content?.value;
+            if (typeof v === 'string') {
+              const parsed = parseFloat(v);
+              if (!isNaN(parsed)) v = parsed;
+            }
+            if (typeof v === 'number' && v >= 1 && v <= 1.6) return [n, v] as const;
+          } catch { /* fall through */ }
+          return [n, 1] as const;
+        })
+      );
+
       if (cancelled) return;
 
       const nextImages: Record<number, string | null> = { 1: null, 2: null, 3: null };
@@ -164,6 +194,10 @@ export function ImagePositionPicker({
       };
       for (const [n, c] of cropResults) nextCrops[n] = c;
       setSlideCrops(nextCrops);
+
+      const nextZooms: Record<number, number> = { 1: 1, 2: 1, 3: 1 };
+      for (const [n, z] of zoomResults) nextZooms[n] = z;
+      setSlideZooms(nextZooms);
     })();
     return () => { cancelled = true; };
   }, [isOpen, serverUrl]);
@@ -290,6 +324,10 @@ export function ImagePositionPicker({
   }, [isOpen]);
 
   // ─── Compute pan overflow ─────────────────────────────────────────────────
+  // Zoom multiplies the rendered image size, which inflates the overflow that
+  // object-position has to work with. When zoom === 1 and the image's aspect
+  // matches the frame's, both ox and oy are zero — drag falls through to the
+  // bleed branch.
   const getOverflow = useCallback(() => {
     const fw = type === 'mobile' ? PHONE_W : frameRect.w;
     const fh = type === 'mobile' ? PHONE_H : frameRect.h;
@@ -300,16 +338,17 @@ export function ImagePositionPicker({
     let dW: number, dH: number;
 
     if (imgR > frmR) {
-      // Image is wider relative to frame → fits height, overflows width
       dH = fh;
       dW = fh * imgR;
     } else {
-      // Image is taller relative to frame → fits width, overflows height
       dW = fw;
       dH = fw / imgR;
     }
+    // Apply zoom — the rendered image is currentZoom × the cover-fit size.
+    dW *= currentZoom;
+    dH *= currentZoom;
     return { ox: Math.max(0, dW - fw), oy: Math.max(0, dH - fh) };
-  }, [imgNatural, frameRect, type]);
+  }, [imgNatural, frameRect, type, currentZoom]);
 
   // ─── Drag logic ───────────────────────────────────────────────────────────
   const dragStartCropRef = useRef({ left: 0, right: 0 });
@@ -434,6 +473,16 @@ export function ImagePositionPicker({
             body: JSON.stringify({ value: slideCrops[n] || { left: 0, right: 0 } }),
           })
         );
+        writes.push(
+          fetch(`${serverUrl}/content/home_hero_zoom_${n}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken ?? publicAnonKey}`,
+            },
+            body: JSON.stringify({ value: slideZooms[n] ?? 1 }),
+          })
+        );
       }
       await Promise.all(writes);
       onSave(positionString);
@@ -453,13 +502,20 @@ export function ImagePositionPicker({
   // ─── Shared image / overlay JSX ──────────────────────────────────────────
   // `key` forces a fresh load when the source URL changes (slide switch or
   // upload completion) so we get a correct natural-size measurement.
+  // transform: scale(zoom) makes the image render larger than the frame, which
+  // creates the overflow object-position needs to actually move things around
+  // when the source image's aspect matches the frame's.
   const heroImage = (
     <img
       key={imageSrc}
       src={imageSrc}
       alt="Hero preview"
       className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-      style={{ objectPosition: positionString }}
+      style={{
+        objectPosition: positionString,
+        transform: `scale(${currentZoom})`,
+        transformOrigin: positionString, // anchor zoom on the focal point
+      }}
       draggable={false}
       onLoad={(e) => {
         const img = e.target as HTMLImageElement;
@@ -902,6 +958,36 @@ export function ImagePositionPicker({
                   <span className="text-gray-700 text-[9px]">Bottom</span>
                 </div>
               </div>
+            </div>
+
+            {/* Zoom — enables pan freedom for photos that fill the frame exactly */}
+            <div className="p-4 border-b border-white/8 space-y-3">
+              <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-1 font-semibold">Zoom</p>
+              <div>
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-gray-500 text-xs">Image Size</span>
+                  <span className="text-[#c9b896] text-xs font-mono">{Math.round(currentZoom * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="100" max="160" step="1"
+                  value={Math.round(currentZoom * 100)}
+                  onChange={e => setZoomForActiveSlide(Number(e.target.value) / 100)}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#c9b896' }}
+                />
+                <p className="text-gray-600 text-[9px] mt-1.5 leading-relaxed">
+                  Zoom in to grow the photo past the frame so you can actually drag/pan it. At 100% a frame-filling photo has nothing to slide.
+                </p>
+              </div>
+              {currentZoom > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setZoomForActiveSlide(1)}
+                  className="w-full text-[10px] text-gray-500 hover:text-white hover:bg-white/8 py-1.5 rounded transition-colors"
+                >
+                  Reset zoom
+                </button>
+              )}
             </div>
 
             {/* Edge crop bleeds */}
