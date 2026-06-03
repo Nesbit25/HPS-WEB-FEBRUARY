@@ -3,6 +3,7 @@ import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Clock, Shield, CheckCircle } from 'lucide-react';
 import { EditableImage } from '../cms/EditableImage';
+import { EditableText } from '../cms/EditableText';
 import { BeforeAfterCardWithCard } from '../BeforeAfterCardWithCard';
 import { GalleryLightbox } from '../GalleryLightbox';
 import { SEOHead } from '../seo/SEOHead';
@@ -302,10 +303,23 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
             >
-              <h2 className="mb-6 text-[#faf9f7]">Overview</h2>
-              <p className="text-gray-300 mb-6">{data.overview}</p>
+              <h2 className="mb-6 text-[#faf9f7]">
+                <EditableText
+                  contentKey={`procedure_${procedureType}_overview_heading`}
+                  defaultValue="Overview"
+                  as="span"
+                />
+              </h2>
+              <p className="text-gray-300 mb-6">
+                <EditableText
+                  contentKey={`procedure_${procedureType}_overview`}
+                  defaultValue={data.overview}
+                  as="span"
+                  multiline
+                />
+              </p>
               <div className="grid grid-cols-2 gap-4 mb-8">
-                <motion.div 
+                <motion.div
                   className="flex items-start gap-3"
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -321,10 +335,16 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                   </motion.div>
                   <div>
                     <p className="mb-1 text-[#faf9f7]">Recovery Time</p>
-                    <p className="text-gray-400">{data.recoveryTime}</p>
+                    <p className="text-gray-400">
+                      <EditableText
+                        contentKey={`procedure_${procedureType}_recovery_time`}
+                        defaultValue={data.recoveryTime}
+                        as="span"
+                      />
+                    </p>
                   </div>
                 </motion.div>
-                <motion.div 
+                <motion.div
                   className="flex items-start gap-3"
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -340,7 +360,13 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                   </motion.div>
                   <div>
                     <p className="mb-1 text-[#faf9f7]">Anesthesia</p>
-                    <p className="text-gray-400">{data.anesthesia}</p>
+                    <p className="text-gray-400">
+                      <EditableText
+                        contentKey={`procedure_${procedureType}_anesthesia`}
+                        defaultValue={data.anesthesia}
+                        as="span"
+                      />
+                    </p>
                   </div>
                 </motion.div>
               </div>
@@ -401,12 +427,27 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             {/* Gold accent line */}
             <div className="w-16 h-px bg-gradient-to-r from-transparent via-[#c9b896] to-transparent mx-auto mb-8"></div>
 
-            <p className="text-sm uppercase tracking-[0.2em] text-[#c9b896] mb-4 font-medium">Real Patient Results</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-[#c9b896] mb-4 font-medium">
+              <EditableText
+                contentKey={`procedure_${procedureType}_gallery_eyebrow`}
+                defaultValue="Real Patient Results"
+                as="span"
+              />
+            </p>
             <h2 className="text-[#faf9f7] mb-6">
-              See the Difference<br />for Yourself
+              <EditableText
+                contentKey={`procedure_${procedureType}_gallery_heading`}
+                defaultValue="See the Difference for Yourself"
+                as="span"
+              />
             </h2>
             <p className="text-gray-400 text-lg mb-10 leading-relaxed">
-              Browse our full before &amp; after gallery to see the natural, lasting results Dr. Hanemann delivers across every procedure.
+              <EditableText
+                contentKey={`procedure_${procedureType}_gallery_body`}
+                defaultValue="Browse our full before & after gallery to see the natural, lasting results Dr. Hanemann delivers across every procedure."
+                as="span"
+                multiline
+              />
             </p>
 
             <motion.button
@@ -440,9 +481,19 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="mb-4 text-[#faf9f7]">Available Procedures</h2>
+            <h2 className="mb-4 text-[#faf9f7]">
+              <EditableText
+                contentKey={`procedure_${procedureType}_procedures_heading`}
+                defaultValue="Available Procedures"
+                as="span"
+              />
+            </h2>
             <p className="text-gray-400">
-              Customized treatments to address your specific concerns and goals
+              <EditableText
+                contentKey={`procedure_${procedureType}_procedures_subhead`}
+                defaultValue="Customized treatments to address your specific concerns and goals"
+                as="span"
+              />
             </p>
             
             {/* Gold accent divider */}
@@ -464,8 +515,21 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                   <div className="absolute inset-0 bg-gradient-to-br from-[#c9b896]/0 to-[#c9b896]/0 group-hover:from-[#c9b896]/5 group-hover:to-transparent transition-all duration-500"></div>
                   
                   <CardContent className="p-8 relative z-10">
-                    <h3 className="mb-4 text-[#faf9f7]">{procedure.name}</h3>
-                    <p className="text-gray-300">{procedure.description}</p>
+                    <h3 className="mb-4 text-[#faf9f7]">
+                      <EditableText
+                        contentKey={`procedure_${procedureType}_procedure_${index}_name`}
+                        defaultValue={procedure.name}
+                        as="span"
+                      />
+                    </h3>
+                    <p className="text-gray-300">
+                      <EditableText
+                        contentKey={`procedure_${procedureType}_procedure_${index}_description`}
+                        defaultValue={procedure.description}
+                        as="span"
+                        multiline
+                      />
+                    </p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -487,9 +551,19 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="mb-4 text-[#faf9f7]">Benefits</h2>
+            <h2 className="mb-4 text-[#faf9f7]">
+              <EditableText
+                contentKey={`procedure_${procedureType}_benefits_heading`}
+                defaultValue="Benefits"
+                as="span"
+              />
+            </h2>
             <p className="text-gray-400">
-              What you can expect from your procedure
+              <EditableText
+                contentKey={`procedure_${procedureType}_benefits_subhead`}
+                defaultValue="What you can expect from your procedure"
+                as="span"
+              />
             </p>
             
             {/* Gold accent divider */}
@@ -513,7 +587,13 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                 >
                   <CheckCircle className="w-6 h-6 text-[#c9b896] flex-shrink-0 mt-1" />
                 </motion.div>
-                <p className="text-gray-300">{benefit}</p>
+                <p className="text-gray-300">
+                  <EditableText
+                    contentKey={`procedure_${procedureType}_benefit_${index}`}
+                    defaultValue={benefit}
+                    as="span"
+                  />
+                </p>
               </motion.div>
             ))}
           </div>
@@ -536,9 +616,19 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="mb-4 text-[#faf9f7]">Your Journey</h2>
+            <h2 className="mb-4 text-[#faf9f7]">
+              <EditableText
+                contentKey={`procedure_${procedureType}_journey_heading`}
+                defaultValue="Your Journey"
+                as="span"
+              />
+            </h2>
             <p className="text-gray-400">
-              What to expect from consultation to recovery
+              <EditableText
+                contentKey={`procedure_${procedureType}_journey_subhead`}
+                defaultValue="What to expect from consultation to recovery"
+                as="span"
+              />
             </p>
             
             {/* Gold accent divider */}
@@ -564,8 +654,21 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
                   {index + 1}
                 </motion.div>
                 <div className="flex-1">
-                  <h3 className="mb-2 text-[#faf9f7]">{step.title}</h3>
-                  <p className="text-gray-300">{step.description}</p>
+                  <h3 className="mb-2 text-[#faf9f7]">
+                    <EditableText
+                      contentKey={`procedure_${procedureType}_step_${index}_title`}
+                      defaultValue={step.title}
+                      as="span"
+                    />
+                  </h3>
+                  <p className="text-gray-300">
+                    <EditableText
+                      contentKey={`procedure_${procedureType}_step_${index}_description`}
+                      defaultValue={step.description}
+                      as="span"
+                      multiline
+                    />
+                  </p>
                 </div>
               </motion.div>
             ))}
@@ -585,23 +688,32 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#c9b896]/5 rounded-full blur-3xl"></div>
         
         <div className="container mx-auto px-6 text-center relative z-10">
-          <motion.h2 
+          <motion.h2
             className="mb-6 text-[#faf9f7]"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            Ready to Take the Next Step?
+            <EditableText
+              contentKey={`procedure_${procedureType}_cta_heading`}
+              defaultValue="Ready to Take the Next Step?"
+              as="span"
+            />
           </motion.h2>
-          <motion.p 
+          <motion.p
             className="text-gray-300 mb-10 max-w-2xl mx-auto"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            Schedule a consultation to discuss your goals and learn how we can help you achieve the results you desire
+            <EditableText
+              contentKey={`procedure_${procedureType}_cta_body`}
+              defaultValue="Schedule a consultation to discuss your goals and learn how we can help you achieve the results you desire"
+              as="span"
+              multiline
+            />
           </motion.p>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

@@ -322,6 +322,6 @@ export const bodyData = {
       answer: 'Many women are nervous about what their belly button (umbilical) scar will look like after abdominoplasty. Dr. Hanemann takes multiple steps during a tummy tuck to ensure that the belly button will look natural and unoperated. A natural "innie" belly button with a concealed scar is the hallmark of a beautifully done tummy tuck. We encourage you to look at Dr. Hanemann\'s before and after tummy tuck photos so you can see these results for yourself.' 
     }
   ],
-  recoveryTime: '2-4 weeks return to work',
+  recoveryTime: '1-2 weeks return to work',
   anesthesia: 'General anesthesia'
 };
