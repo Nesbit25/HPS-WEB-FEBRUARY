@@ -102,85 +102,81 @@ export function GalleryOrientationManager({
     setSaving(true);
 
     try {
-      // Group images by orientation
-      const orientationGroups: { [key: string]: { before?: File, after?: File } } = {};
-      
+      // Group images by position (2, 3, 4 …). Position N maps to orientation
+      // index N-1 (position 1 / index 0 is the case's primary view).
+      const positionGroups: { [pos: number]: { before?: File, after?: File } } = {};
       uploadedImages.forEach(img => {
-        if (!orientationGroups[img.position]) {
-          orientationGroups[img.position] = {};
-        }
-        if (img.type === 'before') {
-          orientationGroups[img.position].before = img.file;
-        } else if (img.type === 'after') {
-          orientationGroups[img.position].after = img.file;
-        }
+        if (!positionGroups[img.position]) positionGroups[img.position] = {};
+        if (img.type === 'before') positionGroups[img.position].before = img.file;
+        else if (img.type === 'after') positionGroups[img.position].after = img.file;
       });
 
-      // Upload each orientation
-      for (const [orientationName, images] of Object.entries(orientationGroups)) {
-        console.log(`[Orientation Manager] Uploading orientation: ${orientationName}`);
+      // Helper: upload one file to Storage, then PATCH it onto the case's
+      // orientation slot. This is the same pipeline the lightbox/card
+      // "Replace" buttons use — it writes to gallery_case_<id>.orientations[idx]
+      // which is what the gallery actually renders from.
+      const uploadAndAssign = async (
+        file: File,
+        orientationIndex: number,
+        imageType: 'before' | 'after'
+      ) => {
+        // 1) Upload bytes to Storage
+        const base64 = await fileToBase64(file);
+        const base64Data = base64.split(',')[1]; // strip data: prefix
+        const fileName = `${imageType}_${caseId}_v${orientationIndex}_${Date.now()}.${file.name.split('.').pop() || 'jpg'}`;
 
-        // 1. Register the orientation with the case
-        const registerResponse = await fetch(`${serverUrl}/gallery/case/${caseId}/orientation`, {
+        const uploadRes = await fetch(`${serverUrl}/gallery/upload`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ orientationName })
+          body: JSON.stringify({
+            fileName,
+            fileData: base64Data,
+            galleryItemId: caseId,
+            imageType,
+          }),
         });
-
-        if (!registerResponse.ok) {
-          throw new Error(`Failed to register orientation: ${orientationName}`);
+        if (!uploadRes.ok) {
+          const err = await uploadRes.text();
+          throw new Error(`Upload failed for the ${imageType} photo (View ${orientationIndex + 1}): ${err}`);
         }
+        const { publicUrl } = await uploadRes.json();
 
-        // 2. Upload before image if exists
-        if (images.before) {
-          const beforeBase64 = await fileToBase64(images.before);
-          const beforeResponse = await fetch(`${serverUrl}/content/gallery_${caseId}_${orientationName}_before`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ value: beforeBase64 })
-          });
-
-          if (!beforeResponse.ok) {
-            throw new Error(`Failed to upload before image for ${orientationName}`);
-          }
-          console.log(`[Orientation Manager] Uploaded before image for ${orientationName}`);
+        // 2) Assign the URL to the case's orientation slot
+        const patchRes = await fetch(`${serverUrl}/gallery/case/${caseId}/image`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageType, orientationIndex, url: publicUrl }),
+        });
+        if (!patchRes.ok) {
+          const err = await patchRes.text();
+          throw new Error(`Saving the ${imageType} photo (View ${orientationIndex + 1}) failed: ${err}`);
         }
+      };
 
-        // 3. Upload after image if exists
-        if (images.after) {
-          const afterBase64 = await fileToBase64(images.after);
-          const afterResponse = await fetch(`${serverUrl}/content/gallery_${caseId}_${orientationName}_after`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ value: afterBase64 })
-          });
-
-          if (!afterResponse.ok) {
-            throw new Error(`Failed to upload after image for ${orientationName}`);
-          }
-          console.log(`[Orientation Manager] Uploaded after image for ${orientationName}`);
-        }
+      let viewsAdded = 0;
+      for (const [posStr, images] of Object.entries(positionGroups)) {
+        const orientationIndex = parseInt(posStr, 10) - 1; // position 2 → index 1
+        if (images.before) await uploadAndAssign(images.before, orientationIndex, 'before');
+        if (images.after) await uploadAndAssign(images.after, orientationIndex, 'after');
+        viewsAdded++;
       }
 
-      // Clear cache
+      // Clear cache so the new views appear on next load
       localStorage.removeItem('gallery_items_cache');
       localStorage.removeItem('gallery_items_cache_timestamp');
 
-      alert(`Successfully added ${Object.keys(orientationGroups).length} orientation(s) to the case!`);
-      
-      // Clean up URLs
+      alert(`Successfully added ${viewsAdded} view${viewsAdded === 1 ? '' : 's'} to the case!`);
+
+      // Clean up object URLs
       uploadedImages.forEach(img => URL.revokeObjectURL(img.url));
       setUploadedImages([]);
-      
+
       onSaved();
       onClose();
     } catch (error) {

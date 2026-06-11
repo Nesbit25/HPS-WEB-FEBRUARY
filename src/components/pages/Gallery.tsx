@@ -717,20 +717,26 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       return (a.title || '').localeCompare(b.title || '');
     });
 
-  // Display-only patient-number overrides for the Body/Liposuction view: the
-  // appended neck-lipo cases get numbers that continue from where body lipo
-  // ends, so the visible sequence reads as a single set (e.g., 01..19 body,
-  // 20+ neck) — the underlying slugs and IDs are unchanged.
+  // Display-only patient numbering: within any specific (non-"All") view the
+  // visible "Patient NN" label reflects the card's ON-SCREEN POSITION, not the
+  // number baked into its filename/slug. So when an admin drags a case to a
+  // new spot, its number updates to match where it now appears (e.g. drag
+  // Mastopexy Patient 7 to slot 10 → it reads "Patient 10"). The underlying
+  // slug / ID / files are never changed.
+  //
+  // On the "All" view we leave numbers as-is (slug-derived), since a single
+  // sequential count across mixed categories would be meaningless.
+  //
+  // This also subsumes the old Body/Liposuction special case: in that view
+  // body cases sort first and the appended neck-lipo cases follow, so
+  // position-based numbering naturally continues the sequence.
   const displayPatientNumberOverrides: Record<number, string> = {};
-  if (isBodyLipoView) {
-    const bodyLipoCount = filteredItems.filter(i => i.category === 'Body').length;
-    let neckIdx = 0;
-    for (const item of filteredItems) {
-      if (item.category === 'Face') {
-        neckIdx++;
-        displayPatientNumberOverrides[item.id] = String(bodyLipoCount + neckIdx).padStart(2, '0');
-      }
-    }
+  const shouldRenumberByPosition =
+    selectedCategory !== 'All' || selectedProcedures.length > 0;
+  if (shouldRenumberByPosition) {
+    filteredItems.forEach((item, index) => {
+      displayPatientNumberOverrides[item.id] = String(index + 1).padStart(2, '0');
+    });
   }
 
   // Ordered list of procedures available within the current category selection
