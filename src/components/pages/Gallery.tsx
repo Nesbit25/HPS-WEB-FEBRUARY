@@ -593,6 +593,43 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
               if (typeof dbCase.sortOrder === 'number') item.sortOrder = dbCase.sortOrder;
             }
           });
+
+          // Append DB-only cases that have NO matching GitHub file. These are
+          // cases created through the admin "Create New Case" / "Add Views"
+          // flows — their photos live in Supabase Storage, not the GitHub repo,
+          // so the GitHub-built list above never includes them. Without this,
+          // a freshly created case is silently dropped and never shows a card.
+          const githubSlugs = new Set(galleryItems.map(i => i.slug).filter(Boolean));
+          dbCases.forEach((db: any) => {
+            if (!db.slug || githubSlugs.has(db.slug)) return;
+            const derivedPrefix = db.slug?.match(/^([A-Z_]+)_Patient/i)?.[1] || '';
+            const procedureName =
+              getProcedureNameFromPrefix(derivedPrefix) || db.procedure || db.category || '';
+            galleryItems.push({
+              id: db.id,
+              slug: db.slug,
+              title: db.title || db.slug,
+              category: db.category || 'Face',
+              procedure: db.procedure || db.category || '',
+              procedureName,
+              journeyNote: db.journeyNote || '',
+              beforeImage: normalizeImageUrl(db.beforeImage),
+              afterImage: normalizeImageUrl(db.afterImage),
+              orientations: (db.orientations || []).map((o: any) => ({
+                ...o,
+                beforeImage: normalizeImageUrl(o.beforeImage),
+                afterImage: normalizeImageUrl(o.afterImage),
+              })),
+              featuredOnHome: db.featuredOnHome || false,
+              showOnNose: db.showOnNose || false,
+              showOnFace: db.showOnFace || false,
+              showOnBreast: db.showOnBreast || false,
+              showOnBody: db.showOnBody || false,
+              createdBy: db.createdBy,
+              createdAt: db.createdAt,
+              sortOrder: typeof db.sortOrder === 'number' ? db.sortOrder : undefined,
+            } as GalleryItem);
+          });
         }
       } catch (error) {
         console.warn('[Gallery] Could not fetch case metadata from database:', error);
