@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -8,11 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Loader2, Plus, Upload, X } from 'lucide-react';
 import { projectId } from '../../utils/supabase/info';
 
+interface ProcedureOption {
+  value: string; // canonical name stored on the case (e.g. "Breast Lift")
+  label: string; // public display (e.g. "Breast Lift (Mastopexy)")
+}
+
 interface NewGalleryCaseEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
   accessToken: string;
+  /** Pre-select these from the page the admin is currently viewing. */
+  initialCategory?: string;
+  initialProcedure?: string;
+  /** Canonical procedure list per category, value+label. Drives the dropdown
+      so a new case gets the same procedure name as the page it's added on. */
+  proceduresByCategory?: Record<string, ProcedureOption[]>;
 }
 
 type Side = 'before' | 'after';
@@ -27,13 +38,29 @@ export function NewGalleryCaseEditor({
   onClose,
   onSaved,
   accessToken,
+  initialCategory,
+  initialProcedure,
+  proceduresByCategory = {},
 }: NewGalleryCaseEditorProps) {
+  const categories = ['Nose', 'Face', 'Breast', 'Body'];
+  const defaultCategory = initialCategory && categories.includes(initialCategory)
+    ? initialCategory
+    : 'Nose';
+  // Procedure options for a given category (empty list if the category has none
+  // configured — falls back to a freeform "use category name" behavior).
+  const procOptionsFor = (cat: string): ProcedureOption[] => proceduresByCategory[cat] || [];
+  const defaultProcedureFor = (cat: string, preferred?: string): string => {
+    const opts = procOptionsFor(cat);
+    if (preferred && opts.some(o => o.value === preferred)) return preferred;
+    return opts[0]?.value || '';
+  };
+
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    category: 'Nose',
+    category: defaultCategory,
     title: '',
-    procedure: '',
+    procedure: defaultProcedureFor(defaultCategory, initialProcedure),
     journeyNote: '',
   });
   const [beforePhoto, setBeforePhoto] = useState<PhotoSlot>({ file: null, preview: null });
@@ -43,12 +70,46 @@ export function NewGalleryCaseEditor({
   const afterInputRef = useRef<HTMLInputElement>(null);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
-  const categories = ['Nose', 'Face', 'Breast', 'Body'];
+
+  // When the dialog (re)opens, sync the defaults to the current page context.
+  useEffect(() => {
+    if (isOpen) {
+      const cat = initialCategory && categories.includes(initialCategory) ? initialCategory : 'Nose';
+      setFormData({
+        category: cat,
+        title: '',
+        procedure: defaultProcedureFor(cat, initialProcedure),
+        journeyNote: '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialCategory, initialProcedure]);
+
+  const currentProcedureOptions = procOptionsFor(formData.category);
+  const currentProcedureLabel =
+    currentProcedureOptions.find(o => o.value === formData.procedure)?.label ||
+    formData.procedure ||
+    formData.category;
+
+  const handleCategoryChange = (cat: string) => {
+    setFormData(prev => ({
+      ...prev,
+      category: cat,
+      // Reset procedure to the first option of the new category.
+      procedure: defaultProcedureFor(cat),
+    }));
+  };
 
   const resetState = () => {
     setSaving(false);
     setStatusMessage(null);
-    setFormData({ category: 'Nose', title: '', procedure: '', journeyNote: '' });
+    const cat = initialCategory && categories.includes(initialCategory) ? initialCategory : 'Nose';
+    setFormData({
+      category: cat,
+      title: '',
+      procedure: defaultProcedureFor(cat, initialProcedure),
+      journeyNote: '',
+    });
     setBeforePhoto({ file: null, preview: null });
     setAfterPhoto({ file: null, preview: null });
   };
@@ -106,14 +167,17 @@ export function NewGalleryCaseEditor({
     }
     const { publicUrl } = await uploadRes.json();
 
-    // Associate the URL with this case under gallery_{id}_{side}
-    const saveRes = await fetch(`${serverUrl}/content/gallery_${caseId}_${side}`, {
-      method: 'PUT',
+    // Assign the URL to the case's primary view (orientation index 0) via the
+    // canonical endpoint the gallery actually reads from. The old code PUT to
+    // a /content/gallery_<id>_<side> key that nothing rendered, so newly
+    // created cases came up with no photos.
+    const saveRes = await fetch(`${serverUrl}/gallery/case/${caseId}/image`, {
+      method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ value: publicUrl }),
+      body: JSON.stringify({ imageType: side, orientationIndex: 0, url: publicUrl }),
     });
     if (!saveRes.ok) {
       const errText = await saveRes.text();
@@ -125,10 +189,6 @@ export function NewGalleryCaseEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title.trim()) {
-      alert('Please enter a case title.');
-      return;
-    }
     if (!beforePhoto.file) {
       alert('Please choose a "Before" photo.');
       return;
@@ -142,6 +202,14 @@ export function NewGalleryCaseEditor({
     setStatusMessage('Creating case…');
 
     try {
+      // Canonical procedure name (e.g. "Breast Lift") drives the card label
+      // via getProcedureDisplayLabel → "Breast Lift (Mastopexy)" and ensures
+      // the case appears on the matching procedure page.
+      const procedure = formData.procedure.trim() || formData.category;
+      // Title is optional now — default to the procedure's public display
+      // label so the lightbox heading reads sensibly.
+      const title = formData.title.trim() || currentProcedureLabel;
+
       // 1. Create the case metadata
       const createRes = await fetch(`${serverUrl}/gallery/create`, {
         method: 'POST',
@@ -151,8 +219,8 @@ export function NewGalleryCaseEditor({
         },
         body: JSON.stringify({
           category: formData.category,
-          title: formData.title.trim(),
-          procedure: formData.procedure.trim() || formData.category,
+          title,
+          procedure,
           journeyNote: formData.journeyNote.trim() || 'Real patient transformation.',
         }),
       });
@@ -249,7 +317,8 @@ export function NewGalleryCaseEditor({
             <Label htmlFor="category">Category</Label>
             <Select
               value={formData.category}
-              onValueChange={(value) => setFormData({ ...formData, category: value })}
+              onValueChange={handleCategoryChange}
+              disabled={saving}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -262,30 +331,49 @@ export function NewGalleryCaseEditor({
             </Select>
           </div>
 
-          {/* Title */}
+          {/* Procedure — dropdown of the canonical procedures for the chosen
+              category, so the new case carries the same name as its page. */}
+          <div className="space-y-2">
+            <Label htmlFor="procedure">Procedure</Label>
+            {currentProcedureOptions.length > 0 ? (
+              <Select
+                value={formData.procedure}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, procedure: value }))}
+                disabled={saving}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a procedure" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentProcedureOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id="procedure"
+                placeholder="e.g., Primary Rhinoplasty"
+                value={formData.procedure}
+                onChange={(e) => setFormData({ ...formData, procedure: e.target.value })}
+                disabled={saving}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              The card will be labeled <span className="text-secondary font-medium">{currentProcedureLabel}</span> — Patient #.
+            </p>
+          </div>
+
+          {/* Title (optional) */}
           <div className="space-y-2">
             <Label htmlFor="title">
-              Case Title <span className="text-red-500">*</span>
+              Case Title <span className="text-gray-400 text-xs">(optional — defaults to the procedure name)</span>
             </Label>
             <Input
               id="title"
-              placeholder="e.g., Rhinoplasty Case Study"
+              placeholder={currentProcedureLabel}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              disabled={saving}
-            />
-          </div>
-
-          {/* Procedure */}
-          <div className="space-y-2">
-            <Label htmlFor="procedure">
-              Procedure Name <span className="text-gray-400 text-xs">(optional)</span>
-            </Label>
-            <Input
-              id="procedure"
-              placeholder="e.g., Primary Rhinoplasty"
-              value={formData.procedure}
-              onChange={(e) => setFormData({ ...formData, procedure: e.target.value })}
               disabled={saving}
             />
           </div>

@@ -2278,6 +2278,18 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
           onClose={() => setNewCaseEditorOpen(false)}
           onSaved={loadGalleryImages}
           accessToken={accessToken}
+          // Pre-fill from whatever page the admin is currently viewing, and give
+          // the editor the canonical procedure list (value = stored name,
+          // label = public display) so a new case lands on the right page with
+          // the matching procedure label.
+          initialCategory={selectedCategory !== 'All' ? selectedCategory : undefined}
+          initialProcedure={selectedProcedures[0]}
+          proceduresByCategory={Object.fromEntries(
+            Object.entries(PROCEDURE_ORDER).map(([cat, procs]) => [
+              cat,
+              procs.map(p => ({ value: p, label: getProcedureDisplayLabel(p) })),
+            ])
+          )}
         />
       )}
 
