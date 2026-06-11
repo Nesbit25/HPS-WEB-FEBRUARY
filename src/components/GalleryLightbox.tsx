@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Edit2, Crop } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Edit2, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -198,27 +198,29 @@ export function GalleryLightbox({
                               <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#c9b896] to-transparent"></div>
                             </div>
                             
-                            {/* Edit Button for Admins */}
+                            {/* Edit Button for Admins — always visible in edit
+                                mode (was hover-only, easy to miss). Tells the
+                                admin exactly which view they're replacing. */}
                             {isAdmin && isEditMode && onEditImage && (
-                              <div className="absolute top-4 right-4 z-20 opacity-0 group-hover/before:opacity-100 transition-opacity duration-300">
+                              <div className="absolute top-3 right-3 z-20">
                                 <Button
                                   size="sm"
-                                  className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e] shadow-xl border-2 border-white"
+                                  className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e] shadow-xl border-2 border-white text-xs font-semibold"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onEditImage(currentItem.id, 'before', selectedOrientation);
                                   }}
                                 >
-                                  <Crop className="w-4 h-4 mr-1" />
-                                  Crop
+                                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                                  Replace Before · View {selectedOrientation + 1}
                                 </Button>
                               </div>
                             )}
-                            
+
                             {currentOrientationData.beforeImage ? (
-                              <img 
-                                src={currentOrientationData.beforeImage} 
-                                alt="Before" 
+                              <img
+                                src={currentOrientationData.beforeImage}
+                                alt="Before"
                                 className="w-full h-full object-contain"
                               />
                             ) : (
@@ -241,27 +243,27 @@ export function GalleryLightbox({
                               <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-[#c9b896] to-transparent"></div>
                             </div>
                             
-                            {/* Edit Button for Admins */}
+                            {/* Edit Button for Admins — always visible in edit mode */}
                             {isAdmin && isEditMode && onEditImage && (
-                              <div className="absolute top-4 left-4 z-20 opacity-0 group-hover/after:opacity-100 transition-opacity duration-300">
+                              <div className="absolute top-3 left-3 z-20">
                                 <Button
                                   size="sm"
-                                  className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e] shadow-xl border-2 border-white"
+                                  className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e] shadow-xl border-2 border-white text-xs font-semibold"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onEditImage(currentItem.id, 'after', selectedOrientation);
                                   }}
                                 >
-                                  <Crop className="w-4 h-4 mr-1" />
-                                  Crop
+                                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                                  Replace After · View {selectedOrientation + 1}
                                 </Button>
                               </div>
                             )}
-                            
+
                             {currentOrientationData.afterImage ? (
-                              <img 
-                                src={currentOrientationData.afterImage} 
-                                alt="After" 
+                              <img
+                                src={currentOrientationData.afterImage}
+                                alt="After"
                                 className="w-full h-full object-contain"
                               />
                             ) : (
@@ -277,42 +279,67 @@ export function GalleryLightbox({
                           </div>
                         </div>
 
-                        {/* Orientation Thumbnails */}
+                        {/* Orientation Thumbnails — also the per-view selector
+                            for admins, since the Replace buttons above operate
+                            on whichever view is selected here. */}
                         {hasMultipleOrientations && (
-                          <div className="w-40 bg-[#1a1f2e]/50 border-l border-[#2d3548] p-3 flex flex-col gap-3 overflow-y-auto max-h-[60vh]">
-                            {orientations.map((orientation, index) => (
-                              <button
-                                key={index}
-                                onClick={() => setSelectedOrientation(index)}
-                                className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-300 hover:scale-105 ${
-                                  selectedOrientation === index 
-                                    ? 'border-[#c9b896] shadow-lg shadow-[#c9b896]/30' 
-                                    : 'border-[#2d3548] hover:border-[#c9b896]/50'
-                                }`}
-                              >
-                                {orientation.afterImage ? (
-                                  <img 
-                                    src={orientation.afterImage} 
-                                    alt={orientation.name} 
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : orientation.beforeImage ? (
-                                  <img 
-                                    src={orientation.beforeImage} 
-                                    alt={orientation.name} 
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full bg-[#242938]">
-                                    <span className="text-sm text-gray-500">Pos {index + 1}</span>
+                          <div className="w-44 bg-[#1a1f2e]/60 border-l border-[#2d3548] p-3 flex flex-col gap-2 overflow-y-auto max-h-[60vh]">
+                            <p className="text-[10px] uppercase tracking-widest text-[#c9b896] font-semibold pb-1 border-b border-[#2d3548] mb-1">
+                              {isAdmin && isEditMode ? 'Pick view to edit' : 'Views'}
+                            </p>
+                            {orientations.map((orientation, index) => {
+                              const isActive = selectedOrientation === index;
+                              const viewLabel = orientation.name
+                                ? orientation.name
+                                : `View ${index + 1}`;
+                              return (
+                                <button
+                                  key={index}
+                                  onClick={() => setSelectedOrientation(index)}
+                                  className={`relative rounded-lg overflow-hidden border-2 transition-all duration-300 hover:scale-[1.02] text-left ${
+                                    isActive
+                                      ? 'border-[#c9b896] shadow-lg shadow-[#c9b896]/30'
+                                      : 'border-[#2d3548] hover:border-[#c9b896]/50'
+                                  }`}
+                                >
+                                  <div className="aspect-square relative">
+                                    {orientation.afterImage ? (
+                                      <img
+                                        src={orientation.afterImage}
+                                        alt={viewLabel}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : orientation.beforeImage ? (
+                                      <img
+                                        src={orientation.beforeImage}
+                                        alt={viewLabel}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex items-center justify-center h-full bg-[#242938]">
+                                        <span className="text-sm text-gray-500">View {index + 1}</span>
+                                      </div>
+                                    )}
+                                    {/* Selection indicator */}
+                                    {isActive && (
+                                      <div className="absolute inset-0 bg-[#c9b896]/20 pointer-events-none"></div>
+                                    )}
                                   </div>
-                                )}
-                                {/* Selection indicator */}
-                                {selectedOrientation === index && (
-                                  <div className="absolute inset-0 bg-[#c9b896]/20 pointer-events-none"></div>
-                                )}
-                              </button>
-                            ))}
+                                  <div className={`px-2 py-1 text-[10px] uppercase tracking-wider font-semibold ${
+                                    isActive ? 'bg-[#c9b896] text-[#1a1f2e]' : 'bg-[#242938] text-gray-400'
+                                  }`}>
+                                    View {index + 1}{orientation.name ? ` · ${orientation.name}` : ''}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                            {isAdmin && isEditMode && (
+                              <p className="text-[9px] text-gray-500 leading-relaxed mt-1 pt-2 border-t border-[#2d3548]">
+                                Selecting a view here changes what the
+                                <span className="text-[#c9b896]"> Replace</span> buttons
+                                act on.
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>

@@ -1656,6 +1656,11 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                 {/* Admin toolbar — drag handle + edit buttons in a single wrapping row */}
                 {isAdmin && isEditMode && (
                   <div className="absolute top-2 left-2 right-2 z-50 flex flex-wrap items-start gap-2">
+                    {/* Card-level Before/After buttons edit View 1 only. To
+                        replace photos on Views 2/3 (or any view), open the
+                        card → use the per-view Replace buttons in the
+                        lightbox. The labels say "View 1" explicitly so admins
+                        don't think these buttons cover every view. */}
                     <Button
                       size="sm"
                       className="rounded-full bg-secondary hover:bg-secondary/90 text-white shadow-2xl border-2 border-white"
@@ -1663,9 +1668,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                         e.stopPropagation();
                         handleOpenEditor(item.id, 'before');
                       }}
+                      title="Replace the View 1 'Before' photo. For other views, open the card and use the per-view Replace buttons."
                     >
                       <Edit2 className="w-3 h-3 mr-1" />
-                      Before
+                      Before · V1
                     </Button>
                     <Button
                       size="sm"
@@ -1674,9 +1680,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                         e.stopPropagation();
                         handleOpenEditor(item.id, 'after');
                       }}
+                      title="Replace the View 1 'After' photo. For other views, open the card and use the per-view Replace buttons."
                     >
                       <Edit2 className="w-3 h-3 mr-1" />
-                      After
+                      After · V1
                     </Button>
                     {/* Add Orientations button */}
                     <Button
