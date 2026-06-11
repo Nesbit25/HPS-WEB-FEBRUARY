@@ -237,7 +237,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
       const cacheKey = 'gallery_items_cache';
       const cacheTimestampKey = 'gallery_items_cache_timestamp';
       const cacheVersionKey = 'gallery_items_cache_version';
-      const CACHE_VERSION = '2'; // Bump to bust stale procedureName data
+      // Bump to force every browser to re-fetch (busts stale caches). v3 picks
+      // up DB-only cases (manually-created, Storage-backed) that older caches
+      // never included.
+      const CACHE_VERSION = '3';
       const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
       // Bust cache if version mismatch

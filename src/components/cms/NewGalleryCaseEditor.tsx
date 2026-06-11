@@ -240,6 +240,15 @@ export function NewGalleryCaseEditor({
       await uploadOnePhoto(id, 'after', afterPhoto.file);
 
       setStatusMessage('Done!');
+
+      // Bust the gallery cache so loadGalleryImages re-fetches and includes
+      // this new (DB-only / Storage-backed) case. Without this, onSaved serves
+      // the stale cache and the new card never appears.
+      try {
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
+      } catch { /* private mode — non-fatal */ }
+
       alert(`✅ New case created with before/after photos.\n\nCase ID: ${id}`);
       resetState();
       onSaved();
