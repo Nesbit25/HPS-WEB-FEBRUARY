@@ -884,6 +884,61 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     setEditorOpen(true);
   };
 
+  // Remove a single view (orientation) from a case. Confirms with the user,
+  // calls the server, then optimistically removes the view from local state
+  // so the lightbox / card update without a full refetch.
+  const handleRemoveOrientation = async (caseId: number, orientationIndex: number) => {
+    const targetCase = galleryItems.find(i => i.id === caseId);
+    if (!targetCase) return;
+    const viewName = targetCase.orientations?.[orientationIndex]?.name || `View ${orientationIndex + 1}`;
+
+    if (!confirm(
+      `Remove ${viewName} from "${targetCase.title || targetCase.slug}"?\n\n` +
+      `This deletes the Before AND After photos for that view. ` +
+      `The other views on this case will remain. This can't be undone.`
+    )) return;
+
+    try {
+      const response = await fetch(
+        `${serverUrl}/gallery/case/${caseId}/orientation/${orientationIndex}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        }
+      );
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || `Server returned ${response.status}`);
+      }
+      const data = await response.json();
+
+      // Optimistically update local state with the server's new orientations.
+      setGalleryItems(prev => prev.map(item => {
+        if (item.id !== caseId) return item;
+        const nextOrientations = (data.orientations || []).map((o: any) => ({
+          ...o,
+          beforeImage: normalizeImageUrl(o.beforeImage),
+          afterImage: normalizeImageUrl(o.afterImage),
+        }));
+        const next = { ...item, orientations: nextOrientations };
+        if (orientationIndex === 0) {
+          next.beforeImage = nextOrientations[0]?.beforeImage || undefined;
+          next.afterImage = nextOrientations[0]?.afterImage || undefined;
+        }
+        return next;
+      }));
+
+      // Bust the cache so a hard reload also picks up the new shape.
+      try {
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
+      } catch { /* non-fatal */ }
+    } catch (err: any) {
+      console.error('[Gallery Remove View] Error:', err);
+      alert(`Could not remove view: ${err?.message || err}`);
+    }
+  };
+
   const handleImageSaved = () => {
     // Clear the cache so fresh data is fetched
     localStorage.removeItem('gallery_items_cache');
@@ -2154,6 +2209,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
         totalImages={filteredItems.length}
         onNext={handleNextImage}
         onPrevious={handlePreviousImage}
+        onRemoveOrientation={handleRemoveOrientation}
         onEditImage={(caseId, imageType, orientationIndex) => {
           // Close lightbox and open editor
           setLightboxOpen(false);

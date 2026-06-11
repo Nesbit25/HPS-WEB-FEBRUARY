@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Edit2, Upload } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Edit2, Upload, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -34,6 +34,10 @@ interface GalleryLightboxProps {
   totalImages: number;
   currentIndex: number;
   onEditImage?: (caseId: number, imageType: 'before' | 'after', orientationIndex: number) => void;
+  /** Admin-only: remove a view entirely. The lightbox shows a Remove button
+      next to the view picker; the consumer is responsible for confirmation
+      and the actual delete. */
+  onRemoveOrientation?: (caseId: number, orientationIndex: number) => void;
   defaultOrientation?: number;
 }
 
@@ -46,7 +50,8 @@ export function GalleryLightbox({
   totalImages,
   currentIndex,
   onEditImage,
-  defaultOrientation = 0
+  onRemoveOrientation,
+  defaultOrientation = 0,
 }: GalleryLightboxProps) {
   const { isAdmin } = useAuth();
   const { isEditMode } = useEditMode();
@@ -339,6 +344,25 @@ export function GalleryLightbox({
                                 <span className="text-[#c9b896]"> Replace</span> buttons
                                 act on.
                               </p>
+                            )}
+                            {isAdmin && isEditMode && onRemoveOrientation && orientations.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Hand off to the parent for confirmation + the
+                                  // actual delete. After the request resolves, the
+                                  // parent updates galleryItems; we drop selection
+                                  // back to view 0 so we never sit on a stale index.
+                                  if (!currentItem) return;
+                                  setSelectedOrientation(0);
+                                  onRemoveOrientation(currentItem.id, selectedOrientation);
+                                }}
+                                className="mt-2 flex items-center justify-center gap-1.5 w-full px-2 py-1.5 rounded-md bg-red-900/30 hover:bg-red-900/60 border border-red-800/60 text-red-300 hover:text-white text-[10px] uppercase tracking-wider font-semibold transition-colors"
+                                title={`Remove View ${selectedOrientation + 1} from this case`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Remove View {selectedOrientation + 1}
+                              </button>
                             )}
                           </div>
                         )}

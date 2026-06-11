@@ -2424,6 +2424,70 @@ app.patch("/make-server-fc862019/gallery/case/:id/image", async (c) => {
   }
 });
 
+// Remove an orientation (view) entirely from a case. The before/after photos
+// for that view are deleted from the orientations array; if the removed slot
+// was view 0, the top-level beforeImage / afterImage get re-mirrored from the
+// new view 0. Requires at least one view to remain — to delete a case
+// outright, use DELETE /gallery/case/:id instead.
+app.delete("/make-server-fc862019/gallery/case/:id/orientation/:index", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+
+    if (!user || error) {
+      console.log('[Gallery Remove View] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const indexParam = c.req.param('index');
+    const idx = parseInt(indexParam, 10);
+    if (isNaN(idx) || idx < 0) {
+      return c.json({ error: 'index must be a non-negative integer' }, 400);
+    }
+
+    const existing = await kv.get(`gallery_case_${id}`);
+    if (!existing) {
+      return c.json({ error: 'Case not found' }, 404);
+    }
+
+    const orientations = Array.isArray(existing.orientations)
+      ? [...existing.orientations]
+      : [];
+
+    if (idx >= orientations.length) {
+      return c.json({ error: `View ${idx + 1} does not exist on this case` }, 404);
+    }
+    if (orientations.length <= 1) {
+      return c.json({
+        error: 'Cannot remove the last remaining view. Delete the entire case instead.',
+      }, 400);
+    }
+
+    const removed = orientations.splice(idx, 1)[0];
+
+    const next: any = { ...existing, orientations };
+    // If view 0 was removed, mirror the new view 0 onto the top-level fields
+    // (the gallery card's primary thumbnail reads from these).
+    if (idx === 0) {
+      next.beforeImage = orientations[0]?.beforeImage || null;
+      next.afterImage = orientations[0]?.afterImage || null;
+    }
+
+    await kv.set(`gallery_case_${id}`, next);
+
+    console.log(`[Gallery Remove View] Case ${id}: removed view ${idx} (${removed?.name || 'unnamed'}), remaining views: ${orientations.length}`);
+    return c.json({
+      success: true,
+      removedView: { index: idx, ...removed },
+      orientations: next.orientations,
+    });
+  } catch (error) {
+    console.log('[Gallery Remove View] Error:', error);
+    return c.json({ error: `Failed to remove view: ${error.message}` }, 500);
+  }
+});
+
 // Reorder gallery cases (protected) - persists sortOrder on each case
 app.post("/make-server-fc862019/gallery/cases/reorder", async (c) => {
   try {
