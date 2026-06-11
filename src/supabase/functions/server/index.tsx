@@ -1691,11 +1691,17 @@ app.get("/make-server-fc862019/gallery/img/*", async (c) => {
       });
       if (resp.ok) {
         const contentType = resp.headers.get('content-type') || 'image/png';
+        // Pass GitHub's ETag through so browsers can revalidate cheaply.
+        // Keep max-age short (5 min) so updates to the underlying repo file
+        // propagate quickly — the previous 24-hour cache meant a corrected
+        // photo could take a full day to show up on visitors' devices.
+        const etag = resp.headers.get('etag') || '';
         const body = await resp.arrayBuffer();
         return new Response(body, {
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
+            'Cache-Control': 'public, max-age=300, must-revalidate',
+            ...(etag ? { 'ETag': etag } : {}),
             'Access-Control-Allow-Origin': '*'
           }
         });
