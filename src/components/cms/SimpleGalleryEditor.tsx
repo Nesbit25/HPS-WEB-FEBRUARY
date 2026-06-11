@@ -16,6 +16,9 @@ interface SimpleGalleryEditorProps {
   onSaved: () => void;
   accessToken: string;
   orientation?: 'front' | 'side' | 'threequarter';
+  /** Which view to replace (0-indexed). Defaults to 0 (the primary view).
+      The Replace buttons in the lightbox pass this for views 1, 2, 3+. */
+  orientationIndex?: number;
 }
 
 interface CropArea {
@@ -33,7 +36,8 @@ export function SimpleGalleryEditor({
   currentImageUrl,
   onSaved,
   accessToken,
-  orientation
+  orientation,
+  orientationIndex = 0,
 }: SimpleGalleryEditorProps) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null);
@@ -215,34 +219,51 @@ export function SimpleGalleryEditor({
 
       const { publicUrl } = await uploadResponse.json();
 
-      // Save URL to KV store
-      const contentKey = `gallery_${galleryItemId}_${imageType}`;
-      console.log('[SimpleGalleryEditor] Saving to KV:', { contentKey, publicUrl });
-      
-      const saveResponse = await fetch(`${serverUrl}/content/${contentKey}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          value: publicUrl
-        })
+      // Write the new URL onto the actual case record (the orientation slot
+      // at orientationIndex). This is what the gallery reads from — the
+      // previous code wrote to a stale "gallery_<id>_<type>" content key
+      // that nothing rendered against, so replacements appeared to succeed
+      // but the page never updated.
+      console.log('[SimpleGalleryEditor] PATCH case image:', {
+        galleryItemId, orientationIndex, imageType, publicUrl,
       });
+
+      const saveResponse = await fetch(
+        `${serverUrl}/gallery/case/${galleryItemId}/image`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageType,
+            orientationIndex,
+            url: publicUrl,
+          }),
+        }
+      );
 
       if (!saveResponse.ok) {
         const errorText = await saveResponse.text();
         console.error('[SimpleGalleryEditor] Save failed:', errorText);
-        throw new Error('Failed to save image URL');
+        throw new Error(`Failed to save image URL: ${errorText}`);
       }
 
       const saveData = await saveResponse.json();
       console.log('[SimpleGalleryEditor] Save response:', saveData);
-      console.log('[SimpleGalleryEditor] Image saved successfully:', publicUrl);
 
-      // Show success message
-      alert(`✅ Image uploaded successfully!\n\nKey: ${contentKey}\nURL: ${publicUrl}\n\nRefreshing gallery...`);
-      
+      // Bust the local cache so the new URL shows up immediately on this
+      // browser without a hard refresh.
+      try {
+        localStorage.removeItem('gallery_items_cache');
+        localStorage.removeItem('gallery_items_cache_timestamp');
+      } catch { /* private mode — non-fatal */ }
+
+      alert(
+        `Replaced View ${orientationIndex + 1} ${imageType === 'before' ? 'Before' : 'After'} photo successfully.`
+      );
+
       onSaved();
       onClose();
     } catch (error) {

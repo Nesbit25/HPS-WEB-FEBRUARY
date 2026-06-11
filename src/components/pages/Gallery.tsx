@@ -1804,6 +1804,23 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                     ) : (
                                       <span className="text-xs text-muted-foreground">No image</span>
                                     )}
+                                    {/* Per-view Replace button (admin edit mode).
+                                        Opens the editor with this orientation's index so the
+                                        upload writes to the correct view slot. */}
+                                    {isAdmin && isEditMode && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEditor(item.id, 'before', oIdx);
+                                        }}
+                                        className="absolute top-1.5 left-1.5 z-20 px-2 py-1 rounded-full bg-[#1a1f2e]/90 border border-[#c9b896] text-[#c9b896] text-[10px] font-semibold uppercase tracking-wider shadow-lg hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors"
+                                        title={`Replace the Before photo for View ${oIdx + 1}`}
+                                      >
+                                        <Edit2 className="w-2.5 h-2.5 inline-block mr-0.5" />
+                                        Before · V{oIdx + 1}
+                                      </button>
+                                    )}
                                   </div>
                                   {/* Vertical divider */}
                                   <div className="w-px bg-secondary/20 flex-shrink-0 z-10" />
@@ -1822,6 +1839,20 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                                       />
                                     ) : (
                                       <span className="text-xs text-muted-foreground">No image</span>
+                                    )}
+                                    {isAdmin && isEditMode && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEditor(item.id, 'after', oIdx);
+                                        }}
+                                        className="absolute top-1.5 right-1.5 z-20 px-2 py-1 rounded-full bg-[#1a1f2e]/90 border border-[#c9b896] text-[#c9b896] text-[10px] font-semibold uppercase tracking-wider shadow-lg hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors"
+                                        title={`Replace the After photo for View ${oIdx + 1}`}
+                                      >
+                                        <Edit2 className="w-2.5 h-2.5 inline-block mr-0.5" />
+                                        After · V{oIdx + 1}
+                                      </button>
                                     )}
                                   </div>
                                 </div>
@@ -2155,6 +2186,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
               ? item.beforeImage
               : item.afterImage;
           })()}
+          orientationIndex={editingItem.orientationIndex ?? 0}
           onSaved={handleImageSaved}
           accessToken={accessToken}
         />

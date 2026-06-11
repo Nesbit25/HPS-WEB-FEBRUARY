@@ -2357,6 +2357,73 @@ app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
   }
 });
 
+// Update a specific orientation's before or after image URL on a case.
+// This is the canonical write path for per-view photo replacements — the
+// older SimpleGalleryEditor flow wrote to a `gallery_<id>_<type>` content
+// key that nothing actually read, so replacements appeared to succeed but
+// the page kept showing the old photo. This endpoint mutates the case
+// record directly so the gallery picks it up on next load.
+app.patch("/make-server-fc862019/gallery/case/:id/image", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+
+    if (!user || error) {
+      console.log('[Gallery Update Image] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const { imageType, orientationIndex = 0, url } = body;
+
+    if (imageType !== 'before' && imageType !== 'after') {
+      return c.json({ error: 'imageType must be "before" or "after"' }, 400);
+    }
+    if (typeof url !== 'string' || url.length === 0) {
+      return c.json({ error: 'Missing or invalid url' }, 400);
+    }
+    const idx = typeof orientationIndex === 'number' ? orientationIndex : 0;
+
+    const existing = await kv.get(`gallery_case_${id}`);
+    if (!existing) {
+      return c.json({ error: 'Case not found' }, 404);
+    }
+
+    // Ensure orientations[] has a slot for this index.
+    const orientations = Array.isArray(existing.orientations)
+      ? [...existing.orientations]
+      : [];
+    while (orientations.length <= idx) {
+      orientations.push({ name: `View ${orientations.length + 1}`, beforeImage: null, afterImage: null });
+    }
+    const targetField = imageType === 'before' ? 'beforeImage' : 'afterImage';
+    orientations[idx] = { ...orientations[idx], [targetField]: url };
+
+    // Mirror to the top-level beforeImage / afterImage when editing view 0
+    // (the gallery card thumbnail reads from the top-level fields when
+    // orientations is empty / the primary view).
+    const next = { ...existing, orientations };
+    if (idx === 0) {
+      next[targetField] = url;
+    }
+
+    await kv.set(`gallery_case_${id}`, next);
+
+    // Bust the in-memory content cache for any keys that might still hold
+    // stale URL references — defensive only; the canonical read path is
+    // gallery_case_<id>, but a couple of legacy code paths still glance at
+    // these helper keys.
+    try { clearCacheEntry(`gallery_${id}_${imageType}`); } catch {}
+
+    console.log(`[Gallery Update Image] Case ${id} view ${idx} ${imageType} → ${url.substring(0, 80)}...`);
+    return c.json({ success: true, orientations: next.orientations });
+  } catch (error) {
+    console.log('[Gallery Update Image] Error:', error);
+    return c.json({ error: `Failed to update image: ${error.message}` }, 500);
+  }
+});
+
 // Reorder gallery cases (protected) - persists sortOrder on each case
 app.post("/make-server-fc862019/gallery/cases/reorder", async (c) => {
   try {
