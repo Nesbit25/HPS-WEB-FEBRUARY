@@ -1827,10 +1827,27 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                           const afterUrl = orientation.afterImage || item.afterImage;
                           return (
                             <div key={oIdx}>
-                              {/* Orientation label (if multiple views) */}
+                              {/* Orientation label (if multiple views) — and the
+                                  Remove View button in admin edit mode, so a
+                                  single bad view can be deleted without
+                                  opening the lightbox. Only available when
+                                  more than one view exists. */}
                               {orientations.length > 1 && orientation.name && (
-                                <div className="bg-[#1a1f2e] text-center py-1 border-b border-[#2d3548]">
+                                <div className="bg-[#1a1f2e] py-1 border-b border-[#2d3548] flex items-center justify-center gap-3 relative">
                                   <span className="text-[10px] text-gray-400 uppercase tracking-widest">{orientation.name}</span>
+                                  {isAdmin && isEditMode && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveOrientation(item.id, oIdx);
+                                      }}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-900/40 hover:bg-red-900/80 border border-red-700/60 text-red-200 hover:text-white text-[9px] uppercase tracking-wider font-semibold transition-colors"
+                                      title={`Remove ${orientation.name || `View ${oIdx + 1}`} entirely from this case`}
+                                    >
+                                      🗑️ Remove
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               {/* Before / After side by side — fixed aspect ratio for uniform sizing */}
