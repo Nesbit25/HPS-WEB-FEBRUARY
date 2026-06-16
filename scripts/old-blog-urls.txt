@@ -1,0 +1,59 @@
+# Old Hanemann blog posts to recover from the Wayback Machine.
+# One URL per line. Lines starting with # are ignored.
+# Curated to the evergreen, procedure-related articles (seasonal/specials/
+# drawings/feeds were intentionally excluded). Add or remove freely.
+
+# ---- Breast ----
+https://www.hanemannplasticsurgery.com/amazing-benefits-of-a-breast-lift/
+https://www.hanemannplasticsurgery.com/are-you-a-good-candidate-for-a-breast-lift/
+https://www.hanemannplasticsurgery.com/breast-augmentation-vs-breast-lift-choose/
+https://www.hanemannplasticsurgery.com/breast-implant-removal-what-you-need-to-know/
+https://www.hanemannplasticsurgery.com/breast-lift-after-pregnancy/
+https://www.hanemannplasticsurgery.com/considering-breast-reduction-back-pain/
+https://www.hanemannplasticsurgery.com/cost-breast-reduction/
+https://www.hanemannplasticsurgery.com/frequently-asked-questions-breast-augmentation/
+https://www.hanemannplasticsurgery.com/deciding-saline-vs-silicone-implants-baton-rouge/
+https://www.hanemannplasticsurgery.com/six-tips-preparing-breast-augmentation/
+https://www.hanemannplasticsurgery.com/when-to-choose-a-breast-lift-over-breast-augmentation/
+https://www.hanemannplasticsurgery.com/when-to-consider-a-breast-reduction/
+
+# ---- Body ----
+https://www.hanemannplasticsurgery.com/attaining-athletic-body-shape-tummy-tuck-surgery/
+https://www.hanemannplasticsurgery.com/benefits-using-tumescent-technique-liposuction/
+https://www.hanemannplasticsurgery.com/good-candidate-tummy-tuck/
+https://www.hanemannplasticsurgery.com/good-candidate-liposuction/
+https://www.hanemannplasticsurgery.com/liposuction-vs-tummy-tuck/
+https://www.hanemannplasticsurgery.com/signs-you-could-benefit-from-a-tummy-tuck-in-baton-rouge/
+https://www.hanemannplasticsurgery.com/tummy-tuck-exparel-benefits/
+https://www.hanemannplasticsurgery.com/7-reasons-consider-thigh-lift/
+https://www.hanemannplasticsurgery.com/say-goodbye-excess-arm-fat-upper-arm-lift/
+https://www.hanemannplasticsurgery.com/tips-maintaining-results-liposuction/
+https://www.hanemannplasticsurgery.com/the-top-four-benefits-of-a-tummy-tuck-in-louisiana/
+https://www.hanemannplasticsurgery.com/what-you-should-know-before-a-tummy-tuck-in-louisiana/
+
+# ---- Face ----
+https://www.hanemannplasticsurgery.com/brow-lift-vs-facelift-which-is-right-for-me/
+https://www.hanemannplasticsurgery.com/facelift-vs-mini-facelift-which-is-right-for-me/
+https://www.hanemannplasticsurgery.com/facelift-common-questions-patients-ask-procedure/
+https://www.hanemannplasticsurgery.com/good-candidate-facelift/
+https://www.hanemannplasticsurgery.com/how-long-dose-a-mini-facelift-last/
+https://www.hanemannplasticsurgery.com/what-is-a-brow-lift/
+https://www.hanemannplasticsurgery.com/what-is-a-mini-facelift/
+https://www.hanemannplasticsurgery.com/what-is-chin-surgery/
+https://www.hanemannplasticsurgery.com/what-is-otoplasty-and-what-are-the-benefits/
+https://www.hanemannplasticsurgery.com/incredible-benefits-eyelid-surgery/
+https://www.hanemannplasticsurgery.com/combine-facelift-and-neck-lift-for-maximum-results/
+
+# ---- Nose ----
+https://www.hanemannplasticsurgery.com/closed-vs-open-rhinoplasty-know-your-options/
+https://www.hanemannplasticsurgery.com/common-reasons-consider-rhinoplasty/
+https://www.hanemannplasticsurgery.com/everything-need-know-rhinoplasty-baton-rouge/
+https://www.hanemannplasticsurgery.com/improve-breathing-function-rhinoplasty/
+https://www.hanemannplasticsurgery.com/rhinoplasty-in-baton-rouge-the-dos-and-donts-after-your-treatment/
+https://www.hanemannplasticsurgery.com/the-fantastic-benefits-of-a-rhinoplasty-procedure/
+https://www.hanemannplasticsurgery.com/when-to-consider-rhinoplasty/
+
+# ---- Choosing a surgeon / practice ----
+https://www.hanemannplasticsurgery.com/4-common-types-of-plastic-surgery-in-baton-rouge/
+https://www.hanemannplasticsurgery.com/four-factors-consider-choosing-plastic-surgeon-baton-rouge/
+https://www.hanemannplasticsurgery.com/finding-best-plastic-surgeon-baton-rouge/
