@@ -12,7 +12,7 @@ import { SimpleGalleryEditor } from '../cms/SimpleGalleryEditor';
 import { NewGalleryCaseEditor } from '../cms/NewGalleryCaseEditor';
 import { BulkGalleryUploader } from '../cms/BulkGalleryUploader';
 import { GalleryOrientationManager } from '../cms/GalleryOrientationManager';
-import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon, ArrowLeft, GripVertical } from 'lucide-react';
+import { Edit2, Plus, Upload as UploadIcon, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { SEOHead } from '../seo/SEOHead';
 import { motion } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -210,9 +210,7 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   // Stores the computed card aspect ratio per item: (naturalWidth * 2) / naturalHeight
   // Multiplied by 2 because the card shows Before + After side by side
   const [imageAspectRatios, setImageAspectRatios] = useState<Record<number, number>>({});
-  // Admin drag-and-drop reorder state
-  const [draggedId, setDraggedId] = useState<number | null>(null);
-  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  // Admin reorder state (position-picker driven; drag was removed)
   const [reordering, setReordering] = useState(false);
 
 
@@ -849,23 +847,21 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     setLightboxOpen(true);
   };
 
-  // Admin drag-and-drop: reorder the currently filtered cards and persist sortOrder.
-  // Visible items are reassigned sortOrder = 0..n-1; hidden items keep their existing order.
-  const handleReorderDrop = async (targetId: number) => {
+  // Admin reorder: move a card to a chosen position (1-based in the UI) within
+  // the currently filtered view, and persist sortOrder. Visible items are
+  // reassigned sortOrder = 0..n-1; hidden items keep their existing order.
+  const handleReorderToPosition = async (caseId: number, newIndex: number) => {
     if (!isAdmin || !isEditMode) return;
-    const dragId = draggedId;
-    setDraggedId(null);
-    setDragOverId(null);
-    if (!dragId || dragId === targetId) return;
 
     const visibleIds = filteredItems.map(i => i.id);
-    const fromIdx = visibleIds.indexOf(dragId);
-    const toIdx = visibleIds.indexOf(targetId);
-    if (fromIdx === -1 || toIdx === -1) return;
+    const fromIdx = visibleIds.indexOf(caseId);
+    if (fromIdx === -1) return;
+    if (newIndex < 0 || newIndex >= visibleIds.length) return;
+    if (fromIdx === newIndex) return; // no-op
 
     const newOrder = [...visibleIds];
     newOrder.splice(fromIdx, 1);
-    newOrder.splice(toIdx, 0, dragId);
+    newOrder.splice(newIndex, 0, caseId);
 
     // Snapshot for rollback on failure
     const previousItems = galleryItems;
@@ -1714,47 +1710,14 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
             {filteredItems.map((item, index) => (
               <motion.div
                 key={item.id}
-                className={`relative ${
-                  isAdmin && isEditMode
-                    ? `transition-opacity ${draggedId === item.id ? 'opacity-40' : ''} ${
-                        dragOverId === item.id && draggedId !== null && draggedId !== item.id
-                          ? 'ring-2 ring-[#c9b896] ring-offset-2 ring-offset-[#1a1f2e] rounded-2xl'
-                          : ''
-                      }`
-                    : ''
-                }`}
+                className="relative"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.05 }}
                 whileHover={isAdmin && isEditMode ? undefined : { y: -8 }}
-                draggable={isAdmin && isEditMode}
-                onDragStart={(e) => {
-                  if (!isAdmin || !isEditMode) return;
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', String(item.id));
-                  setDraggedId(item.id);
-                }}
-                onDragOver={(e) => {
-                  if (!isAdmin || !isEditMode || draggedId === null) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  if (dragOverId !== item.id) setDragOverId(item.id);
-                }}
-                onDragLeave={() => {
-                  if (dragOverId === item.id) setDragOverId(null);
-                }}
-                onDrop={(e) => {
-                  if (!isAdmin || !isEditMode) return;
-                  e.preventDefault();
-                  handleReorderDrop(item.id);
-                }}
-                onDragEnd={() => {
-                  setDraggedId(null);
-                  setDragOverId(null);
-                }}
               >
-                {/* Admin toolbar — drag handle + edit buttons in a single wrapping row */}
+                {/* Admin toolbar — position picker + edit buttons in a single wrapping row */}
                 {isAdmin && isEditMode && (
                   <div className="absolute top-2 left-2 right-2 z-50 flex flex-wrap items-start gap-2">
                     {/* Card-level Before/After buttons edit View 1 only. To
@@ -1814,15 +1777,31 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                     >
                       🗑️
                     </Button>
-                    {/* Drag handle — sits on the right end of the toolbar so it
-                        flows with the other pills instead of overlapping them */}
+                    {/* Position picker — choose this card's order number within
+                        the current view. Replaces the old drag handle. */}
                     <div
-                      className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#1a1f2e]/90 border-2 border-[#c9b896] text-[#c9b896] text-[10px] uppercase tracking-wider cursor-move select-none shadow-2xl"
+                      className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#1a1f2e]/90 border-2 border-[#c9b896] text-[#c9b896] shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
-                      title="Drag to reorder"
+                      title="Set this card's position in the list"
                     >
-                      <GripVertical className="w-3 h-3" />
-                      Drag
+                      <span className="text-[10px] uppercase tracking-wider select-none">Pos</span>
+                      <select
+                        value={index + 1}
+                        disabled={reordering}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const target = parseInt(e.target.value, 10);
+                          if (!isNaN(target)) handleReorderToPosition(item.id, target - 1);
+                        }}
+                        className="bg-[#1a1f2e] text-[#c9b896] text-xs font-semibold rounded-md px-1.5 py-0.5 border border-[#c9b896]/40 focus:outline-none focus:border-[#c9b896] cursor-pointer disabled:opacity-50"
+                      >
+                        {filteredItems.map((_, posIdx) => (
+                          <option key={posIdx} value={posIdx + 1}>
+                            {posIdx + 1}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-[#c9b896]/60 select-none">/ {filteredItems.length}</span>
                     </div>
                   </div>
                 )}
