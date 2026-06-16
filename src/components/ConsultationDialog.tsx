@@ -75,9 +75,9 @@ export function ConsultationDialog({ open, onOpenChange }: ConsultationDialogPro
     'Other'
   ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+
     try {
       const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
       
@@ -258,7 +258,12 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+        {/* No onSubmit handler — submission is driven only by the explicit
+            Submit button's onClick. This prevents the form from auto-submitting
+            when reaching step 3 (the Next/Submit buttons share a JSX slot, and
+            an onSubmit form would fire as React swaps the button type) and
+            stops Enter-to-submit on earlier steps. */}
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-6 mt-6">
           {/* Step 1: Personal Information */}
           {step === 1 && (
             <div className="space-y-4">
@@ -456,6 +461,7 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
             
             {step < 3 ? (
               <Button
+                key="next-btn"
                 type="button"
                 onClick={handleNext}
                 className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e]"
@@ -464,7 +470,9 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
               </Button>
             ) : (
               <Button
-                type="submit"
+                key="submit-btn"
+                type="button"
+                onClick={() => handleSubmit()}
                 className="rounded-full bg-[#c9b896] hover:bg-[#b8976a] text-[#1a1f2e]"
               >
                 Submit Request
