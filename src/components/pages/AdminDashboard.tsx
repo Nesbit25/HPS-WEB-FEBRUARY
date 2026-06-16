@@ -101,6 +101,26 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
     }
   };
 
+  const deleteInquiry = async (id: string, name?: string) => {
+    if (!confirm(`Delete the inquiry from ${name || 'this person'}? This can't be undone.`)) return;
+    try {
+      const res = await fetch(`${serverUrl}/inquiries/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || `Server returned ${res.status}`);
+      }
+      // Optimistically drop it from the list, then re-sync.
+      setInquiries(prev => prev.filter(i => i.id !== id));
+      fetchInquiries();
+    } catch (error: any) {
+      console.error('Error deleting inquiry:', error);
+      alert(`Could not delete inquiry: ${error?.message || error}`);
+    }
+  };
+
   const fetchSchedule = async () => {
     setLoading(true);
     try {
@@ -481,17 +501,28 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                               <p className="text-sm text-muted-foreground">{new Date(inquiry.timestamp).toLocaleDateString()}</p>
                             </div>
                           </div>
-                          <Select value={inquiry.status} onValueChange={(value) => updateInquiryStatus(inquiry.id, value)}>
-                            <SelectTrigger className="w-40 rounded-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="new">New</SelectItem>
-                              <SelectItem value="contacted">Contacted</SelectItem>
-                              <SelectItem value="scheduled">Scheduled</SelectItem>
-                              <SelectItem value="closed">Closed</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-2">
+                            <Select value={inquiry.status} onValueChange={(value) => updateInquiryStatus(inquiry.id, value)}>
+                              <SelectTrigger className="w-40 rounded-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="new">New</SelectItem>
+                                <SelectItem value="contacted">Contacted</SelectItem>
+                                <SelectItem value="scheduled">Scheduled</SelectItem>
+                                <SelectItem value="closed">Closed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-full text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                              title="Delete this inquiry"
+                              onClick={() => deleteInquiry(inquiry.id, inquiry.name)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="p-4 space-y-2">
                           <div className="grid grid-cols-2 gap-4">

@@ -544,6 +544,29 @@ app.put("/make-server-fc862019/inquiries/:id", async (c) => {
   }
 });
 
+// Delete an inquiry (protected) — lets admins remove test/spam entries.
+app.delete("/make-server-fc862019/inquiries/:id", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+
+    if (!user || error) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    if (!id.startsWith('inquiry_')) {
+      return c.json({ error: 'Invalid inquiry id' }, 400);
+    }
+    await kv.del(id);
+    console.log('[Inquiry Delete] Removed', id);
+    return c.json({ success: true });
+  } catch (error) {
+    console.log('Error deleting inquiry:', error);
+    return c.json({ error: 'Failed to delete inquiry' }, 500);
+  }
+});
+
 // ==================== SCHEDULE ROUTES ====================
 
 // Get schedule events (protected)

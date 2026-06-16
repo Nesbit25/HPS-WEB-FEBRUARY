@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -35,6 +35,31 @@ export function ConsultationDialog({ open, onOpenChange }: ConsultationDialogPro
     consultationType: '',
     message: ''
   });
+
+  // The dialog is mounted once at the app level, so its state persists across
+  // opens. Reset to a blank step-1 form every time it opens — otherwise a
+  // prior submission leaves `submitted` true (next visitor lands straight on
+  // the Thank-You screen) and a prior visitor's typed info would still be in
+  // the fields. This guarantees every open starts fresh.
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setSubmitted(false);
+      setDate(undefined);
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        preferredContact: '',
+        procedureInterest: '',
+        additionalProcedures: [],
+        hearAboutUs: '',
+        consultationType: '',
+        message: ''
+      });
+    }
+  }, [open]);
 
   const procedures = [
     'Rhinoplasty',
