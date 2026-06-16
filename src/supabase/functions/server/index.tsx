@@ -508,9 +508,17 @@ app.get("/make-server-fc862019/inquiries", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const inquiries = await kv.getByPrefix('inquiry_');
-    return c.json({ inquiries: inquiries.sort((a: any, b: any) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    // getByPrefix returns [{ key, value }]. Flatten to the inquiry object and
+    // force id = the KV key so the row always has a valid, deletable id (older
+    // inquiries may not have stored an `id` field in their value). This also
+    // exposes timestamp/name/etc. for display and a correct sort.
+    const rows = await kv.getByPrefix('inquiry_');
+    const inquiries = rows.map((item: any) => ({
+      ...(item.value || {}),
+      id: item.key,
+    }));
+    return c.json({ inquiries: inquiries.sort((a: any, b: any) =>
+      new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
     ) });
   } catch (error) {
     console.log('Error fetching inquiries:', error);
