@@ -60,14 +60,18 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
             </p>
             <div className="flex gap-3">
               <a
-                href="#"
+                href="https://www.instagram.com/hanemannplasticsurgery/"
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Instagram"
                 className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#c9b896] hover:border-[#c9b896] hover:text-[#1a1f2e] transition-all duration-300"
               >
                 <Instagram size={15} />
               </a>
               <a
-                href="#"
+                href="https://www.facebook.com/plasticBR"
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Facebook"
                 className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-[#c9b896] hover:border-[#c9b896] hover:text-[#1a1f2e] transition-all duration-300"
               >

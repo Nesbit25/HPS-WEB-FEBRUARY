@@ -52,10 +52,10 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
           <div className="flex items-start justify-between pb-1.5">
             {/* Left Side: Social Icons (Desktop) */}
             <div className="hidden lg:flex items-center gap-3 w-1/4 pt-1">
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram">
+              <a href="https://www.instagram.com/hanemannplasticsurgery/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram">
                 <Instagram size={14}/>
               </a>
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook">
+              <a href="https://www.facebook.com/plasticBR" target="_blank" rel="noopener noreferrer" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook">
                 <Facebook size={14}/>
               </a>
             </div>
@@ -193,8 +193,8 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
             
             {/* Social Icons in Mobile */}
             <div className="flex items-center gap-6 mt-8 pt-8 border-t border-[#2d3548]">
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram"><Instagram size={20}/></a>
-              <a href="#" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook"><Facebook size={20}/></a>
+              <a href="https://www.instagram.com/hanemannplasticsurgery/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Instagram"><Instagram size={20}/></a>
+              <a href="https://www.facebook.com/plasticBR" target="_blank" rel="noopener noreferrer" className="text-white hover:text-[#c9b896] transition-colors" aria-label="Facebook"><Facebook size={20}/></a>
             </div>
           </nav>
         </div>
