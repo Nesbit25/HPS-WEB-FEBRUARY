@@ -146,76 +146,75 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 );
 
-// Helper function to get user with retry logic for connection resets
+// ===== ADMIN AUTHORIZATION =====
+// Allow-list of emails permitted to use any protected (admin) endpoint.
+// Add staff here, lowercase. This is the security anchor: a valid Supabase
+// session is NOT enough — the account must be on this list (or carry an
+// explicit role:'admin' in user_metadata, for accounts provisioned that way).
+const ADMIN_EMAILS = new Set<string>([
+  'drh@hanemannplasticsurgery.com',
+  // Add additional staff accounts here, e.g.:
+  // 'carla@hanemannplasticsurgery.com',
+  // 'nicole@hanemannplasticsurgery.com',
+]);
+
+function isAdminUser(user: any): boolean {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase();
+  if (ADMIN_EMAILS.has(email)) return true;
+  // Honor explicit role metadata so a future admin can be granted via the
+  // Supabase dashboard (user_metadata.role = "admin") without a code change.
+  if (user.user_metadata?.role === 'admin') return true;
+  return false;
+}
+
+// Helper to validate a request's bearer token AND enforce admin authorization
+// in one place. Because every protected endpoint already does
+// `if (!user || error) return 401`, returning a null user for any non-admin
+// makes that existing guard reject non-admins automatically — no per-endpoint
+// change needed. Endpoints that optionally detect admin status (e.g. blog
+// draft visibility) also work, since they treat a null user as "not admin".
 async function getUserWithRetry(accessToken: string | undefined) {
   if (!accessToken) {
     return { data: { user: null }, error: { message: 'No access token provided' } };
   }
-  
-  return await retryOperation(
+
+  const result = await retryOperation(
     async () => await supabase.auth.getUser(accessToken),
     5,  // Max 5 retries
     500 // Start with 500ms delay
   );
-}
 
-// Initialize test user on startup
-const initTestUser = async () => {
-  try {
-    console.log('Checking for test user...');
-    
-    // Wrap in retry operation to handle connection resets
-    await retryOperation(async () => {
-      // Try to create the test user
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: 'test@hanemannplasticsurgery.com',
-        password: 'Password',
-        user_metadata: { 
-          name: 'Test',
-          role: 'admin',
-          username: 'Test'
-        },
-        email_confirm: true
-      });
-
-      if (error) {
-        // User might already exist
-        if (error.message.includes('already registered')) {
-          console.log('Test user already exists - Username: Test, Password: Password');
-          return; // Success case - don't retry
-        } else {
-          // Check if it's a connection error that should be retried
-          if (error.message.includes('connection reset') || 
-              error.message.includes('connection error') ||
-              error.message.includes('network')) {
-            throw error; // Will be caught by retryOperation
-          }
-          console.log('Error creating test user:', error.message);
-          return; // Non-connection error - don't retry
-        }
-      } else {
-        console.log('Test user created successfully - Username: Test, Password: Password');
-        console.log('User ID:', data?.user?.id);
-      }
-    }, 3, 2000); // Max 3 retries with 2 second initial delay
-    
-  } catch (error) {
-    console.log('Error initializing test user after retries:', error?.message || error);
-    console.log('Server will continue without test user initialization');
+  const user = result?.data?.user;
+  if (user && !isAdminUser(user)) {
+    console.log('[Auth] Rejecting non-admin user:', user.email);
+    return { data: { user: null }, error: { message: 'Forbidden: not authorized' } };
   }
-};
-
-// Run initialization in background (don't block server startup)
-initTestUser().catch(err => console.log('Init error:', err));
+  return result;
+}
 
 // Enable logger
 app.use('*', logger(console.log));
 
-// Enable CORS for all routes and methods
+// CORS — restricted to the production site, Vercel deploys, and local dev.
+// (Previously origin:"*", which let any website call the API with a forwarded
+// bearer token.)
+const isAllowedOrigin = (origin: string): boolean => {
+  if (!origin) return false;
+  const allowed = [
+    'https://hanemannplasticsurgery.com',
+    'https://www.hanemannplasticsurgery.com',
+  ];
+  if (allowed.includes(origin)) return true;
+  if (origin.endsWith('.vercel.app')) return true;     // production + preview deploys
+  if (origin.startsWith('http://localhost')) return true; // local dev
+  return false;
+};
+
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: (origin) => (origin && isAllowedOrigin(origin) ? origin : null),
     allowHeaders: ["Content-Type", "Authorization", "apikey"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
@@ -230,30 +229,10 @@ app.get("/make-server-fc862019/health", (c) => {
 
 // ==================== AUTH ROUTES ====================
 
-// Sign up route for creating admin users
-app.post("/make-server-fc862019/signup", async (c) => {
-  try {
-    const { email, password, name } = await c.req.json();
-
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: { name, role: 'admin' },
-      // Automatically confirm the user's email since an email server hasn't been configured.
-      email_confirm: true
-    });
-
-    if (error) {
-      console.log('Signup error:', error);
-      return c.json({ error: error.message }, 400);
-    }
-
-    return c.json({ success: true, user: data.user });
-  } catch (error) {
-    console.log('Signup exception:', error);
-    return c.json({ error: 'Signup failed' }, 500);
-  }
-});
+// NOTE: The public POST /signup endpoint was removed for launch. It was
+// unauthenticated and created role:"admin" accounts — anyone on the internet
+// could have made themselves an admin. Staff accounts are now provisioned
+// directly in the Supabase dashboard (and gated by ADMIN_EMAILS above).
 
 // ==================== INQUIRY ROUTES ====================
 
@@ -1702,7 +1681,8 @@ app.get("/make-server-fc862019/gallery/img/*", async (c) => {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=300, must-revalidate',
             ...(etag ? { 'ETag': etag } : {}),
-            'Access-Control-Allow-Origin': '*'
+            // CORS is handled by the global middleware; gallery photos load via
+            // <img src> tags which don't require it. (Was a hardcoded "*".)
           }
         });
       }
@@ -3649,92 +3629,13 @@ app.post("/make-server-fc862019/pdf-resources/:id/download", async (c) => {
   }
 });
 
-// ===== PATIENT PORTAL ENDPOINTS =====
-
-// Patient signup
-app.post("/make-server-fc862019/patient/signup", async (c) => {
-  try {
-    const { email, password, firstName, lastName, phone, dob } = await c.req.json();
-    
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm since email server not configured
-      user_metadata: {
-        firstName,
-        lastName,
-        phone,
-        dob,
-        userType: 'patient' // Distinguish from admin users
-      }
-    });
-
-    if (error) {
-      console.log('Patient signup error:', error);
-      return c.json({ error: error.message }, 400);
-    }
-
-    return c.json({ success: true, userId: data.user.id });
-  } catch (error) {
-    console.log('Error creating patient account:', error);
-    return c.json({ error: 'Failed to create account' }, 500);
-  }
-});
-
-// Update patient profile
-app.put("/make-server-fc862019/patient/profile", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const updates = await c.req.json();
-    
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      user.id,
-      { user_metadata: { ...user.user_metadata, ...updates } }
-    );
-
-    if (updateError) {
-      return c.json({ error: updateError.message }, 400);
-    }
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.log('Error updating patient profile:', error);
-    return c.json({ error: 'Failed to update profile' }, 500);
-  }
-});
-
-// Get patient's own forms
-app.get("/make-server-fc862019/patient/my-forms", async (c) => {
-  try {
-    const accessToken = c.req.header('Authorization')?.split(' ')[1];
-    const { data: { user }, error } = await getUserWithRetry(accessToken);
-    
-    if (!user || error) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-
-    const allFormsData = await kv.getByPrefix('patientform_');
-    const allForms = allFormsData.map((item: any) => item.value);
-    
-    // Filter forms by user ID
-    const myForms = allForms.filter((form: any) => form.userId === user.id);
-    
-    return c.json({ 
-      forms: myForms.sort((a: any, b: any) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )
-    });
-  } catch (error) {
-    console.log('Error fetching patient forms:', error);
-    return c.json({ error: 'Failed to fetch forms' }, 500);
-  }
-});
+// ===== PATIENT PORTAL ENDPOINTS — REMOVED =====
+// The patient portal was removed. Its endpoints (/patient/signup,
+// /patient/profile, /patient/my-forms) were deleted: /patient/signup was an
+// unauthenticated account-creation route, and the others served a feature that
+// no longer exists. Patient intake forms are still submitted via the public
+// POST /patient-forms route and are readable only by admins via
+// GET /patient-forms.
 
 // ===== ANALYTICS ENDPOINTS =====
 

@@ -1,6 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabaseClient } from '../utils/supabase/client';
 
+// Mirror of the server's ADMIN_EMAILS allow-list. Keep these two in sync.
+// The server is the real enforcement point (it rejects non-admin tokens on
+// every protected endpoint); this client copy just controls whether the admin
+// UI is shown, so a stray non-admin session never sees admin controls.
+const ADMIN_EMAILS = new Set<string>([
+  'drh@hanemannplasticsurgery.com',
+  // 'carla@hanemannplasticsurgery.com',
+  // 'nicole@hanemannplasticsurgery.com',
+]);
+
+const computeIsAdmin = (user: any): boolean => {
+  if (!user) return false;
+  const email = (user.email || '').toLowerCase();
+  if (ADMIN_EMAILS.has(email)) return true;
+  if (user.user_metadata?.role === 'admin') return true;
+  return false;
+};
+
 interface AuthContextType {
   isAdmin: boolean;
   user: any | null;
@@ -48,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.access_token) {
           setUser(session.user);
           setAccessToken(session.access_token);
-          setIsAdmin(true);
+          setIsAdmin(computeIsAdmin(session.user));
           localStorage.setItem('admin_token', session.access_token);
           localStorage.setItem('admin_user', JSON.stringify(session.user));
         }
@@ -77,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (user && !userError) {
           setUser(session.user);
           setAccessToken(session.access_token);
-          setIsAdmin(true);
+          setIsAdmin(computeIsAdmin(session.user));
           
           // Store in localStorage for persistence
           localStorage.setItem('admin_token', session.access_token);
@@ -124,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session) {
         setUser(session.user);
         setAccessToken(session.access_token);
-        setIsAdmin(true);
+        setIsAdmin(computeIsAdmin(session.user));
 
         // Store in localStorage
         localStorage.setItem('admin_token', session.access_token);
@@ -166,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session) {
       setUser(session.user);
       setAccessToken(session.access_token);
-      setIsAdmin(true);
+      setIsAdmin(computeIsAdmin(session.user));
       localStorage.setItem('admin_token', session.access_token);
       localStorage.setItem('admin_user', JSON.stringify(session.user));
     }
