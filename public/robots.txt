@@ -1,0 +1,11 @@
+# Hanemann Plastic Surgery
+User-agent: *
+Allow: /
+
+# Keep admin and internal/debug routes out of search results
+Disallow: /admin
+Disallow: /admin/
+Disallow: /preview-hero
+Disallow: /patient-forms/
+
+Sitemap: https://hanemannplasticsurgery.com/sitemap.xml

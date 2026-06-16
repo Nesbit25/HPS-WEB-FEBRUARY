@@ -36,8 +36,7 @@ export const localBusinessSchema = {
   ],
   "sameAs": [
     "https://www.facebook.com/plasticBR",
-    "https://www.instagram.com/hanemannplasticsurgery/",
-    "https://www.linkedin.com/company/hanemann-plastic-surgery"
+    "https://www.instagram.com/hanemannplasticsurgery/"
   ],
   "medicalSpecialty": [
     "PlasticSurgery",

@@ -37,7 +37,9 @@ export function SEOHead({
       ? window.location.pathname
       : '/');
   const fullCanonical = `${runtimeOrigin}${runtimePath}`;
-  const resolvedOgImage = ogImage ?? `${runtimeOrigin}/og-image.jpg`;
+  // Default share image — a real hero photo (the previous /og-image.jpg never
+  // existed, so social previews had a broken image). Pages can pass their own.
+  const resolvedOgImage = ogImage ?? `${runtimeOrigin}/images/hero/desktop/hero-slide-1.jpg`;
 
   return (
     <Helmet>
