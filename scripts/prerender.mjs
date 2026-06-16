@@ -12,10 +12,14 @@
  * SAFE BY DESIGN: this is NOT wired into the default `build` script, so it
  * cannot break your Vercel deploy. Turn it on deliberately (see USAGE).
  *
- * USAGE (run on a machine with internet — needs Chromium):
- *   npm install --save-dev puppeteer
+ * USAGE:
+ *   npm install --save-dev puppeteer-core @sparticuz/chromium
  *   npm run build:prerender          # = vite build && node scripts/prerender.mjs
  *   npx serve build                  # spot-check, then deploy build/
+ *
+ * On Vercel/CI it launches @sparticuz/chromium (self-contained, no system libs
+ * needed). Locally it uses your installed Google Chrome — so dev testing needs
+ * Chrome on the machine.
  *
  * Test on a Vercel PREVIEW deployment before switching the production build
  * command from `vite build` to `npm run build:prerender`.
@@ -80,9 +84,9 @@ async function run() {
   }
   let puppeteer;
   try {
-    puppeteer = (await import('puppeteer')).default;
+    puppeteer = (await import('puppeteer-core')).default;
   } catch {
-    console.error('puppeteer not installed. Run: npm install --save-dev puppeteer');
+    console.error('puppeteer-core not installed. Run: npm install --save-dev puppeteer-core @sparticuz/chromium');
     process.exit(1);
   }
 
@@ -90,7 +94,27 @@ async function run() {
   console.log(`Prerendering ${routes.length} routes...`);
 
   const server = await startServer();
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+
+  // Vercel/CI build containers are minimal and lack Chromium's system libs, so
+  // there we use @sparticuz/chromium (a self-contained build). On a dev machine
+  // we use the locally installed Chrome (via puppeteer-core's channel lookup).
+  const onServerless = !!process.env.VERCEL || !!process.env.CI || !!process.env.AWS_REGION;
+  let browser;
+  if (onServerless) {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  } else {
+    browser = await puppeteer.launch({
+      channel: 'chrome',
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  }
   let ok = 0, fail = 0;
 
   for (const route of routes) {
