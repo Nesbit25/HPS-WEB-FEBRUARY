@@ -54,7 +54,7 @@ export function BlogPost({ onNavigate }: BlogPostProps) {
     },
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': `https://hanemannplasticsurgery.com/resources/${post.slug}`
+      '@id': `https://hanemannplasticsurgery.com/blog/${post.slug}`
     }
   };
 
@@ -79,7 +79,7 @@ export function BlogPost({ onNavigate }: BlogPostProps) {
         title={post.seoTitle}
         description={post.description}
         keywords={post.keywords}
-        canonical={`/resources/${post.slug}`}
+        canonical={`/blog/${post.slug}`}
       />
 
       {/* Schema Markup */}
@@ -160,41 +160,59 @@ export function BlogPost({ onNavigate }: BlogPostProps) {
       {/* Article Content */}
       <article className="py-16 bg-muted/20">
         <div className="container mx-auto px-6 max-w-3xl">
-          {/* Introduction */}
-          <div className="prose prose-lg max-w-none mb-12">
-            <p className="text-foreground text-lg leading-relaxed">
-              {post.content.introduction}
-            </p>
-          </div>
+          {post.bodyHtml ? (
+            /* Recovered legacy posts: render the raw HTML body as-is. */
+            <div
+              className="max-w-none text-foreground leading-relaxed
+                [&_p]:mb-6 [&_p]:leading-relaxed
+                [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-10 [&_h2]:mb-4 [&_h2]:text-foreground
+                [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-foreground
+                [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2 [&_ul]:mb-6
+                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:space-y-2 [&_ol]:mb-6
+                [&_li]:leading-relaxed
+                [&_a]:text-secondary [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-secondary/80
+                [&_strong]:font-semibold [&_strong]:text-foreground"
+              dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
+            />
+          ) : post.content ? (
+            <>
+              {/* Introduction */}
+              <div className="prose prose-lg max-w-none mb-12">
+                <p className="text-foreground text-lg leading-relaxed">
+                  {post.content.introduction}
+                </p>
+              </div>
 
-          {/* Main Sections */}
-          {post.content.sections.map((section, index) => (
-            <div key={index} className="mb-12">
-              <h2 className="mb-6">{section.heading}</h2>
-              
-              <p className="text-foreground leading-relaxed mb-6">
-                {section.content}
-              </p>
+              {/* Main Sections */}
+              {post.content.sections.map((section, index) => (
+                <div key={index} className="mb-12">
+                  <h2 className="mb-6">{section.heading}</h2>
 
-              {section.list && (
-                <ul className="space-y-3 mb-6">
-                  {section.list.map((item, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <span className="text-secondary mt-1.5 flex-shrink-0">•</span>
-                      <span className="text-foreground leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+                  <p className="text-foreground leading-relaxed mb-6">
+                    {section.content}
+                  </p>
 
-          {/* Conclusion */}
-          <div className="prose prose-lg max-w-none mb-12 p-8 bg-card rounded-2xl border border-border">
-            <p className="text-foreground text-lg leading-relaxed mb-0">
-              {post.content.conclusion}
-            </p>
-          </div>
+                  {section.list && (
+                    <ul className="space-y-3 mb-6">
+                      {section.list.map((item, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="text-secondary mt-1.5 flex-shrink-0">•</span>
+                          <span className="text-foreground leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+
+              {/* Conclusion */}
+              <div className="prose prose-lg max-w-none mb-12 p-8 bg-card rounded-2xl border border-border">
+                <p className="text-foreground text-lg leading-relaxed mb-0">
+                  {post.content.conclusion}
+                </p>
+              </div>
+            </>
+          ) : null}
         </div>
       </article>
 

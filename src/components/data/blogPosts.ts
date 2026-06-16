@@ -1,4 +1,5 @@
 // Complete blog post content with SEO optimization
+import { importedBlogPostsData } from './importedBlogPosts';
 
 export interface BlogPostData {
   id: string;
@@ -14,7 +15,12 @@ export interface BlogPostData {
   image: string;
   author: string;
   authorTitle: string;
-  content: {
+  /**
+   * Structured body (intro / sections / conclusion) used by the original
+   * hand-written posts. Optional because recovered legacy posts instead
+   * carry a raw `bodyHtml` string.
+   */
+  content?: {
     introduction: string;
     sections: Array<{
       heading: string;
@@ -23,6 +29,8 @@ export interface BlogPostData {
     }>;
     conclusion: string;
   };
+  /** Raw HTML article body (recovered legacy posts). Rendered as-is when set. */
+  bodyHtml?: string;
   relatedProcedures: string[];
   faq?: Array<{
     question: string;
@@ -514,9 +522,15 @@ export const blogPostsData: Record<string, BlogPostData> = {
   }
 };
 
+// All posts: hand-written featured posts first, then recovered legacy content.
+const allBlogPostsData: Record<string, BlogPostData> = {
+  ...blogPostsData,
+  ...importedBlogPostsData,
+};
+
 // Helper function to get blog post by slug
 export function getBlogPostBySlug(slug: string): BlogPostData | undefined {
-  return blogPostsData[slug];
+  return allBlogPostsData[slug];
 }
 
 // Helper function to get all blog post previews
@@ -531,7 +545,7 @@ export function getAllBlogPosts(): Array<{
   image: string;
   href: string;
 }> {
-  return Object.values(blogPostsData).map(post => ({
+  return Object.values(allBlogPostsData).map(post => ({
     id: post.id,
     slug: post.slug,
     title: post.title,
