@@ -59,7 +59,7 @@ export function PatientForms({ onNavigate }: PatientFormsProps) {
   return (
     <>
       <SEOHead
-        title="Patient Forms | Hanemann Plastic Surgery"
+        title="Patient Forms"
         description="Complete your patient intake forms online before your consultation at Hanemann Plastic Surgery in Baton Rouge, LA. Download or fill out forms digitally."
         path="/patient-forms"
       />

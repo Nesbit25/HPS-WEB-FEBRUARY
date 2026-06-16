@@ -30,7 +30,7 @@ export function Resources({ onNavigate }: ResourcesProps) {
   return (
     <div>
       <SEOHead
-        title="Patient Resources & Education | Hanemann Plastic Surgery Blog"
+        title="Patient Resources & Education"
         description="Plastic surgery education and resources from Dr. Hanemann in Baton Rouge. Learn about procedures, recovery, and making informed decisions about your aesthetic goals."
         keywords="plastic surgery blog, cosmetic surgery education, Baton Rouge plastic surgery information, Dr. Hanemann articles, procedure guides"
         canonical="/resources"

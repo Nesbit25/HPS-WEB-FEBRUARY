@@ -78,7 +78,7 @@ export function GalleryLanding({ onNavigate }: GalleryLandingProps) {
   return (
     <>
       <SEOHead
-        title="Photo Gallery | Hanemann Plastic Surgery"
+        title="Before & After Photo Gallery"
         description="Browse real patient before and after photos by Dr. Hanemann. View results for breast, body, face, and nose procedures."
         path="/gallery"
       />

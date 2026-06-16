@@ -285,9 +285,17 @@ export function ProcedurePage({ data, procedureType, onNavigate }: ProcedurePage
       
       {/* Breadcrumbs - Using SEO data */}
       <Breadcrumbs items={seoData.breadcrumbs} />
-      
-      {/* Page Hero */}
-      
+
+      {/* Page Hero — provides the page's single H1 (keyword-rich procedure name) */}
+      <section className="relative bg-gradient-to-br from-[#242938] to-[#1a1f2e] py-20 border-b border-[#2d3548] overflow-hidden">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#c9b896]/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="container mx-auto px-6 relative z-10">
+          <p className="text-[#c9b896] tracking-wide uppercase text-sm mb-3">Baton Rouge, LA</p>
+          <h1 className="text-[#faf9f7] mb-4">{data.title}</h1>
+          <p className="text-gray-300 max-w-3xl text-lg">{data.subtitle}</p>
+          <div className="w-24 h-1 bg-gradient-to-r from-[#c9b896] to-transparent mt-6"></div>
+        </div>
+      </section>
 
       {/* Overview Section */}
       <section className="py-24 bg-[#1a1f2e] relative overflow-hidden">
