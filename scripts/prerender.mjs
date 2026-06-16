@@ -90,7 +90,7 @@ async function run() {
   console.log(`Prerendering ${routes.length} routes...`);
 
   const server = await startServer();
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   let ok = 0, fail = 0;
 
   for (const route of routes) {
