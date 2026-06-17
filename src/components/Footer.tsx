@@ -234,6 +234,17 @@ export function Footer({ onNavigate, onOpenQuickContact }: FooterProps) {
         <p className="text-xs text-gray-500">
           © {new Date().getFullYear()} Hanemann Plastic Surgery. All rights reserved.
           {' | '}
+          {/* Discreet but real, crawlable link to the article library — keeps the
+              recovered blog content out of the spotlight yet reachable by both
+              visitors and search engines (a genuine <a href>, not hidden). */}
+          <a
+            href="/resources"
+            onClick={(e) => { e.preventDefault(); onNavigate('Resources'); }}
+            className="hover:text-[#c9b896] transition-colors text-gray-600/50"
+          >
+            Resources
+          </a>
+          {' | '}
           <button
             onClick={() => onNavigate('AdminLogin')}
             className="hover:text-[#c9b896] transition-colors text-gray-600/50"
