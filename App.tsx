@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PatientAuthProvider, usePatientAuth } from './contexts/PatientAuthContext';
 import { EditModeProvider } from './contexts/EditModeContext';
 import { HelmetProvider } from 'react-helmet-async';
+import { Analytics } from '@vercel/analytics/react';
 import { useAnalytics } from './hooks/useAnalytics';
 import { AdminEditPanel } from './components/cms/AdminEditPanel';
 import { Header } from './components/Header';
@@ -39,6 +40,7 @@ export default function App() {
           <PatientAuthProvider>
             <EditModeProvider>
               <AppContent />
+              <Analytics />
             </EditModeProvider>
           </PatientAuthProvider>
         </AuthProvider>
