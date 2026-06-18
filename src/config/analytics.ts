@@ -14,7 +14,7 @@
  */
 const ENV = import.meta.env as Record<string, string | undefined>;
 
-export const GA4_MEASUREMENT_ID = ENV.VITE_GA4_MEASUREMENT_ID || ''; // e.g. 'G-XXXXXXXXXX'
+export const GA4_MEASUREMENT_ID = ENV.VITE_GA4_MEASUREMENT_ID || 'G-H5JT171977'; // GA4 web stream
 export const GTM_CONTAINER_ID = ENV.VITE_GTM_CONTAINER_ID || ''; // e.g. 'GTM-XXXXXXX'
 
 export const GA4_ENABLED = /^G-[A-Z0-9]+$/i.test(GA4_MEASUREMENT_ID);

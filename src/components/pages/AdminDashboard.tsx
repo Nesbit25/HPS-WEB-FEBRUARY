@@ -8,7 +8,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { BarChart3, Users, Image, FileText, LogOut, Upload, Edit2, Trash2, Star, Eye, EyeOff, BookOpen, File } from 'lucide-react';
+import { BarChart3, Users, Image, LogOut, Upload, Edit2, Trash2, Star, Eye, EyeOff, BookOpen, File } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { PhotoEditDialog } from '../cms/PhotoEditDialog';
 import { ImageLocationSelector } from '../cms/ImageLocationSelector';
@@ -16,7 +16,6 @@ import { CircleAccent } from '../DecorativeElements';
 import { Inbox, Clock, CheckCircle, Calendar, Home } from 'lucide-react';
 import { BlogManager } from '../admin/BlogManager';
 import { PDFManager } from '../admin/PDFManager';
-import { PatientFormsManager } from '../admin/PatientFormsManager';
 import { AnalyticsDashboard } from '../admin/AnalyticsDashboard';
 
 interface AdminDashboardProps {
@@ -443,10 +442,6 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
               <Inbox className="w-4 h-4 mr-2" />
               Inquiries
             </TabsTrigger>
-            <TabsTrigger value="patient-forms" className="rounded-xl data-[state=active]:bg-secondary data-[state=active]:text-card">
-              <FileText className="w-4 h-4 mr-2" />
-              Patient Forms
-            </TabsTrigger>
             <TabsTrigger value="schedule" className="rounded-xl data-[state=active]:bg-secondary data-[state=active]:text-card">
               <Calendar className="w-4 h-4 mr-2" />
               Schedule
@@ -561,11 +556,6 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Patient Forms Tab */}
-          <TabsContent value="patient-forms">
-            <PatientFormsManager accessToken={accessToken} />
           </TabsContent>
 
           {/* Schedule Tab */}
