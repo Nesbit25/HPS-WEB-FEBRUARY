@@ -12,6 +12,7 @@ import { CalendarIcon, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { AccentLine, CircleAccent } from './DecorativeElements';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { trackGA } from '../utils/initAnalytics';
 
 interface ConsultationDialogProps {
   open: boolean;
@@ -117,6 +118,11 @@ ${formData.message ? `Additional Information:\n${formData.message}` : ''}
 
       if (response.ok) {
         console.log('✅ Consultation request submitted successfully');
+        // GA4 lead conversion (no-op if GA isn't loaded).
+        trackGA('generate_lead', {
+          form: 'consultation',
+          procedure: formData.procedureInterest,
+        });
         setSubmitted(true);
       } else {
         console.error('Failed to submit consultation request');

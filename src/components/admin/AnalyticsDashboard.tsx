@@ -203,7 +203,7 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
                   <TrendingUp className="w-10 h-10 text-orange-500" />
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  {summary.formCompletions}/{summary.formStarts} forms completed
+                  {summary.inquiries24h ?? 0} inquiries / {summary.sessions24h ?? 0} sessions (24h)
                 </p>
               </CardContent>
             </Card>
@@ -416,9 +416,11 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {summary.trafficSources?.map((source: any, index: number) => {
-                const percentage = ((source.count / summary.totalSessions) * 100).toFixed(1);
-                
+              {(() => {
+                const trafficTotal = (summary.trafficSources || []).reduce((sum: number, s: any) => sum + (s.count || 0), 0) || 1;
+                return summary.trafficSources?.map((source: any, index: number) => {
+                const percentage = ((source.count / trafficTotal) * 100).toFixed(1);
+
                 return (
                   <div
                     key={source.source}
@@ -441,7 +443,8 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
                     </div>
                   </div>
                 );
-              })}
+                });
+              })()}
             </div>
           </CardContent>
         </Card>

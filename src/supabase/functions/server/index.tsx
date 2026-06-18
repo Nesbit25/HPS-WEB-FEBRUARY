@@ -3752,11 +3752,19 @@ app.get("/make-server-fc862019/analytics/sessions", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const sessionsData = await kv.getByPrefix('analytics_session_');
-    const sessions = sessionsData.map((item: any) => item.value);
-    
-    // Sort by most recent
-    sessions.sort((a: any, b: any) => 
+    // Newest sessions only. Keys are timestamp-prefixed, so ordering by key desc
+    // returns the most recent (kv.getByPrefix is capped at ~1000 OLDEST rows).
+    const { data: rows, error: qErr } = await supabase
+      .from('kv_store_fc862019')
+      .select('value')
+      .like('key', 'analytics_session_%')
+      .order('key', { ascending: false })
+      .limit(100);
+    if (qErr) throw new Error(qErr.message);
+    const sessions = (rows ?? []).map((r: any) => r.value);
+
+    // Sort by most recent activity
+    sessions.sort((a: any, b: any) =>
       new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
     );
 
@@ -3802,75 +3810,14 @@ app.get("/make-server-fc862019/analytics/summary", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    const sessionsData = await kv.getByPrefix('analytics_session_');
-    const sessions = sessionsData.map((item: any) => item.value);
-    
-    const eventsData = await kv.getByPrefix('analytics_event_');
-    const events = eventsData.map((item: any) => item.value);
-
-    // Calculate summary stats
-    const now = new Date();
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const activeSessions = sessions.filter((s: any) => 
-      new Date(s.lastActivity).getTime() > now.getTime() - 30 * 60 * 1000 // Active in last 30 min
-    );
-
-    const sessions24h = sessions.filter((s: any) => 
-      new Date(s.startTime) > last24Hours
-    );
-
-    const sessions7d = sessions.filter((s: any) => 
-      new Date(s.startTime) > last7Days
-    );
-
-    const pageviews24h = events.filter((e: any) => 
-      e.eventType === 'pageview' && new Date(e.timestamp) > last24Hours
-    );
-
-    const formStarts = events.filter((e: any) => e.eventType === 'form_start');
-    const formCompletions = events.filter((e: any) => e.eventType === 'form_complete');
-    
-    // Popular pages
-    const pageViewsByPage: Record<string, number> = {};
-    events.filter((e: any) => e.eventType === 'pageview').forEach((e: any) => {
-      pageViewsByPage[e.page] = (pageViewsByPage[e.page] || 0) + 1;
-    });
-    
-    const popularPages = Object.entries(pageViewsByPage)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([page, views]) => ({ page, views }));
-
-    // Traffic sources
-    const trafficSources: Record<string, number> = {};
-    sessions.forEach((s: any) => {
-      const source = s.utmSource || s.referrer || 'direct';
-      trafficSources[source] = (trafficSources[source] || 0) + 1;
-    });
-
-    return c.json({
-      activeNow: activeSessions.length,
-      sessions24h: sessions24h.length,
-      sessions7d: sessions7d.length,
-      pageviews24h: pageviews24h.length,
-      totalSessions: sessions.length,
-      totalPageviews: events.filter((e: any) => e.eventType === 'pageview').length,
-      formStarts: formStarts.length,
-      formCompletions: formCompletions.length,
-      conversionRate: formStarts.length > 0 ? ((formCompletions.length / formStarts.length) * 100).toFixed(1) : '0',
-      popularPages,
-      trafficSources: Object.entries(trafficSources)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([source, count]) => ({ source, count })),
-      deviceBreakdown: {
-        mobile: sessions.filter((s: any) => s.deviceType === 'mobile').length,
-        tablet: sessions.filter((s: any) => s.deviceType === 'tablet').length,
-        desktop: sessions.filter((s: any) => s.deviceType === 'desktop').length
-      }
-    });
+    // Aggregate in Postgres via RPC — accurate and uncapped. kv.getByPrefix is
+    // limited to ~1000 rows, so once the store grew past 1000 sessions/events it
+    // returned only the OLDEST rows, making every "last 24h" metric read 0 and
+    // Popular Pages/Traffic show stale dev data. The SQL function counts the full
+    // set and time-bounds the breakdowns to the last 30 days.
+    const { data, error: rpcError } = await supabase.rpc('analytics_summary_fc862019');
+    if (rpcError) throw new Error(rpcError.message);
+    return c.json(data);
   } catch (error) {
     console.log('Error fetching analytics summary:', error);
     return c.json({ error: 'Failed to fetch summary' }, 500);
