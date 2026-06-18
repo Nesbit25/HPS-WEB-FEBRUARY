@@ -498,7 +498,14 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
                             </div>
                             <div>
                               <p className="font-medium">{inquiry.name}</p>
-                              <p className="text-sm text-muted-foreground">{new Date(inquiry.timestamp).toLocaleDateString()}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {inquiry.timestamp && !isNaN(new Date(inquiry.timestamp).getTime())
+                                  ? new Date(inquiry.timestamp).toLocaleString('en-US', {
+                                      year: 'numeric', month: 'short', day: 'numeric',
+                                      hour: 'numeric', minute: '2-digit'
+                                    })
+                                  : 'Date unknown'}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

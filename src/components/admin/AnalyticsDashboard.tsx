@@ -17,12 +17,13 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'traffic'>('overview');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
 
   useEffect(() => {
     fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30 seconds
+    const interval = setInterval(fetchAnalytics, 20000); // Refresh every 20 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -42,6 +43,7 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
 
       setSummary(summaryData);
       setSessions(sessionsData.sessions || []);
+      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -79,8 +81,17 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-serif text-2xl text-[#1a1f2e]">Analytics Dashboard</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Real-time tracking of website visitors and user behavior
+          <p className="text-sm text-gray-600 mt-1 flex items-center gap-2">
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            Live first-party tracking
+            {lastUpdated && (
+              <span className="text-gray-400">
+                · updated {lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
           </p>
         </div>
         <Button
@@ -129,6 +140,14 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
       {/* Overview Tab */}
       {activeTab === 'overview' && summary && (
         <>
+          {(summary.totalSessions ?? 0) === 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              No visitor data yet. These numbers are <strong>live</strong> — they fill in automatically
+              as people visit the site. Tracking is active; if you just launched, give it time (or open
+              the public site in another browser to generate a test session).
+            </div>
+          )}
+
           {/* Key Metrics */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card key="active-now" className="border-l-4 border-l-green-500">

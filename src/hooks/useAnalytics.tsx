@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { trackGA, trackGAPageView } from '../utils/initAnalytics';
 
 interface AnalyticsEvent {
   eventType: 'pageview' | 'click' | 'form_start' | 'form_complete' | 'form_abandon' | 'custom';
@@ -142,6 +143,9 @@ export function useAnalytics(userId?: string) {
   const trackPageView = async () => {
     if (!sessionIdRef.current) return;
 
+    // Mirror the page view to GA4 / GTM (no-op until those tags are configured).
+    trackGAPageView(location.pathname);
+
     try {
       await fetch(`${serverUrl}/analytics/event`, {
         method: 'POST',
@@ -172,6 +176,12 @@ export function useAnalytics(userId?: string) {
     metadata?: Record<string, any>
   ) => {
     if (!sessionIdRef.current) return;
+
+    // Mirror meaningful conversions to GA4 / GTM (no-op until tags configured).
+    // form_complete -> GA4's recommended "generate_lead" conversion event.
+    if (eventType === 'form_complete') trackGA('generate_lead', metadata || {});
+    else if (eventType === 'form_start') trackGA('form_start', metadata || {});
+    else if (eventType === 'click') trackGA('select_content', metadata || {});
 
     try {
       await fetch(`${serverUrl}/analytics/event`, {
