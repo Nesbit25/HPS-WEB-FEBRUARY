@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Calendar } from '../ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { projectId } from '../../utils/supabase/info';
-import { 
-  Activity, Users, Eye, MousePointerClick, TrendingUp, 
-  Clock, Globe, Smartphone, Monitor, Tablet, ExternalLink 
+import {
+  Activity, Users, Eye, MousePointerClick, TrendingUp,
+  Clock, Globe, Smartphone, Monitor, Tablet, ExternalLink, CalendarDays
 } from 'lucide-react';
+
+type RangeKey = 'today' | '7d' | '30d' | 'launch' | 'all' | 'custom';
+const LAUNCH_DATE = new Date('2026-06-16T00:00:00');
 
 interface AnalyticsDashboardProps {
   accessToken: string;
@@ -18,19 +23,58 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'traffic'>('overview');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
+  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
+  const [calOpen, setCalOpen] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
+
+  const getRange = (): { start: Date; end: Date } => {
+    const end = new Date();
+    const days = (n: number) => new Date(Date.now() - n * 86400000);
+    switch (rangeKey) {
+      case 'today': { const s = new Date(); s.setHours(0, 0, 0, 0); return { start: s, end }; }
+      case '30d': return { start: days(30), end };
+      case 'launch': return { start: LAUNCH_DATE, end };
+      case 'all': return { start: new Date('2020-01-01T00:00:00'), end };
+      case 'custom': {
+        const to = customRange.to ? new Date(customRange.to) : end;
+        to.setHours(23, 59, 59, 999);
+        return { start: customRange.from ?? days(7), end: to };
+      }
+      case '7d':
+      default: return { start: days(7), end };
+    }
+  };
+
+  const rangeLabel = (): string => {
+    switch (rangeKey) {
+      case 'today': return 'Today';
+      case '30d': return 'Last 30 days';
+      case 'launch': return 'Since launch';
+      case 'all': return 'All time';
+      case 'custom': {
+        const { start, end } = getRange();
+        return `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
+      }
+      case '7d':
+      default: return 'Last 7 days';
+    }
+  };
 
   useEffect(() => {
     fetchAnalytics();
     const interval = setInterval(fetchAnalytics, 20000); // Refresh every 20 seconds
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey, customRange]);
 
   const fetchAnalytics = async () => {
     try {
+      const { start, end } = getRange();
+      const qs = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
       const [summaryRes, sessionsRes] = await Promise.all([
-        fetch(`${serverUrl}/analytics/summary`, {
+        fetch(`${serverUrl}/analytics/summary?${qs.toString()}`, {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         }),
         fetch(`${serverUrl}/analytics/sessions`, {
@@ -94,13 +138,57 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
             )}
           </p>
         </div>
-        <Button
-          onClick={fetchAnalytics}
-          variant="outline"
-          className="border-[#1a1f2e] text-[#1a1f2e] hover:bg-[#1a1f2e] hover:text-white rounded-none"
-        >
-          Refresh Data
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          {/* Date-range presets */}
+          {([['today', 'Today'], ['7d', '7d'], ['30d', '30d'], ['launch', 'Since launch'], ['all', 'All']] as [RangeKey, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setRangeKey(key)}
+              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                rangeKey === key
+                  ? 'bg-[#1a1f2e] text-white border-[#1a1f2e]'
+                  : 'border-gray-300 text-gray-600 hover:border-[#1a1f2e]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+
+          {/* Custom range calendar */}
+          <Popover open={calOpen} onOpenChange={setCalOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className={`px-3 py-1.5 text-xs rounded-full border inline-flex items-center gap-1.5 transition-colors ${
+                  rangeKey === 'custom'
+                    ? 'bg-[#1a1f2e] text-white border-[#1a1f2e]'
+                    : 'border-gray-300 text-gray-600 hover:border-[#1a1f2e]'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                {rangeKey === 'custom' ? rangeLabel() : 'Custom'}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                selected={customRange as any}
+                onSelect={(r: any) => {
+                  setCustomRange(r || {});
+                  if (r?.from) setRangeKey('custom');
+                }}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            onClick={fetchAnalytics}
+            variant="outline"
+            className="border-[#1a1f2e] text-[#1a1f2e] hover:bg-[#1a1f2e] hover:text-white rounded-full text-xs px-4"
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -163,17 +251,17 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
               </CardContent>
             </Card>
 
-            <Card key="sessions-24h" className="border-l-4 border-l-blue-500">
+            <Card key="sessions" className="border-l-4 border-l-blue-500">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Sessions (24h)</p>
-                    <p className="text-3xl text-[#1a1f2e]">{summary.sessions24h}</p>
+                    <p className="text-sm text-gray-600 mb-1">Sessions</p>
+                    <p className="text-3xl text-[#1a1f2e]">{summary.sessions ?? summary.sessions24h ?? 0}</p>
                   </div>
                   <Users className="w-10 h-10 text-blue-500" />
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  {summary.sessions7d} in last 7 days
+                  {rangeLabel()} · {summary.totalSessions ?? 0} all-time
                 </p>
               </CardContent>
             </Card>
@@ -183,27 +271,25 @@ export function AnalyticsDashboard({ accessToken }: AnalyticsDashboardProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Page Views</p>
-                    <p className="text-3xl text-[#1a1f2e]">{summary.totalPageviews}</p>
+                    <p className="text-3xl text-[#1a1f2e]">{summary.pageviews ?? summary.totalPageviews ?? 0}</p>
                   </div>
                   <Eye className="w-10 h-10 text-purple-500" />
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {summary.pageviews24h} in last 24h
-                </p>
+                <p className="text-xs text-gray-500 mt-2">{rangeLabel()}</p>
               </CardContent>
             </Card>
 
-            <Card key="conversion-rate" className="border-l-4 border-l-orange-500">
+            <Card key="inquiries" className="border-l-4 border-l-orange-500">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Conversion Rate</p>
-                    <p className="text-3xl text-[#1a1f2e]">{summary.conversionRate}%</p>
+                    <p className="text-sm text-gray-600 mb-1">Inquiries</p>
+                    <p className="text-3xl text-[#1a1f2e]">{summary.inquiries ?? summary.inquiries24h ?? 0}</p>
                   </div>
-                  <TrendingUp className="w-10 h-10 text-orange-500" />
+                  <MousePointerClick className="w-10 h-10 text-orange-500" />
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  {summary.inquiries24h ?? 0} inquiries / {summary.sessions24h ?? 0} sessions (24h)
+                  {summary.conversionRate ?? '0'}% conversion · {summary.totalInquiries ?? 0} all-time
                 </p>
               </CardContent>
             </Card>

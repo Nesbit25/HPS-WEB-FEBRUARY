@@ -3810,12 +3810,15 @@ app.get("/make-server-fc862019/analytics/summary", async (c) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
-    // Aggregate in Postgres via RPC — accurate and uncapped. kv.getByPrefix is
-    // limited to ~1000 rows, so once the store grew past 1000 sessions/events it
-    // returned only the OLDEST rows, making every "last 24h" metric read 0 and
-    // Popular Pages/Traffic show stale dev data. The SQL function counts the full
-    // set and time-bounds the breakdowns to the last 30 days.
-    const { data, error: rpcError } = await supabase.rpc('analytics_summary_fc862019');
+    // Aggregate in Postgres via RPC — accurate and uncapped (kv.getByPrefix is
+    // limited to ~1000 rows). Optional ?start=ISO&end=ISO selects the window;
+    // with no params the function defaults to the last 7 days.
+    const startParam = c.req.query('start');
+    const endParam = c.req.query('end');
+    const rpcArgs: Record<string, string> = {};
+    if (startParam) rpcArgs.p_start = startParam;
+    if (endParam) rpcArgs.p_end = endParam;
+    const { data, error: rpcError } = await supabase.rpc('analytics_summary_fc862019', rpcArgs);
     if (rpcError) throw new Error(rpcError.message);
     return c.json(data);
   } catch (error) {
