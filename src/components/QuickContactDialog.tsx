@@ -6,6 +6,8 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { MessageCircle, CheckCircle } from 'lucide-react';
 import { AccentLine, CircleAccent } from './DecorativeElements';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { trackGA } from '../utils/initAnalytics';
 
 interface QuickContactDialogProps {
   open: boolean;
@@ -21,9 +23,36 @@ export function QuickContactDialog({ open, onOpenChange }: QuickContactDialogPro
     message: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    try {
+      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-fc862019`;
+      const response = await fetch(`${serverUrl}/inquiries`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          interestedIn: 'Quick Contact',
+          message: formData.message
+        })
+      });
+
+      if (response.ok) {
+        trackGA('generate_lead', { form: 'quick_contact' });
+        setSubmitted(true);
+      } else {
+        console.error('Failed to submit quick contact message');
+        alert('There was an error sending your message. Please try again or call us directly at (225) 766-2166.');
+      }
+    } catch (error) {
+      console.error('Error submitting quick contact form:', error);
+      alert('There was an error sending your message. Please try again or call us directly at (225) 766-2166.');
+    }
   };
 
   const handleClose = () => {
