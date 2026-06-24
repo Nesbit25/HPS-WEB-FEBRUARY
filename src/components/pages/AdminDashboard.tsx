@@ -8,7 +8,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { BarChart3, Users, Image, LogOut, Upload, Edit2, Trash2, Star, Eye, EyeOff, BookOpen, File } from 'lucide-react';
+import { BarChart3, Users, Image, LogOut, Upload, Edit2, Trash2, Star, Eye, EyeOff, BookOpen, File, Download } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { PhotoEditDialog } from '../cms/PhotoEditDialog';
 import { ImageLocationSelector } from '../cms/ImageLocationSelector';
@@ -118,6 +118,25 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
       console.error('Error deleting inquiry:', error);
       alert(`Could not delete inquiry: ${error?.message || error}`);
     }
+  };
+
+  const exportInquiriesCSV = () => {
+    const escape = (v: any) => `"${(v ?? '').toString().replace(/"/g, '""')}"`;
+    const headers = ['Name', 'Email', 'Phone', 'Interested In', 'Status', 'Submitted', 'Message'];
+    const rows = inquiries.map((i: any) => [
+      i.name, i.email, i.phone, i.interestedIn, i.status,
+      i.timestamp ? new Date(i.timestamp).toLocaleString() : '',
+      i.message,
+    ].map(escape).join(','));
+    const csv = [headers.map(escape).join(','), ...rows].join('\r\n');
+    // BOM so Excel reads UTF-8 correctly
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inquiries-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const fetchSchedule = async () => {
@@ -468,8 +487,18 @@ export function AdminDashboard({ accessToken, user, onLogout, onBackToWebsite }:
           <TabsContent value="inquiries">
             <Card className="border-border rounded-2xl">
               <CardHeader className="border-b border-border p-6">
-                <h3>Website Inquiries</h3>
-                <p className="text-sm text-muted-foreground mt-1">Manage contact form submissions</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3>Website Inquiries</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Manage contact form submissions</p>
+                  </div>
+                  {inquiries.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={exportInquiriesCSV} className="shrink-0 rounded-full">
+                      <Download className="w-4 h-4 mr-2" />
+                      Export CSV
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loading ? (

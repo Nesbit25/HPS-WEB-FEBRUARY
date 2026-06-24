@@ -236,19 +236,58 @@ app.get("/make-server-fc862019/health", (c) => {
 
 // ==================== INQUIRY ROUTES ====================
 
+// Optional email notification for new inquiries via Resend (best-effort).
+// No-op unless RESEND_API_KEY is set. Recipient defaults to the office email;
+// override with INQUIRY_NOTIFY_EMAIL. Sender must be a verified Resend domain
+// (override with INQUIRY_FROM_EMAIL; defaults to Resend's test sender).
+async function notifyInquiryByEmail(inquiry: any): Promise<void> {
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  if (!apiKey) return; // not configured — skip silently
+  const to = Deno.env.get('INQUIRY_NOTIFY_EMAIL') || 'drh@hanemannplasticsurgery.com';
+  const from = Deno.env.get('INQUIRY_FROM_EMAIL') || 'Hanemann Website <onboarding@resend.dev>';
+  const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html =
+    `<h2>New website inquiry</h2>` +
+    `<p><strong>Name:</strong> ${esc(inquiry.name)}</p>` +
+    `<p><strong>Email:</strong> ${esc(inquiry.email)}</p>` +
+    `<p><strong>Phone:</strong> ${esc(inquiry.phone) || '—'}</p>` +
+    `<p><strong>Interested in:</strong> ${esc(inquiry.interestedIn) || '—'}</p>` +
+    `<p><strong>Submitted:</strong> ${esc(inquiry.timestamp)}</p><hr/>` +
+    `<p style="white-space:pre-wrap">${esc(inquiry.message)}</p>`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      reply_to: inquiry.email || undefined,
+      subject: `New inquiry: ${inquiry.name || 'Website visitor'}`,
+      html,
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+}
+
 // Submit contact inquiry
 app.post("/make-server-fc862019/inquiries", async (c) => {
   try {
     const inquiry = await c.req.json();
     const timestamp = new Date().toISOString();
     const inquiryId = `inquiry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     await kv.set(inquiryId, {
       ...inquiry,
       id: inquiryId,
       timestamp,
       status: 'new'
     });
+
+    // Best-effort email notification — never blocks or fails the save.
+    try {
+      await notifyInquiryByEmail({ ...inquiry, timestamp });
+    } catch (err) {
+      console.log('Inquiry email notification failed:', (err as any)?.message ?? err);
+    }
 
     return c.json({ success: true, id: inquiryId });
   } catch (error) {
@@ -512,8 +551,16 @@ app.get("/make-server-fc862019/inquiries", async (c) => {
     // force id = the KV key so the row always has a valid, deletable id (older
     // inquiries may not have stored an `id` field in their value). This also
     // exposes timestamp/name/etc. for display and a correct sort.
-    const rows = await kv.getByPrefix('inquiry_');
-    const inquiries = rows.map((item: any) => ({
+    // Fetch directly (newest first) so we're never silently capped at
+    // PostgREST's default 1000-row limit — keys are timestamp-prefixed.
+    const { data: rows, error: qErr } = await supabase
+      .from('kv_store_fc862019')
+      .select('key, value')
+      .like('key', 'inquiry_%')
+      .order('key', { ascending: false })
+      .limit(5000);
+    if (qErr) throw new Error(qErr.message);
+    const inquiries = (rows ?? []).map((item: any) => ({
       ...(item.value || {}),
       id: item.key,
     }));
