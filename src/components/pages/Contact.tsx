@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Phone, Mail, MapPin, Clock, Send, CheckCircle } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock, Send, CheckCircle, Printer } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { EditableText } from '../cms/EditableText';
 import { EditableImage } from '../cms/EditableImage';
@@ -235,6 +235,7 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
               <div className="space-y-8 mb-12">
                 {[
                   { icon: Phone, label: 'Phone', key: 'phone' },
+                  { icon: Printer, label: 'Fax', key: 'fax' },
                   { icon: Mail, label: 'Email', key: 'email' },
                   { icon: MapPin, label: 'Address', key: 'address' },
                   { icon: Clock, label: 'Office Hours', key: 'hours' }
@@ -272,6 +273,22 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
                               <EditableText
                                 contentKey="contact_phone_description"
                                 defaultValue="Call us to schedule your consultation"
+                                as="p"
+                                className="text-gray-400 text-sm"
+                              />
+                            </>
+                          )}
+                          {item.key === 'fax' && (
+                            <>
+                              <EditableText
+                                contentKey="contact_fax_number"
+                                defaultValue="(225) 766-2164"
+                                as="p"
+                                className="text-gray-300 mb-1"
+                              />
+                              <EditableText
+                                contentKey="contact_fax_description"
+                                defaultValue="For medical records and referrals"
                                 as="p"
                                 className="text-gray-400 text-sm"
                               />
