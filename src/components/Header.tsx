@@ -118,9 +118,20 @@ export function Header({ currentPage, onNavigate, onOpenConsultation }: HeaderPr
                 </button>
               ))}
               
+              {/* Patient Forms PDF — real link (not a route), opens in a new tab */}
+              <a
+                href="/patient-forms.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] xl:text-xs uppercase tracking-widest text-white hover:text-[#c9b896] transition-colors relative group"
+              >
+                Patient Forms
+                <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-[#c9b896] transform origin-left transition-transform duration-300 scale-x-0 group-hover:scale-x-100"></span>
+              </a>
+
               <div className="h-4 w-px bg-white/20 mx-1"></div>
-              
-              <Button 
+
+              <Button
                 className="bg-[#c9b896] text-[#1a1f2e] px-3 py-1 rounded-none text-[10px] uppercase tracking-wider hover:bg-[#b8976a] transition-colors duration-300"
                 onClick={() => onOpenConsultation ? onOpenConsultation() : onNavigate('Contact')}
               >
