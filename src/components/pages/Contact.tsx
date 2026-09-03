@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Phone, Mail, MapPin, Clock, Send, CheckCircle, Printer } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock, Send, CheckCircle, Printer, FileText, Download } from 'lucide-react';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { EditableText } from '../cms/EditableText';
 import { EditableImage } from '../cms/EditableImage';
@@ -231,7 +231,24 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
                 as="h2"
                 className="mb-8 text-[#faf9f7]"
               />
-              
+
+              {/* New patient forms download — print & complete before the visit */}
+              <a
+                href="/patient-forms.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-10 flex items-center gap-4 rounded-2xl border border-[#c9b896]/40 bg-[#c9b896]/10 p-5 hover:bg-[#c9b896]/20 transition-colors group"
+              >
+                <div className="w-12 h-12 bg-[#c9b896]/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-[#c9b896]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[#faf9f7] font-medium">New Patient Forms (PDF)</p>
+                  <p className="text-gray-400 text-sm">Print &amp; complete before your visit to save time</p>
+                </div>
+                <Download className="w-5 h-5 text-[#c9b896] group-hover:translate-y-0.5 transition-transform" />
+              </a>
+
               <div className="space-y-8 mb-12">
                 {[
                   { icon: Phone, label: 'Phone', key: 'phone' },
