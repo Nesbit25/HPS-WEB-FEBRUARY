@@ -421,15 +421,19 @@ export function Contact({ onNavigate, onOpenConsultation }: ContactProps) {
               />
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
+                  asChild
                   variant="outline"
                   className="rounded-full border-[#c9b896] text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-all duration-300"
-                  onClick={() => window.open(
-                    'https://www.google.com/maps/dir/?api=1&destination=5233+Dijon+Drive,+Baton+Rouge,+LA+70808',
-                    '_blank',
-                    'noopener,noreferrer'
-                  )}
                 >
-                  Get Directions
+                  {/* Real anchor (not window.open) so it works on mobile too —
+                      window.open with a features string is blocked as a popup. */}
+                  <a
+                    href="https://www.google.com/maps/dir/?api=1&destination=5233+Dijon+Drive,+Baton+Rouge,+LA+70808"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Get Directions
+                  </a>
                 </Button>
               </motion.div>
             </motion.div>
