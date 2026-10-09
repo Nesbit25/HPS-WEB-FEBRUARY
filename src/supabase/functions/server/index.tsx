@@ -2415,9 +2415,9 @@ app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
   }
 });
 
-// Set the practice's ACTUAL patient number on a case (protected). This is an
-// internal tracking field: the public site always labels cards by on-page
-// position, so changing this never changes what visitors see.
+// Set an internal reference number on a case (protected). Admin-only badge;
+// the public gallery labels cards by on-page position, so changing this never
+// changes what visitors see.
 app.patch("/make-server-fc862019/gallery/case/:id/patient-number", async (c) => {
   try {
     const accessToken = c.req.header('Authorization')?.split(' ')[1];

@@ -135,8 +135,9 @@ const getPatientNumberFromSlug = (slug?: string): string => {
   return match[1].padStart(2, '0');
 };
 
-/** The practice's ACTUAL patient number for a case. Internal only — never shown
-    to site visitors, who always see the card's on-page position instead.
+/** Internal reference number for a case (admin-only badge; never shown to
+    visitors, who see the on-page position). Useful for matching a card back
+    to a chart or the original upload.
     Priority: explicit `patientNumber` saved on the DB record → number baked into
     the slug (`BREAST_LIFT_Patient07`) → number typed into the title by staff
     ("Patient #21", "Patient 21", "Pt 21"). Empty string when none can be found. */
@@ -156,10 +157,9 @@ const stripPatientSuffix = (title?: string): string =>
 
 /** Build display label for a card: "Procedure Name — Patient NN" (falls back gracefully).
     `overrideNumber`, when provided, is the card's ON-PAGE POSITION and replaces any
-    number derived from the slug or title. A staff-typed title such as
-    "Breast Lift -- Patient #21" therefore never leaks the real patient number:
-    when there is no procedure name, the typed suffix is stripped and the position
-    number is appended instead. */
+    number derived from the slug or title. When there is no procedure name, any
+    typed "-- Patient #21" suffix is stripped from the title and the position
+    number is appended instead, so a stale typed number never shows. */
 const getCaseDisplayLabel = (
   procedureName?: string,
   slug?: string,
@@ -831,7 +831,10 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
   // body cases sort first and the appended neck-lipo cases follow, so
   // position-based numbering naturally continues the sequence.
   //
-  // Numbering is ALWAYS position-based and ALWAYS restarts per procedure:
+  // Numbering is ALWAYS position-based and ALWAYS restarts per procedure.
+  // The practice numbers its gallery patients by their place on the page
+  // ("Patient 04" = the 4th card under that procedure), so moving a card
+  // changes its number and the detail view must follow (Oct 7–8 2026 emails).
   //  - Procedure view (one procedure selected, incl. Body/Liposuction): one
   //    sequence top-to-bottom over the visible cards.
   //  - Category and "All" views: cards are grouped by procedure (see sort
@@ -988,14 +991,14 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
     }
   };
 
-  // Admin: set the practice's ACTUAL patient number on a case. Stored on the DB
-  // record as `patientNumber`; it never affects what visitors see (their label
-  // is position-based). Requires the edge function to be deployed with the
-  // /gallery/case/:id/patient-number endpoint.
+  // Admin: set the internal reference number on a case. Stored on the DB
+  // record as `patientNumber`; never affects what visitors see (their label
+  // is the card's position). Requires the edge function to be deployed with
+  // the /gallery/case/:id/patient-number endpoint.
   const handleSetPatientNumber = async (caseId: number, current: string) => {
     if (!isAdmin || !isEditMode) return;
     const entered = window.prompt(
-      'Internal patient number for this case (not shown to visitors).\n' +
+      'Internal reference number for this case (not shown to visitors).\n' +
       'Digits only, e.g. 21.',
       current || ''
     );
@@ -2106,15 +2109,15 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
                           {label ? (
                             <h3 className="font-serif text-base text-[#b8976a] font-semibold mb-1 leading-tight">{label}</h3>
                           ) : null}
-                          {/* Admin-only: the practice's real patient number. Visitors never see this. */}
+                          {/* Admin-only: internal reference number. Visitors never see this. */}
                           {isAdmin && isEditMode && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); handleSetPatientNumber(item.id, actual); }}
-                              title="Internal patient number (not shown to visitors). Click to change."
+                              title="Internal reference number (not shown to visitors; the public label is the card's position). Click to change."
                               className="mb-2 inline-flex items-center gap-1 rounded-full border border-[#c9b896]/50 bg-[#1a1f2e] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#c9b896] hover:bg-[#c9b896] hover:text-[#1a1f2e] transition-colors"
                             >
-                              Actual Pt #{actual || '—'}
+                              Ref #{actual || '—'}
                             </button>
                           )}
                         </>
@@ -2377,15 +2380,20 @@ export function Gallery({ onNavigate, initialCategory, initialProcedure }: Galle
           const raw = filteredItems[currentLightboxIndex];
           if (!raw) return raw;
           // The lightbox heading is built with the SAME label function as the
-          // card, so it can never disagree with the card and can never leak a
-          // staff-typed real patient number (e.g. "Breast Lift -- Patient #21").
+          // card, so it can never disagree with the card and can never show a
+          // stale staff-typed number (e.g. "Breast Lift -- Patient #21" typed
+          // when the case sat at slot 21, before it was moved to slot 4).
+          // The pill under the heading shows the CATEGORY ("Breast"), not the
+          // `procedure` field: imported cases store the category there while
+          // admin-created cases store the procedure name, and the practice
+          // wants one consistent tag.
           const label = getCaseDisplayLabel(
             resolveProcedureName(raw),
             raw.slug,
             raw.title,
             displayPatientNumberOverrides[raw.id]
           );
-          return label ? { ...raw, title: label } : raw;
+          return { ...raw, title: label || raw.title, procedure: raw.category || raw.procedure };
         })()}
         currentIndex={currentLightboxIndex}
         totalImages={filteredItems.length}
