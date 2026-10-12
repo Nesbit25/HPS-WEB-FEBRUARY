@@ -2415,6 +2415,47 @@ app.patch("/make-server-fc862019/gallery/case/:id/category", async (c) => {
   }
 });
 
+// Set an internal reference number on a case (protected). Admin-only badge;
+// the public gallery labels cards by on-page position, so changing this never
+// changes what visitors see.
+app.patch("/make-server-fc862019/gallery/case/:id/patient-number", async (c) => {
+  try {
+    const accessToken = c.req.header('Authorization')?.split(' ')[1];
+    const { data: { user }, error } = await getUserWithRetry(accessToken);
+    if (!user || error) {
+      console.log('[Gallery Patient Number] Authorization error:', error);
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const id = c.req.param('id');
+    if (!/^\d+$/.test(id)) {
+      return c.json({ error: 'Invalid case id' }, 400);
+    }
+    const body = await c.req.json();
+    const raw = body?.patientNumber;
+    const value = raw === undefined || raw === null ? '' : String(raw).trim();
+    // Digits only, 1–6 chars; empty string clears the field.
+    if (value !== '' && !/^\d{1,6}$/.test(value)) {
+      return c.json({ error: 'patientNumber must be 1–6 digits (or empty to clear)' }, 400);
+    }
+
+    const existing = await kv.get(`gallery_case_${id}`);
+    if (!existing) {
+      return c.json({ error: 'Case not found' }, 404);
+    }
+
+    const next: Record<string, unknown> = { ...existing };
+    if (value === '') delete next.patientNumber; else next.patientNumber = value;
+    await kv.set(`gallery_case_${id}`, next);
+
+    console.log(`[Gallery Patient Number] Case ${id}: patientNumber = ${value || '(cleared)'}`);
+    return c.json({ success: true, patientNumber: value || null });
+  } catch (error) {
+    console.log('[Gallery Patient Number] Error:', error);
+    return c.json({ error: `Failed to set patient number: ${error.message}` }, 500);
+  }
+});
+
 // Update a specific orientation's before or after image URL on a case.
 // This is the canonical write path for per-view photo replacements — the
 // older SimpleGalleryEditor flow wrote to a `gallery_<id>_<type>` content
